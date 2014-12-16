@@ -1,43 +1,44 @@
-QGIS
-Building QGIS from source - step by step
+# QGIS
+
+## Building QGIS from source - step by step
+
 Monday November 24, 2014
 
-
-Last Updated: Monday November 24, 2014
-Last Change : Monday November 24, 2014
-
+Last Updated | Monday November 24, 2014
+------------ | ------------------------
+Last Change  | Monday November 24, 2014
 
   1. Introduction
   2. Overview
   3. Building on GNU/Linux
-    3.1. Building QGIS with Qt 4.x
-    3.2. Prepare apt
-    3.3. Install build dependencies
-    3.4. Setup ccache (Optional)
-    3.5. Prepare your development environment
-    3.6. Check out the QGIS Source Code
-    3.7. Starting the compile
-    3.8. Building Debian packages
+    1. Building QGIS with Qt 4.x
+    2. Prepare apt
+    3. Install build dependencies
+    4. Setup ccache (Optional)
+    5. Prepare your development environment
+    6. Check out the QGIS Source Code
+    7. Starting the compile
+    8. Building Debian packages
   4. Building on Windows
-    4.1. Building with Microsoft Visual Studio
-    4.2. Building using MinGW
-    4.3. Creation of MSYS environment for compilation of QGIS
+    1. Building with Microsoft Visual Studio
+    2. Building using MinGW
+    3. Creation of MSYS environment for compilation of QGIS
   5. Building on MacOS X
-    5.1. Install Developer Tools
-    5.2. Install Qt4 from disk image
-    5.3. Install CMake for OSX
-    5.4. Install development frameworks for QGIS dependencies
-    5.5. API documentation
-    5.6. QGIS source
-    5.7. Configure the build
-    5.8. Building
-    5.9. Post-Install
+    1. Install Developer Tools
+    2. Install Qt4 from disk image
+    3. Install CMake for OSX
+    4. Install development frameworks for QGIS dependencies
+    5. API documentation
+    6. QGIS source
+    7. Configure the build
+    8. Building
+    9. Post-Install
   6. Setting up the WCS test server on GNU/Linux
-    6.1. Preparation
-    6.2. Setup mapserver
-    6.3. Create a home page
-    6.4. Now deploy it
-    6.5. Debugging
+    1. Preparation
+    2. Setup mapserver
+    3. Create a home page
+    4. Now deploy it
+    5. Debugging
   7. Setting up a Jenkins Build Server
   8. Debug output and running tests
   9. Authors and Acknowledgments
