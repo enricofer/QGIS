@@ -525,6 +525,8 @@ void QgsAttributeForm::init()
     Q_FOREACH ( const QgsRelation& rel, QgsProject::instance()->relationManager()->referencedRelations( mLayer ) )
     {
       QgsRelationWidgetWrapper* rww = new QgsRelationWidgetWrapper( mLayer, rel, 0, this );
+      QgsEditorWidgetConfig cfg = mLayer->editFormConfig()->widgetConfig( rel.id() );
+      rww->setConfig( cfg );
       rww->setContext( mContext );
       gridLayout->addWidget( rww->widget(), row++, 0, 1, 2 );
       mWidgets.append( rww );
@@ -601,7 +603,6 @@ void QgsAttributeForm::initPython()
       QgsDebugMsg( "No dot in editFormInit and no custom python code provided! There is nothing to run." );
     }
 
-
     QgsPythonRunner::run( "import inspect" );
     QString numArgs;
     QgsPythonRunner::eval( QString( "len(inspect.getargspec(%1)[0])" ).arg( module ), numArgs );
@@ -672,6 +673,8 @@ QWidget* QgsAttributeForm::createWidgetFromDef( const QgsAttributeEditorElement 
       const QgsAttributeEditorRelation* relDef = dynamic_cast<const QgsAttributeEditorRelation*>( widgetDef );
 
       QgsRelationWidgetWrapper* rww = new QgsRelationWidgetWrapper( mLayer, relDef->relation(), 0, this );
+      QgsEditorWidgetConfig cfg = mLayer->editFormConfig()->widgetConfig( relDef->relation().id() );
+      rww->setConfig( cfg );
       rww->setContext( context );
       newWidget = rww->widget();
       mWidgets.append( rww );
@@ -794,7 +797,7 @@ void QgsAttributeForm::createWrappers()
       if ( relation.isValid() )
       {
         QgsRelationWidgetWrapper* rww = new QgsRelationWidgetWrapper( mLayer, relation, myWidget, this );
-        rww->setConfig( QgsEditorWidgetConfig() );
+        rww->setConfig( mLayer->editFormConfig()->widgetConfig( relation.id() ) );
         rww->setContext( mContext );
         rww->widget(); // Will initialize the widget
         mWidgets.append( rww );
