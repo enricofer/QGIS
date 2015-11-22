@@ -203,6 +203,8 @@ class APP_EXPORT QgsFieldsProperties : public QWidget, private Ui_QgsFieldsPrope
     FieldConfig configForRow( int row );
     void setConfigForRow( int row, const FieldConfig& cfg );
 
+    QList<QgsRelation> mRelations;
+
     QgsVectorLayer* mLayer;
     DesignerTree* mDesignerTree;
     DragList* mFieldsList;
@@ -235,6 +237,7 @@ class APP_EXPORT QgsFieldsProperties : public QWidget, private Ui_QgsFieldsPrope
       RelLayerCol,
       RelFieldCol,
       RelIdCol,
+      RelNmCol,
       RelColCount
     };
 
