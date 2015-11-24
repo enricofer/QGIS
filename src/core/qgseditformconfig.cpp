@@ -176,6 +176,32 @@ void QgsEditFormConfig::readXml( const QDomNode& node )
     QgsAttributeEditorElement *attributeEditorWidget = attributeEditorElementFromDomElement( elem, this );
     addTab( attributeEditorWidget );
   }
+
+
+  //// TODO: MAKE THIS MORE GENERIC, SO INDIVIDUALL WIDGETS CAN NOT ONLY SAVE STRINGS
+  /// SEE QgsEditorWidgetFactory::writeConfig
+
+  QDomElement widgetsElem = node.namedItem( "widgets" ).toElement();
+
+  QDomNodeList widgetConfigsElems = widgetsElem.childNodes();
+
+  for ( int i = 0; i < widgetConfigsElems.size(); ++i )
+  {
+    QgsEditorWidgetConfig cfg;
+
+    QDomElement wdgElem = widgetConfigsElems.at( i ).toElement();
+
+    QDomElement cfgElem = wdgElem.namedItem( "config" ).toElement();
+
+    for ( int j = 0; j < cfgElem.attributes().size(); ++j )
+    {
+      QDomAttr attr = cfgElem.attributes().item( j ).toAttr();
+      cfg[attr.name()] = attr.value();
+    }
+
+    setWidgetConfig( wdgElem.attribute( "name" ), cfg );
+  }
+  //// END TODO
 }
 
 void QgsEditFormConfig::writeXml( QDomNode& node ) const
@@ -250,14 +276,17 @@ void QgsEditFormConfig::writeXml( QDomNode& node ) const
   {
     if ( mFields.indexFromName( configIt.key() ) == -1 )
     {
-      QDomElement widgetElem = doc.createElement( "config" );
+      QDomElement widgetElem = doc.createElement( "widget" );
       widgetElem.setAttribute( "name", configIt.key() );
+
+      QDomElement configElem = doc.createElement( "config" );
+      widgetElem.appendChild( configElem );
 
       QgsEditorWidgetConfig::ConstIterator cfgIt( configIt.value().constBegin() );
 
       while ( cfgIt != configIt.value().constEnd() )
       {
-        widgetElem.setAttribute( cfgIt.key(), cfgIt.value().toString() );
+        configElem.setAttribute( cfgIt.key(), cfgIt.value().toString() );
         ++cfgIt;
       }
 
