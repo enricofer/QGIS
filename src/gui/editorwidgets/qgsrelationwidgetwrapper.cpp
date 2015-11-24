@@ -17,6 +17,7 @@
 
 #include "qgsrelationeditorwidget.h"
 #include "qgsattributeeditorcontext.h"
+#include "qgsproject.h"
 
 #include <QWidget>
 
@@ -70,6 +71,11 @@ void QgsRelationWidgetWrapper::initWidget( QWidget* editor )
     ctx = ctx->parentContext();
   }
   while ( ctx );
+
+  QgsRelation nmrel = QgsProject::instance()->relationManager()->relation( config( "nm-rel" ).toString() );
+
+  if ( nmrel.isValid() )
+    w->setQgisNmRelation( nmrel );
 
   mWidget = w;
 }

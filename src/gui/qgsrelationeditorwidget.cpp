@@ -31,9 +31,6 @@
 QgsRelationEditorWidget::QgsRelationEditorWidget( QWidget* parent )
     : QgsCollapsibleGroupBox( parent )
     , mViewMode( QgsDualView::AttributeEditor )
-    , mEditorContext( QgsAttributeEditorContext() )
-    , mRelation( QgsRelation() )
-    , mFeature( QgsFeature() )
     , mInitialized( false )
 {
   QVBoxLayout* topLayout = new QVBoxLayout( this );
@@ -187,9 +184,9 @@ void QgsRelationEditorWidget::setQgisRelation( const QString& qgisRelationId )
   loadState();
 }
 
-void QgsRelationEditorWidget::setQgisNmRelation( const QString& qgisRelationId )
+void QgsRelationEditorWidget::setQgisNmRelation( const QgsRelation& nmRelation )
 {
-  mNmRelationId = qgisRelationId;
+  mNmRelation = nmRelation;
 
   loadState();
 }
