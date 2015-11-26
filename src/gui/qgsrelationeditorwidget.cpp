@@ -31,7 +31,7 @@
 QgsRelationEditorWidget::QgsRelationEditorWidget( QWidget* parent )
     : QgsCollapsibleGroupBox( parent )
     , mViewMode( QgsDualView::AttributeEditor )
-    , mInitialized( false )
+    , mVisible( false )
 {
   QVBoxLayout* topLayout = new QVBoxLayout( this );
   topLayout->setContentsMargins( 0, 9, 0, 0 );
@@ -98,7 +98,7 @@ QgsRelationEditorWidget::QgsRelationEditorWidget( QWidget* parent )
   topLayout->addLayout( buttonLayout );
 
   // Set initial state for add/remove etc. buttons
-  referencingLayerEditingToggled();
+  updateButtons();
 
   mRelationLayout = new QGridLayout();
   mRelationLayout->setContentsMargins( 0, 0, 0, 0 );
@@ -125,15 +125,15 @@ void QgsRelationEditorWidget::setRelationFeature( const QgsRelation& relation, c
 {
   if ( mRelation.isValid() )
   {
-    disconnect( mRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( referencingLayerEditingToggled() ) );
-    disconnect( mRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( referencingLayerEditingToggled() ) );
+    disconnect( mRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( updateButtons() ) );
+    disconnect( mRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( updateButtons() ) );
   }
 
   mRelation = relation;
   mFeature = feature;
 
-  connect( mRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( referencingLayerEditingToggled() ) );
-  connect( mRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( referencingLayerEditingToggled() ) );
+  connect( mRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( updateButtons() ) );
+  connect( mRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( updateButtons() ) );
 
   setTitle( relation.name() );
 
@@ -143,7 +143,7 @@ void QgsRelationEditorWidget::setRelationFeature( const QgsRelation& relation, c
   if ( canChangeAttributes && !lyr->isReadOnly() )
   {
     mToggleEditingButton->setEnabled( true );
-    referencingLayerEditingToggled();
+    updateButtons();
   }
   else
   {
@@ -157,12 +157,59 @@ void QgsRelationEditorWidget::setRelationFeature( const QgsRelation& relation, c
   // If it is already initialized, it has been set visible before and the currently shown feature is changing
   // and the widget needs updating
 
-  if ( mInitialized )
+  if ( mVisible )
   {
     QgsFeatureRequest myRequest = mRelation.getRelatedFeaturesRequest( mFeature );
 
     mDualView->init( mRelation.referencingLayer(), 0, myRequest, mEditorContext );
   }
+}
+
+void QgsRelationEditorWidget::setRelations( const QgsRelation& relation, const QgsRelation& nmrelation )
+{
+  if ( mRelation.isValid() )
+  {
+    disconnect( mRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( updateButtons() ) );
+    disconnect( mRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( updateButtons() ) );
+  }
+
+  if ( mNmRelation.isValid() )
+  {
+    disconnect( mNmRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( updateButtons() ) );
+    disconnect( mNmRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( updateButtons() ) );
+  }
+
+  mRelation = relation;
+  mNmRelation = nmrelation;
+
+  connect( mRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( updateButtons() ) );
+  connect( mRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( updateButtons() ) );
+
+  if ( mNmRelation.isValid() )
+  {
+    connect( mNmRelation.referencingLayer(), SIGNAL( editingStarted() ), this, SLOT( updateButtons() ) );
+    connect( mNmRelation.referencingLayer(), SIGNAL( editingStopped() ), this, SLOT( updateButtons() ) );
+  }
+
+  setTitle( relation.name() );
+
+  QgsVectorLayer* lyr = relation.referencingLayer();
+
+  bool canChangeAttributes = lyr->dataProvider()->capabilities() & QgsVectorDataProvider::ChangeAttributeValues;
+  if ( canChangeAttributes && !lyr->isReadOnly() )
+  {
+    mToggleEditingButton->setEnabled( true );
+    updateButtons();
+  }
+  else
+  {
+    mToggleEditingButton->setEnabled( false );
+  }
+
+  setObjectName( mRelation.name() );
+  loadState();
+
+  updateUi();
 }
 
 void QgsRelationEditorWidget::setEditorContext( const QgsAttributeEditorContext& context )
@@ -176,33 +223,33 @@ void QgsRelationEditorWidget::setViewMode( QgsDualView::ViewMode mode )
   mViewMode = mode;
 }
 
-void QgsRelationEditorWidget::setQgisRelation( const QString& qgisRelationId )
+
+void QgsRelationEditorWidget::setFeature( const QgsFeature& feature )
 {
-  mRelationId = qgisRelationId;
-  // by setting the object name appropriately we can properly save the collapsed state
-  setObjectName( qgisRelationId );
-  loadState();
+  mFeature = feature;
+
+  updateUi();
 }
 
-void QgsRelationEditorWidget::setQgisNmRelation( const QgsRelation& nmRelation )
-{
-  mNmRelation = nmRelation;
-
-  loadState();
-}
-
-void QgsRelationEditorWidget::referencingLayerEditingToggled()
+void QgsRelationEditorWidget::updateButtons()
 {
   bool editable = false;
+  bool linkable = false;
   if ( mRelation.isValid() )
   {
     editable = mRelation.referencingLayer()->isEditable();
+    linkable = mRelation.referencingLayer()->isEditable();
+  }
+
+  if ( mNmRelation.isValid() )
+  {
+    editable = mNmRelation.referencedLayer()->isEditable();
   }
 
   mAddFeatureButton->setEnabled( editable );
-  mLinkFeatureButton->setEnabled( editable );
+  mLinkFeatureButton->setEnabled( linkable );
   mDeleteFeatureButton->setEnabled( editable );
-  mUnlinkFeatureButton->setEnabled( editable );
+  mUnlinkFeatureButton->setEnabled( linkable );
   mToggleEditingButton->setChecked( editable );
   mSaveEditsButton->setEnabled( editable );
 }
@@ -257,26 +304,33 @@ void QgsRelationEditorWidget::deleteFeature()
 
 void QgsRelationEditorWidget::unlinkFeature()
 {
-  QMap<int, QgsField> keyFields;
-  Q_FOREACH ( const QgsRelation::FieldPair& fieldPair, mRelation.fieldPairs() )
+  if ( mNmRelation.isValid() )
   {
-    int idx = mRelation.referencingLayer()->fieldNameIndex( fieldPair.referencingField() );
-    if ( idx < 0 )
-    {
-      QgsDebugMsg( QString( "referencing field %1 not found" ).arg( fieldPair.referencingField() ) );
-      return;
-    }
-    QgsField fld = mRelation.referencingLayer()->fields().at( idx );
-    keyFields.insert( idx, fld );
-  }
 
-  Q_FOREACH ( QgsFeatureId fid, mFeatureSelectionMgr->selectedFeaturesIds() )
+  }
+  else
   {
-    QMapIterator<int, QgsField> it( keyFields );
-    while ( it.hasNext() )
+    QMap<int, QgsField> keyFields;
+    Q_FOREACH ( const QgsRelation::FieldPair& fieldPair, mRelation.fieldPairs() )
     {
-      it.next();
-      mRelation.referencingLayer()->changeAttributeValue( fid, it.key(), QVariant( it.value().type() ) );
+      int idx = mRelation.referencingLayer()->fieldNameIndex( fieldPair.referencingField() );
+      if ( idx < 0 )
+      {
+        QgsDebugMsg( QString( "referencing field %1 not found" ).arg( fieldPair.referencingField() ) );
+        return;
+      }
+      QgsField fld = mRelation.referencingLayer()->fields().at( idx );
+      keyFields.insert( idx, fld );
+    }
+
+    Q_FOREACH ( QgsFeatureId fid, mFeatureSelectionMgr->selectedFeaturesIds() )
+    {
+      QMapIterator<int, QgsField> it( keyFields );
+      while ( it.hasNext() )
+      {
+        it.next();
+        mRelation.referencingLayer()->changeAttributeValue( fid, it.key(), QVariant( it.value().type() ) );
+      }
     }
   }
 }
@@ -286,26 +340,63 @@ void QgsRelationEditorWidget::toggleEditing( bool state )
   if ( state )
   {
     mEditorContext.vectorLayerTools()->startEditing( mRelation.referencingLayer() );
+    if ( mNmRelation.isValid() )
+      mEditorContext.vectorLayerTools()->startEditing( mNmRelation.referencedLayer() );
   }
   else
   {
     mEditorContext.vectorLayerTools()->stopEditing( mRelation.referencingLayer() );
+    if ( mNmRelation.isValid() )
+      mEditorContext.vectorLayerTools()->stopEditing( mNmRelation.referencedLayer() );
   }
 }
 
 void QgsRelationEditorWidget::saveEdits()
 {
   mEditorContext.vectorLayerTools()->saveEdits( mRelation.referencingLayer() );
+  if ( mNmRelation.isValid() )
+    mEditorContext.vectorLayerTools()->saveEdits( mNmRelation.referencedLayer() );
 }
 
 void QgsRelationEditorWidget::onCollapsedStateChanged( bool collapsed )
 {
-  if ( !mInitialized && !collapsed && mRelation.isValid() )
-  {
-    mInitialized = true;
+  if ( !collapsed )
+    mVisible = true;
 
+  updateUi();
+}
+
+void QgsRelationEditorWidget::updateUi()
+{
+  // If not yet initialized, it is not (yet) visible, so we don't load it to be faster (lazy loading)
+  // If it is already initialized, it has been set visible before and the currently shown feature is changing
+  // and the widget needs updating
+
+  if ( mVisible )
+  {
     QgsFeatureRequest myRequest = mRelation.getRelatedFeaturesRequest( mFeature );
 
-    mDualView->init( mRelation.referencingLayer(), 0, myRequest, mEditorContext );
+    if ( mNmRelation.isValid() )
+    {
+      QgsFeatureIterator it = mRelation.referencingLayer()->getFeatures( myRequest );
+
+      QgsFeature fet;
+      QgsFeatureIds ids;
+
+      while ( it.nextFeature( fet ) )
+      {
+        ids << fet.id();
+      }
+
+      QgsFeatureRequest nmRequest;
+
+      nmRequest.setFilterFids( ids );
+
+      mDualView->init( mNmRelation.referencedLayer(), 0, nmRequest, mEditorContext );
+    }
+    else
+    {
+      mDualView->init( mRelation.referencingLayer(), 0, myRequest, mEditorContext );
+    }
   }
 }

@@ -36,7 +36,7 @@ QWidget* QgsRelationWidgetWrapper::createWidget( QWidget* parent )
 void QgsRelationWidgetWrapper::setFeature( const QgsFeature& feature )
 {
   if ( mWidget && mRelation.isValid() )
-    mWidget->setRelationFeature( mRelation, feature );
+    mWidget->setFeature( feature );
 }
 
 void QgsRelationWidgetWrapper::initWidget( QWidget* editor )
@@ -74,8 +74,7 @@ void QgsRelationWidgetWrapper::initWidget( QWidget* editor )
 
   QgsRelation nmrel = QgsProject::instance()->relationManager()->relation( config( "nm-rel" ).toString() );
 
-  if ( nmrel.isValid() )
-    w->setQgisNmRelation( nmrel );
+  w->setRelations( mRelation, nmrel );
 
   mWidget = w;
 }
