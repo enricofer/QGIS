@@ -17,45 +17,94 @@
 #define QGSCUSTOMLAYERORDERWIDGET_H
 
 #include <QWidget>
+#include "qgis.h"
+#include <QAbstractListModel>
+#include "qgis_gui.h"
 
 class CustomLayerOrderModel;
 class QgsLayerTreeMapCanvasBridge;
 class QgsLayerTreeNode;
+class QgsMapLayer;
 
 class QCheckBox;
 class QListView;
 
 /**
+  \ingroup gui
  * The QgsCustomLayerOrderWidget class provides a list box where the user can define
  * custom order for drawing of layers. It also features a checkbox for enabling
  * or disabling the custom order. Any changes made by the user are automatically
  * propagated to the assigned QgsLayerTreeMapCanvasBridge. Also, any updates
  * to the layer tree cause refresh of the list.
  *
- * @see QgsLayerTreeMapCanvasBridge
- * @note added in 2.4
+ * \see QgsLayerTreeMapCanvasBridge
+ * \since QGIS 2.4
  */
 class GUI_EXPORT QgsCustomLayerOrderWidget : public QWidget
 {
     Q_OBJECT
   public:
-    explicit QgsCustomLayerOrderWidget( QgsLayerTreeMapCanvasBridge* bridge, QWidget *parent = 0 );
+
+    //! Constructor for QgsCustomLayerOrderWidget
+    explicit QgsCustomLayerOrderWidget( QgsLayerTreeMapCanvasBridge *bridge, QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
   signals:
 
-  protected slots:
-    void bridgeHasCustomLayerOrderChanged( bool override );
-    void bridgeCustomLayerOrderChanged( const QStringList& order );
-    void nodeVisibilityChanged( QgsLayerTreeNode* node, Qt::CheckState state );
+  private slots:
+    void bridgeHasCustomLayerOrderChanged( bool state );
+    void bridgeCustomLayerOrderChanged();
+    //! Slot triggered when the ivsibility of a node changes
+    void nodeVisibilityChanged( QgsLayerTreeNode *node );
 
     void modelUpdated();
 
-  protected:
-    QgsLayerTreeMapCanvasBridge* mBridge;
+  private:
+    QgsLayerTreeMapCanvasBridge *mBridge = nullptr;
 
-    QCheckBox* mChkOverride;
-    CustomLayerOrderModel* mModel;
-    QListView* mView;
+    QCheckBox *mChkOverride = nullptr;
+    CustomLayerOrderModel *mModel = nullptr;
+    QListView *mView = nullptr;
 };
+
+
+#ifndef SIP_RUN
+///@cond PRIVATE
+class CustomLayerOrderModel : public QAbstractListModel
+{
+    Q_OBJECT
+
+  public:
+    CustomLayerOrderModel( QgsLayerTreeMapCanvasBridge *bridge, QObject *parent = nullptr );
+
+    int rowCount( const QModelIndex & ) const override;
+
+    QVariant data( const QModelIndex &index, int role ) const override;
+
+    bool setData( const QModelIndex &index, const QVariant &value, int role ) override;
+
+    Qt::ItemFlags flags( const QModelIndex &index ) const override;
+
+    Qt::DropActions supportedDropActions() const override;
+
+    QStringList mimeTypes() const override;
+
+    QMimeData *mimeData( const QModelIndexList &indexes ) const override;
+
+    bool dropMimeData( const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent ) override;
+
+    bool removeRows( int row, int count, const QModelIndex &parent ) override;
+
+    void refreshModel( const QList<QgsMapLayer *> &order );
+
+    QStringList order() const { return mOrder; }
+
+    void updateLayerVisibility( const QString &layerId );
+
+  protected:
+    QgsLayerTreeMapCanvasBridge *mBridge = nullptr;
+    QStringList mOrder;
+};
+/// @endcond
+#endif
 
 #endif // QGSCUSTOMLAYERORDERWIDGET_H

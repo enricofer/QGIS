@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -18,18 +18,18 @@
 #include "qgsclassificationwidgetwrapper.h"
 #include "qgsdummyconfigdlg.h"
 
-QgsClassificationWidgetWrapperFactory::QgsClassificationWidgetWrapperFactory( const QString& name )
-    :  QgsEditorWidgetFactory( name )
+QgsClassificationWidgetWrapperFactory::QgsClassificationWidgetWrapperFactory( const QString &name )
+  :  QgsEditorWidgetFactory( name )
 {
 }
 
 
-QgsEditorWidgetWrapper*QgsClassificationWidgetWrapperFactory::create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const
+QgsEditorWidgetWrapper *QgsClassificationWidgetWrapperFactory::create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const
 {
   return new QgsClassificationWidgetWrapper( vl, fieldIdx, editor, parent );
 }
 
-QgsEditorConfigWidget*QgsClassificationWidgetWrapperFactory::configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+QgsEditorConfigWidget *QgsClassificationWidgetWrapperFactory::configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
 {
-  return new QgsDummyConfigDlg( vl, fieldIdx, parent, QObject::tr( "Displays a combo box containing values of attributes used for classification." ) );
+  return new QgsDummyConfigDlg( vl, fieldIdx, parent, QObject::tr( "Displays a combo box containing values of attributes used for classification.\nOnly available when the layer uses a categorized symbol renderer." ) );
 }

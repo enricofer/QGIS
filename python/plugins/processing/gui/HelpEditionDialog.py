@@ -16,8 +16,6 @@
 *                                                                         *
 ***************************************************************************
 """
-from processing.modeler.ModelerAlgorithm import ModelerAlgorithm
-
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -29,14 +27,26 @@ __revision__ = '$Format:%H$'
 
 import os
 import json
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from qgis.core import *
-from processing.ui.ui_DlgHelpEdition import Ui_DlgHelpEdition
-from processing.core.ProcessingLog import ProcessingLog
+import warnings
+
+from qgis.PyQt import uic
+from qgis.PyQt.QtWidgets import QDialog, QTreeWidgetItem
+
+from qgis.core import (Qgis,
+                       QgsMessageLog,
+                       QgsProcessingUtils,
+                       QgsProcessingParameterDefinition,
+                       QgsProcessingModelAlgorithm)
+
+pluginPath = os.path.split(os.path.dirname(__file__))[0]
+
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    WIDGET, BASE = uic.loadUiType(
+        os.path.join(pluginPath, 'ui', 'DlgHelpEdition.ui'))
 
 
-class HelpEditionDialog(QDialog, Ui_DlgHelpEdition):
+class HelpEditionDialog(BASE, WIDGET):
 
     ALG_DESC = 'ALG_DESC'
     ALG_CREATOR = 'ALG_CREATOR'
@@ -44,12 +54,13 @@ class HelpEditionDialog(QDialog, Ui_DlgHelpEdition):
     ALG_VERSION = 'ALG_VERSION'
 
     def __init__(self, alg):
-        QDialog.__init__(self)
+        super(HelpEditionDialog, self).__init__(None)
         self.setupUi(self)
+
         self.alg = alg
         self.descriptions = {}
-        if isinstance(self.alg, ModelerAlgorithm):
-            self.descriptions = self.alg.helpContent
+        if isinstance(self.alg, QgsProcessingModelAlgorithm):
+            self.descriptions = self.alg.helpContent()
         else:
             if self.alg.descriptionFile is not None:
                 helpfile = alg.descriptionFile + '.help'
@@ -57,9 +68,8 @@ class HelpEditionDialog(QDialog, Ui_DlgHelpEdition):
                     try:
                         with open(helpfile) as f:
                             self.descriptions = json.load(f)
-                    except Exception, e:
-                        ProcessingLog.addToLog(ProcessingLog.LOG_WARNING,
-                            self.tr('Cannot open help file: %s') % helpfile)
+                    except Exception:
+                        QgsMessageLog.logMessage(self.tr('Cannot open help file: {0}').format(helpfile), self.tr('Processing'), Qgis.Warning)
 
         self.currentName = self.ALG_DESC
         if self.ALG_DESC in self.descriptions:
@@ -74,35 +84,20 @@ class HelpEditionDialog(QDialog, Ui_DlgHelpEdition):
         QDialog.reject(self)
 
     def accept(self):
-        self.descriptions[self.currentName] = unicode(self.text.toPlainText())
-        if isinstance(self.alg, ModelerAlgorithm):
-            self.alg.helpContent = self.descriptions
-        else:
-            if self.alg.descriptionFile is not None:
-                try:
-                    with open(self.alg.descriptionFile + '.help', 'w') as f:
-                        json.dump(self.descriptions, f)
-                except Exception, e:
-                    QMessageBox.warning(self, self.tr('Error saving help file'),
-                        self.tr('Help file could not be saved.\n'
-                                'Check that you have permission to modify the help\n'
-                                'file. You might not have permission if you are \n'
-                                'editing an example model or script, since they \n'
-                                'are stored on the installation folder'))
-
+        self.descriptions[self.currentName] = str(self.text.toPlainText())
         QDialog.accept(self)
 
     def getHtml(self):
         s = self.tr('<h2>Algorithm description</h2>\n')
         s += '<p>' + self.getDescription(self.ALG_DESC) + '</p>\n'
         s += self.tr('<h2>Input parameters</h2>\n')
-        for param in self.alg.parameters:
-            s += '<h3>' + param.description + '</h3>\n'
-            s += '<p>' + self.getDescription(param.name) + '</p>\n'
+        for param in self.alg.parameterDefinitions():
+            s += '<h3>' + param.description() + '</h3>\n'
+            s += '<p>' + self.getDescription(param.name()) + '</p>\n'
         s += self.tr('<h2>Outputs</h2>\n')
-        for out in self.alg.outputs:
-            s += '<h3>' + out.description + '</h3>\n'
-            s += '<p>' + self.getDescription(out.name) + '</p>\n'
+        for out in self.alg.outputDefinitions():
+            s += '<h3>' + out.description() + '</h3>\n'
+            s += '<p>' + self.getDescription(out.name()) + '</p>\n'
         return s
 
     def fillTree(self):
@@ -110,13 +105,16 @@ class HelpEditionDialog(QDialog, Ui_DlgHelpEdition):
         self.tree.addTopLevelItem(item)
         parametersItem = TreeDescriptionItem(self.tr('Input parameters'), None)
         self.tree.addTopLevelItem(parametersItem)
-        for param in self.alg.parameters:
-            item = TreeDescriptionItem(param.description, param.name)
+        for param in self.alg.parameterDefinitions():
+            if param.flags() & QgsProcessingParameterDefinition.FlagHidden or param.isDestination():
+                continue
+
+            item = TreeDescriptionItem(param.description(), param.name())
             parametersItem.addChild(item)
         outputsItem = TreeDescriptionItem(self.tr('Outputs'), None)
         self.tree.addTopLevelItem(outputsItem)
-        for out in self.alg.outputs:
-            item = TreeDescriptionItem(out.description, out.name)
+        for out in self.alg.outputDefinitions():
+            item = TreeDescriptionItem(out.description(), out.name())
             outputsItem.addChild(item)
         item = TreeDescriptionItem(self.tr('Algorithm created by'), self.ALG_CREATOR)
         self.tree.addTopLevelItem(item)
@@ -131,7 +129,7 @@ class HelpEditionDialog(QDialog, Ui_DlgHelpEdition):
         item = self.tree.currentItem()
         if isinstance(item, TreeDescriptionItem):
             if self.currentName:
-                self.descriptions[self.currentName] = unicode(self.text.toPlainText())
+                self.descriptions[self.currentName] = str(self.text.toPlainText())
             name = item.name
             if name:
                 self.text.setEnabled(True)
@@ -148,7 +146,7 @@ class HelpEditionDialog(QDialog, Ui_DlgHelpEdition):
                 self.updateHtmlView()
 
     def updateHtmlView(self):
-        self.webView.setHtml(self.getHtml())
+        self.txtPreview.setHtml(self.getHtml())
 
     def getDescription(self, name):
         if name in self.descriptions:

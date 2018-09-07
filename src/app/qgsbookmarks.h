@@ -16,37 +16,158 @@
  ***************************************************************************/
 #ifndef QGSBOOKMARKS_H
 #define QGSBOOKMARKS_H
+
+#include <QSqlTableModel>
+#include <QSortFilterProxyModel>
+#include <QStyledItemDelegate>
+
 #include "ui_qgsbookmarksbase.h"
-#include "qgscontexthelp.h"
+#include "qgsdockwidget.h"
+#include "qgis_app.h"
 
-#include <QDialog>
-
-class APP_EXPORT QgsBookmarks : public QDialog, private Ui::QgsBookmarksBase
+/*
+ * Model for project bookmarks
+ */
+class QgsProjectBookmarksTableModel: public QAbstractTableModel
 {
     Q_OBJECT
 
   public:
-    static void showBookmarks();
-    static void newBookmark();
+
+    QgsProjectBookmarksTableModel( QObject *parent = nullptr );
+
+    int rowCount( const QModelIndex &parent = QModelIndex() ) const override;
+
+    int columnCount( const QModelIndex &parent = QModelIndex() ) const override;
+
+    QVariant data( const QModelIndex &index, int role = Qt::DisplayRole ) const override;
+
+    bool setData( const QModelIndex &index, const QVariant &value, int role = Qt::EditRole ) override;
+
+    bool insertRows( int row, int count, const QModelIndex &parent = QModelIndex() ) override;
+
+    bool removeRows( int row, int count, const QModelIndex &parent = QModelIndex() ) override;
 
   private slots:
-    void addClicked();
-    void deleteClicked();
-    void zoomToBookmark();
+    void projectRead();
+};
 
-    void on_lstBookmarks_doubleClicked( const QModelIndex & );
-    void on_buttonBox_helpRequested() { QgsContextHelp::run( metaObject()->className() ); }
+
+class QgsBookmarksProxyModel: public QSortFilterProxyModel
+{
+    Q_OBJECT
+
+  public:
+
+    QgsBookmarksProxyModel( QObject *parent = nullptr );
+
+    //! This override is required because the merge model only defines headers for the SQL model
+    QVariant headerData( int section, Qt::Orientation orientation, int role = Qt::DisplayRole ) const override;
+
+  public slots:
+
+    void _resetModel()
+    {
+      reset();
+    }
+};
+
+
+/**
+ * \brief QgsDoubleSpinBoxBookmarksDelegate class shows 6 digits when value is a double
+ */
+class QgsDoubleSpinBoxBookmarksDelegate : public QStyledItemDelegate
+{
+    Q_OBJECT
+
+  public:
+
+    explicit QgsDoubleSpinBoxBookmarksDelegate( QObject *parent = nullptr );
+
+    QString displayText( const QVariant &value, const QLocale &locale ) const override;
+
+    QWidget *createEditor( QWidget *parent,
+                           const QStyleOptionViewItem &option,
+                           const QModelIndex &index ) const override;
+  private:
+
+    static const int  DECIMAL_PLACES;
+
+};
+
+/*
+ * Model that merge the QGIS and project model
+ */
+class QgsMergedBookmarksTableModel: public QAbstractTableModel
+{
+    Q_OBJECT
+
+  public:
+
+    QgsMergedBookmarksTableModel( QAbstractTableModel &qgisTableModel, QAbstractTableModel &projectTableModel, QTreeView *treeView, QObject *parent = nullptr );
+
+    int rowCount( const QModelIndex &parent = QModelIndex() ) const override;
+
+    int columnCount( const QModelIndex &parent = QModelIndex() ) const override;
+
+    QVariant data( const QModelIndex &index, int role = Qt::DisplayRole ) const override;
+
+    bool setData( const QModelIndex &index, const QVariant &value, int role = Qt::EditRole ) override;
+    Qt::ItemFlags flags( const QModelIndex &index ) const override;
+
+    bool removeRows( int row, int count, const QModelIndex &parent = QModelIndex() ) override;
+    QVariant headerData( int section, Qt::Orientation orientation, int role = Qt::DisplayRole ) const override;
+    QAbstractTableModel *qgisModel();
 
   private:
-    QgsBookmarks( QWidget *parent = 0, Qt::WindowFlags fl = 0 );
-    ~QgsBookmarks();
+    QAbstractTableModel &mQgisTableModel;
+    QAbstractTableModel &mProjectTableModel;
+    QTreeView *mTreeView = nullptr;
+    bool projectAvailable() const;
+    void moveBookmark( QAbstractTableModel &modelFrom, QAbstractTableModel &modelTo, int row );
+
+  signals:
+
+    void selectItem( const QModelIndex &index );
+
+  private slots:
+    void allLayoutChanged()
+    {
+      emit layoutChanged();
+    }
+};
+
+
+class APP_EXPORT QgsBookmarks : public QgsDockWidget, private Ui::QgsBookmarksBase
+{
+    Q_OBJECT
+
+  public:
+    QgsBookmarks( QWidget *parent = nullptr );
+    ~QgsBookmarks() override;
+    QMap<QString, QModelIndex> getIndexMap();
+    void zoomToBookmarkIndex( const QModelIndex & );
+
+  public slots:
+    void addClicked();
+
+  private slots:
+    void deleteClicked();
+    void zoomToBookmark();
+    void exportToXml();
+    void importFromXml();
+
+    void lstBookmarks_doubleClicked( const QModelIndex & );
+
+  private:
+    QSqlTableModel *mQgisModel = nullptr;
+    QgsProjectBookmarksTableModel *mProjectModel = nullptr;
+    QgsMergedBookmarksTableModel *mMergedModel = nullptr;
+    QgsBookmarksProxyModel *mProxyModel = nullptr;
 
     void saveWindowLocation();
-    void restorePosition();
 
-    static QgsBookmarks *sInstance;
 };
 
 
 #endif // QGSBOOKMARKS_H
-

@@ -2,7 +2,7 @@
 
 """
 ***************************************************************************
-    SelectByLocation.py
+    SetRasterStyle.py
     ---------------------
     Date                 : August 2012
     Copyright            : (C) 2012 by Victor Olaya
@@ -26,46 +26,54 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from PyQt4.QtCore import *
-from PyQt4.QtXml import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterFile
-from processing.core.parameters import ParameterRaster
-from processing.core.outputs import OutputRaster
-from processing.tools import dataobjects
-from qgis.utils import iface
 
-class SetRasterStyle(GeoAlgorithm):
+from qgis.PyQt.QtXml import QDomDocument
+
+from qgis.core import (QgsProcessingAlgorithm,
+                       QgsProcessingParameterRasterLayer,
+                       QgsProcessingParameterFile,
+                       QgsProcessingOutputRasterLayer)
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
+
+
+class SetRasterStyle(QgisAlgorithm):
 
     INPUT = 'INPUT'
     STYLE = 'STYLE'
     OUTPUT = 'OUTPUT'
 
+    def group(self):
+        return self.tr('Raster tools')
 
-    def defineCharacteristics(self):
-        self.name = 'Set style for raster layer'
-        self.group = 'Raster general tools'
-        self.addParameter(ParameterRaster(self.INPUT, 'Raster layer'))
-        self.addParameter(ParameterFile(self.STYLE,
-                          'Style file', False, False, 'qml'))
-        self.addOutput(OutputRaster(self.OUTPUT, 'Styled layer', True))
+    def groupId(self):
+        return 'rastertools'
 
-    def processAlgorithm(self, progress):
-        filename = self.getParameterValue(self.INPUT)
-        layer = dataobjects.getObjectFromUri(filename)
+    def __init__(self):
+        super().__init__()
 
-        style = self.getParameterValue(self.STYLE)
-        if layer is None:
-            dataobjects.load(filename, os.path.basename(filename), style=style)
-            self.getOutputFromName(self.OUTPUT).open = False
-        else:
-            with open(style) as f:
-                xml = "".join(f.readlines())
-            d = QDomDocument()
-            d.setContent(xml)
-            n = d.firstChild()
-            layer.readSymbology(n, '')
-            self.setOutputValue(self.OUTPUT, filename)
-            iface.mapCanvas().refresh()
-            iface.legendInterface().refreshLayerSymbology(layer)
+    def flags(self):
+        return super().flags() | QgsProcessingAlgorithm.FlagNoThreading
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterRasterLayer(self.INPUT,
+                                                            self.tr('Raster layer')))
+        self.addParameter(QgsProcessingParameterFile(self.STYLE,
+                                                     self.tr('Style file'), extension='qml'))
+        self.addOutput(QgsProcessingOutputRasterLayer(self.INPUT, self.tr('Styled')))
+
+    def name(self):
+        return 'setstyleforrasterlayer'
+
+    def displayName(self):
+        return self.tr('Set style for raster layer')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        style = self.parameterAsFile(parameters, self.STYLE, context)
+        with open(style) as f:
+            xml = "".join(f.readlines())
+        d = QDomDocument()
+        d.setContent(xml)
+        layer.importNamedStyle(d)
+        layer.triggerRepaint()
+        return {self.INPUT: layer}

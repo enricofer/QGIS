@@ -1,4 +1,10 @@
 /***************************************************************************
+    qgssavestyletodbdialog.cpp
+    ---------------------
+    begin                : April 2013
+    copyright            : (C) 2013 by Emilio Loi
+    email                : loi at faunalia dot it
+ ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -9,30 +15,34 @@
 
 #include "qgssavestyletodbdialog.h"
 
+#include "qgssettings.h"
+
 #include <QFileDialog>
-#include <QSettings>
 #include <QDomDocument>
 #include <QMessageBox>
 #include <QDateTime>
 
 QgsSaveStyleToDbDialog::QgsSaveStyleToDbDialog( QWidget *parent )
-    : QDialog( parent )
+  : QDialog( parent )
 {
   setupUi( this );
-  setWindowTitle( "Save style in database" );
+  connect( mFilePickButton, &QToolButton::clicked, this, &QgsSaveStyleToDbDialog::mFilePickButton_clicked );
+  setWindowTitle( QStringLiteral( "Save Style in Database" ) );
   mDescriptionEdit->setTabChangesFocus( true );
   setTabOrder( mNameEdit, mDescriptionEdit );
   setTabOrder( mDescriptionEdit, mUseAsDefault );
   setTabOrder( mUseAsDefault, buttonBox );
 
-  QSettings settings;
-  restoreGeometry( settings.value( "/Windows/saveStyleToDb/geometry" ).toByteArray() );
+  QgsSettings settings;
+  restoreGeometry( settings.value( QStringLiteral( "Windows/saveStyleToDb/geometry" ) ).toByteArray() );
+
+  connect( buttonBox, &QDialogButtonBox::helpRequested, this, &QgsSaveStyleToDbDialog::showHelp );
 }
 
 QgsSaveStyleToDbDialog::~QgsSaveStyleToDbDialog()
 {
-  QSettings settings;
-  settings.setValue( "/Windows/saveStyleToDb/geometry", saveGeometry() );
+  QgsSettings settings;
+  settings.setValue( QStringLiteral( "Windows/saveStyleToDb/geometry" ), saveGeometry() );
 }
 
 QString QgsSaveStyleToDbDialog::getName()
@@ -59,18 +69,18 @@ void QgsSaveStyleToDbDialog::accept()
 {
   if ( getName().isEmpty() )
   {
-    QMessageBox::information( this, tr( "Save style in database" ), tr( "A name is mandatory" ) );
+    QMessageBox::information( this, tr( "Save Style in Database" ), tr( "A name is mandatory." ) );
     return;
   }
   QDialog::accept();
 }
 
-void QgsSaveStyleToDbDialog::on_mFilePickButton_clicked()
+void QgsSaveStyleToDbDialog::mFilePickButton_clicked()
 {
-  QSettings myQSettings;  // where we keep last used filter in persistent state
-  QString myLastUsedDir = myQSettings.value( "style/lastStyleDir", "." ).toString();
+  QgsSettings myQSettings;  // where we keep last used filter in persistent state
+  QString myLastUsedDir = myQSettings.value( QStringLiteral( "style/lastStyleDir" ), QDir::homePath() ).toString();
 
-  QString myFileName = QFileDialog::getOpenFileName( this, tr( "Attach Qt Designer UI file" ), myLastUsedDir, tr( "Qt Designer UI file .ui" ) + " (*.ui)" );
+  QString myFileName = QFileDialog::getOpenFileName( this, tr( "Attach Qt Designer UI File" ), myLastUsedDir, tr( "Qt Designer UI file .ui" ) + " (*.ui)" );
   if ( myFileName.isNull() )
   {
     return;
@@ -79,20 +89,25 @@ void QgsSaveStyleToDbDialog::on_mFilePickButton_clicked()
   QFile uiFile( myFI.filePath() );
 
   QString myPath = myFI.path();
-  myQSettings.setValue( "style/lastStyleDir", myPath );
+  myQSettings.setValue( QStringLiteral( "style/lastStyleDir" ), myPath );
 
   if ( uiFile.open( QIODevice::ReadOnly ) )
   {
     QString content( uiFile.readAll() );
     QDomDocument doc;
 
-    if ( !doc.setContent( content ) || doc.documentElement().tagName().compare( "ui" ) )
+    if ( !doc.setContent( content ) || doc.documentElement().tagName().compare( QLatin1String( "ui" ) ) )
     {
-      QMessageBox::warning( this, tr( "Wrong file" ),
+      QMessageBox::warning( this, tr( "Attach UI File" ),
                             tr( "The selected file does not appear to be a valid Qt Designer UI file." ) );
       return;
     }
     mUIFileContent = content;
     mFileNameLabel->setText( myFI.fileName() );
   }
+}
+
+void QgsSaveStyleToDbDialog::showHelp()
+{
+  QgsHelp::openHelp( QStringLiteral( "introduction/general_tools.html#save-and-share-layer-properties" ) );
 }

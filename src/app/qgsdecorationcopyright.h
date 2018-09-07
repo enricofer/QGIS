@@ -20,10 +20,12 @@
 #define QGSCOPYRIGHTLABELPLUGIN
 
 #include "qgsdecorationitem.h"
+#include "qgstextrenderer.h"
 
 #include <QColor>
 #include <QFont>
 #include <QObject>
+#include "qgis_app.h"
 class QAction;
 class QPainter;
 
@@ -35,31 +37,44 @@ class APP_EXPORT QgsDecorationCopyright : public QgsDecorationItem
   public:
 
     //! Constructor
-    QgsDecorationCopyright( QObject* parent = NULL );
-    //! Destructor
-    virtual ~QgsDecorationCopyright();
+    QgsDecorationCopyright( QObject *parent = nullptr );
 
   public slots:
-    //! set values on the gui when a project is read or the gui first loaded
-    void projectRead();
+    //! Sets values on the gui when a project is read or the gui first loaded
+    void projectRead() override;
     //! save values to the project
-    void saveToProject();
+    void saveToProject() override;
 
     //! Show the dialog box
-    void run();
+    void run() override;
     //! render the copyright label
-    void render( QPainter * );
+    void render( const QgsMapSettings &mapSettings, QgsRenderContext &context ) override;
+
+    /**
+     * Returns the text format for extent labels.
+     * \see setTextFormat()
+     * \see labelExtents()
+     * \since QGIS 3.2
+     */
+    QgsTextFormat textFormat() const { return mTextFormat; }
+
+    /**
+     * Sets the text \a format for extent labels.
+     * \see textFormat()
+     * \see setLabelExtents()
+     * \since QGIS 3.2
+     */
+    void setTextFormat( const QgsTextFormat &format ) { mTextFormat = format; }
 
   private:
-    //! This is the font that will be used for the copyright label
-    QFont mQFont;
     //! This is the string that will be used for the copyright label
-    QString mLabelQString;
-    //! This is the color for the copyright label
-    QColor mLabelQColor;
-    //! Placement of the copyright label - index and translated label names
-    int mPlacementIndex;
-    QStringList mPlacementLabels;
+    QString mLabelText;
+
+    //! enable or disable use of position percentage for placement
+    int mMarginHorizontal = 0;
+    int mMarginVertical = 0;
+
+    QgsTextFormat mTextFormat;
 
     friend class QgsDecorationCopyrightDialog;
 };

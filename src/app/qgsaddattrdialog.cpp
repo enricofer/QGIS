@@ -23,10 +23,15 @@
 #include <QMessageBox>
 
 QgsAddAttrDialog::QgsAddAttrDialog( QgsVectorLayer *vlayer, QWidget *parent, Qt::WindowFlags fl )
-    : QDialog( parent, fl )
-    , mIsShapeFile( vlayer && vlayer->providerType() == "ogr" && vlayer->storageType() == "ESRI Shapefile" )
+  : QDialog( parent, fl )
+  , mIsShapeFile( vlayer && vlayer->providerType() == QLatin1String( "ogr" ) && vlayer->storageType() == QLatin1String( "ESRI Shapefile" ) )
 {
   setupUi( this );
+  connect( mTypeBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsAddAttrDialog::mTypeBox_currentIndexChanged );
+  connect( mLength, &QSpinBox::editingFinished, this, &QgsAddAttrDialog::mLength_editingFinished );
+
+  if ( !vlayer )
+    return;
 
   //fill data types into the combo box
   const QList< QgsVectorDataProvider::NativeType > &typelist = vlayer->dataProvider()->nativeTypes();
@@ -49,13 +54,13 @@ QgsAddAttrDialog::QgsAddAttrDialog( QgsVectorLayer *vlayer, QWidget *parent, Qt:
     mTypeBox->setItemData( i, typelist[i].mMaxPrec, Qt::UserRole + 5 );
   }
 
-  on_mTypeBox_currentIndexChanged( 0 );
+  mTypeBox_currentIndexChanged( 0 );
 
   if ( mIsShapeFile )
     mNameEdit->setMaxLength( 10 );
 }
 
-void QgsAddAttrDialog::on_mTypeBox_currentIndexChanged( int idx )
+void QgsAddAttrDialog::mTypeBox_currentIndexChanged( int idx )
 {
   mTypeName->setText( mTypeBox->itemData( idx, Qt::UserRole + 1 ).toString() );
 
@@ -70,7 +75,7 @@ void QgsAddAttrDialog::on_mTypeBox_currentIndexChanged( int idx )
   setPrecisionMinMax();
 }
 
-void QgsAddAttrDialog::on_mLength_editingFinished()
+void QgsAddAttrDialog::mLength_editingFinished()
 {
   setPrecisionMinMax();
 }
@@ -83,20 +88,20 @@ void QgsAddAttrDialog::setPrecisionMinMax()
   mPrec->setVisible( minPrecType < maxPrecType );
   mPrecLabel->setVisible( minPrecType < maxPrecType );
   mPrec->setMinimum( minPrecType );
-  mPrec->setMaximum( qMax( minPrecType, qMin( maxPrecType, mLength->value() ) ) );
+  mPrec->setMaximum( std::max( minPrecType, std::min( maxPrecType, mLength->value() ) ) );
 }
 
 void QgsAddAttrDialog::accept()
 {
-  if ( mIsShapeFile && mNameEdit->text().toLower() == "shape" )
+  if ( mIsShapeFile && mNameEdit->text().compare( QLatin1String( "shape" ), Qt::CaseInsensitive ) == 0 )
   {
-    QMessageBox::warning( this, tr( "Warning" ),
+    QMessageBox::warning( this, tr( "Add Field" ),
                           tr( "Invalid field name. This field name is reserved and cannot be used." ) );
     return;
   }
   if ( mNameEdit->text().isEmpty() )
   {
-    QMessageBox::warning( this, tr( "Warning" ),
+    QMessageBox::warning( this, tr( "Add Field" ),
                           tr( "No name specified. Please specify a name to create a new field." ) );
     return;
   }
@@ -109,16 +114,16 @@ QgsField QgsAddAttrDialog::field() const
   QgsDebugMsg( QString( "idx:%1 name:%2 type:%3 typeName:%4 length:%5 prec:%6 comment:%7" )
                .arg( mTypeBox->currentIndex() )
                .arg( mNameEdit->text() )
-               .arg( mTypeBox->itemData( mTypeBox->currentIndex(), Qt::UserRole ).toInt() )
-               .arg( mTypeBox->itemData( mTypeBox->currentIndex(), Qt::UserRole + 1 ).toString() )
+               .arg( mTypeBox->currentData( Qt::UserRole ).toInt() )
+               .arg( mTypeBox->currentData( Qt::UserRole + 1 ).toString() )
                .arg( mLength->value() )
                .arg( mPrec->value() )
                .arg( mCommentEdit->text() ) );
 
   return QgsField(
            mNameEdit->text(),
-           ( QVariant::Type ) mTypeBox->itemData( mTypeBox->currentIndex(), Qt::UserRole ).toInt(),
-           mTypeBox->itemData( mTypeBox->currentIndex(), Qt::UserRole + 1 ).toString(),
+           ( QVariant::Type ) mTypeBox->currentData( Qt::UserRole ).toInt(),
+           mTypeBox->currentData( Qt::UserRole + 1 ).toString(),
            mLength->value(),
            mPrec->value(),
            mCommentEdit->text() );

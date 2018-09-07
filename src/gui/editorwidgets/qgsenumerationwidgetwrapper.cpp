@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -18,45 +18,60 @@
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
 
-QgsEnumerationWidgetWrapper::QgsEnumerationWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
-    :  QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+QgsEnumerationWidgetWrapper::QgsEnumerationWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent )
+  : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+
 {
 }
 
 
-QVariant QgsEnumerationWidgetWrapper::value()
+QVariant QgsEnumerationWidgetWrapper::value() const
 {
   QVariant value;
 
   if ( mComboBox )
-    value = mComboBox->itemData( mComboBox->currentIndex() );
+    value = mComboBox->currentData();
 
   return value;
 }
 
-QWidget* QgsEnumerationWidgetWrapper::createWidget( QWidget* parent )
+void QgsEnumerationWidgetWrapper::showIndeterminateState()
+{
+  if ( mComboBox )
+  {
+    whileBlocking( mComboBox )->setCurrentIndex( -1 );
+  }
+}
+
+QWidget *QgsEnumerationWidgetWrapper::createWidget( QWidget *parent )
 {
   return new QComboBox( parent );
 }
 
-void QgsEnumerationWidgetWrapper::initWidget( QWidget* editor )
+void QgsEnumerationWidgetWrapper::initWidget( QWidget *editor )
 {
-  mComboBox = qobject_cast<QComboBox*>( editor );
+  mComboBox = qobject_cast<QComboBox *>( editor );
 
   if ( mComboBox )
   {
     QStringList enumValues;
     layer()->dataProvider()->enumValues( fieldIdx(), enumValues );
 
-    Q_FOREACH ( const QString& s, enumValues )
+    Q_FOREACH ( const QString &s, enumValues )
     {
       mComboBox->addItem( s, s );
     }
-    connect( mComboBox, SIGNAL( currentIndexChanged( int ) ), this, SLOT( valueChanged() ) );
+    connect( mComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ),
+             this, static_cast<void ( QgsEditorWidgetWrapper::* )()>( &QgsEditorWidgetWrapper::emitValueChanged ) );
   }
 }
 
-void QgsEnumerationWidgetWrapper::setValue( const QVariant& value )
+bool QgsEnumerationWidgetWrapper::valid() const
+{
+  return mComboBox;
+}
+
+void QgsEnumerationWidgetWrapper::setValue( const QVariant &value )
 {
   if ( mComboBox )
   {

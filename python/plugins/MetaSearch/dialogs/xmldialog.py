@@ -3,7 +3,7 @@
 #
 # CSW Client
 # ---------------------------------------------------------
-# QGIS Catalogue Service client.
+# QGIS Catalog Service client.
 #
 # Copyright (C) 2014 Tom Kralidis (tomkralidis@gmail.com)
 #
@@ -23,7 +23,7 @@
 #
 ###############################################################################
 
-from PyQt4.QtGui import QDialog
+from qgis.PyQt.QtWidgets import QDialog
 
 from MetaSearch.util import get_ui_class
 
@@ -31,7 +31,9 @@ BASE_CLASS = get_ui_class('xmldialog.ui')
 
 
 class XMLDialog(QDialog, BASE_CLASS):
+
     """Raw XML Dialogue"""
+
     def __init__(self):
         """init"""
 

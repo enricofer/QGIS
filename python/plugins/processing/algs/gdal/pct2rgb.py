@@ -25,47 +25,87 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
 
+from qgis.PyQt.QtGui import QIcon
+
+from qgis.core import (QgsRasterFileWriter,
+                       QgsProcessingException,
+                       QgsProcessingParameterRasterLayer,
+                       QgsProcessingParameterBand,
+                       QgsProcessingParameterBoolean,
+                       QgsProcessingParameterRasterDestination)
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
-from processing.tools.system import *
-from processing.core.parameters import ParameterRaster
-from processing.core.parameters import ParameterSelection
-from processing.core.outputs import OutputRaster
+from processing.tools.system import isWindows
 from processing.algs.gdal.GdalUtils import GdalUtils
+
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class pct2rgb(GdalAlgorithm):
 
     INPUT = 'INPUT'
+    BAND = 'BAND'
+    RGBA = 'RGBA'
     OUTPUT = 'OUTPUT'
-    NBAND = 'NBAND'
 
-    def defineCharacteristics(self):
-        self.name = 'PCT to RGB'
-        self.group = '[GDAL] Conversion'
-        self.addParameter(ParameterRaster(pct2rgb.INPUT, 'Input layer', False))
-        options = []
-        for i in range(25):
-            options.append(str(i + 1))
-        self.addParameter(ParameterSelection(pct2rgb.NBAND, 'Band to convert',
-                          options))
-        self.addOutput(OutputRaster(pct2rgb.OUTPUT, 'Output layer'))
+    def __init__(self):
+        super().__init__()
 
-    def processAlgorithm(self, progress):
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterRasterLayer(self.INPUT, self.tr('Input layer')))
+        self.addParameter(QgsProcessingParameterBand(self.BAND,
+                                                     self.tr('Band number'),
+                                                     parentLayerParameterName=self.INPUT))
+        self.addParameter(QgsProcessingParameterBoolean(self.RGBA,
+                                                        self.tr('Generate a RGBA file'),
+                                                        defaultValue=False))
+        self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT, self.tr('PCT to RGB')))
+
+    def name(self):
+        return 'pcttorgb'
+
+    def displayName(self):
+        return self.tr('PCT to RGB')
+
+    def group(self):
+        return self.tr('Raster conversion')
+
+    def groupId(self):
+        return 'rasterconversion'
+
+    def icon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', '8-to-24-bits.png'))
+
+    def commandName(self):
+        return 'pct2rgb'
+
+    def getConsoleCommands(self, parameters, context, feedback, executing=True):
         arguments = []
-        arguments.append('-b')
-        arguments.append(str(self.getParameterValue(pct2rgb.NBAND) + 1))
-        arguments.append('-of')
-        out = self.getOutputValue(pct2rgb.OUTPUT)
-        arguments.append(GdalUtils.getFormatShortNameFromFilename(out))
-        arguments.append(self.getParameterValue(pct2rgb.INPUT))
+        inLayer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if inLayer is None:
+            raise QgsProcessingException(self.invalidRasterError(parameters, self.INPUT))
+
+        arguments.append(inLayer.source())
+
+        out = self.parameterAsOutputLayer(parameters, self.OUTPUT, context)
         arguments.append(out)
+
+        arguments.append('-of')
+        arguments.append(QgsRasterFileWriter.driverForExtension(os.path.splitext(out)[1]))
+
+        arguments.append('-b')
+        arguments.append(str(self.parameterAsInt(parameters, self.BAND, context)))
+
+        if self.parameterAsBool(parameters, self.RGBA, context):
+            arguments.append('-rgba')
 
         commands = []
         if isWindows():
-            commands = ['cmd.exe', '/C ', 'pct2rgb.bat',
+            commands = ['cmd.exe', '/C ', self.commandName() + '.bat',
                         GdalUtils.escapeAndJoin(arguments)]
         else:
-            commands = ['pct2rgb.py', GdalUtils.escapeAndJoin(arguments)]
+            commands = [self.commandName() + '.py', GdalUtils.escapeAndJoin(arguments)]
 
-        GdalUtils.runGdal(commands, progress)
+        return commands

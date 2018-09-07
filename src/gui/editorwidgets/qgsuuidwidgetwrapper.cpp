@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -17,12 +17,13 @@
 
 #include <QUuid>
 
-QgsUuidWidgetWrapper::QgsUuidWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
-    :  QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+QgsUuidWidgetWrapper::QgsUuidWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent )
+  : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+
 {
 }
 
-QVariant QgsUuidWidgetWrapper::value()
+QVariant QgsUuidWidgetWrapper::value() const
 {
   QVariant v;
 
@@ -34,20 +35,25 @@ QVariant QgsUuidWidgetWrapper::value()
   return v;
 }
 
-QWidget* QgsUuidWidgetWrapper::createWidget( QWidget* parent )
+QWidget *QgsUuidWidgetWrapper::createWidget( QWidget *parent )
 {
   return new QLineEdit( parent );
 }
 
-void QgsUuidWidgetWrapper::initWidget( QWidget* editor )
+void QgsUuidWidgetWrapper::initWidget( QWidget *editor )
 {
-  mLineEdit = qobject_cast<QLineEdit*>( editor );
-  mLabel = qobject_cast<QLabel*>( editor );
+  mLineEdit = qobject_cast<QLineEdit *>( editor );
+  mLabel = qobject_cast<QLabel *>( editor );
   if ( mLineEdit )
     mLineEdit->setEnabled( false );
 }
 
-void QgsUuidWidgetWrapper::setValue( const QVariant& value )
+bool QgsUuidWidgetWrapper::valid() const
+{
+  return mLineEdit || mLabel;
+}
+
+void QgsUuidWidgetWrapper::setValue( const QVariant &value )
 {
   if ( value.isNull() )
   {
@@ -56,7 +62,7 @@ void QgsUuidWidgetWrapper::setValue( const QVariant& value )
     if ( mLabel )
       mLabel->setText( QUuid::createUuid().toString() );
 
-    valueChanged();
+    emitValueChanged();
   }
   else
   {

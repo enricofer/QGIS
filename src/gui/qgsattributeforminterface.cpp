@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 12.5.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -18,12 +18,12 @@
 #include "qgsattributeform.h"
 #include "qgsfeature.h"
 
-QgsAttributeFormInterface::QgsAttributeFormInterface( QgsAttributeForm* form )
-    : mForm( form )
+QgsAttributeFormInterface::QgsAttributeFormInterface( QgsAttributeForm *form )
+  : mForm( form )
 {
 }
 
-bool QgsAttributeFormInterface::acceptChanges( const QgsFeature& feature )
+bool QgsAttributeFormInterface::acceptChanges( const QgsFeature &feature )
 {
   Q_UNUSED( feature )
   return true;
@@ -38,12 +38,12 @@ void QgsAttributeFormInterface::featureChanged()
 
 }
 
-QgsAttributeForm* QgsAttributeFormInterface::form()
+QgsAttributeForm *QgsAttributeFormInterface::form()
 {
   return mForm;
 }
 
-const QgsFeature& QgsAttributeFormInterface::feature()
+const QgsFeature &QgsAttributeFormInterface::feature()
 {
   return mForm->feature();
 }

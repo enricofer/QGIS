@@ -18,43 +18,79 @@
 #ifndef QGSMAPUNITSCALE_H
 #define QGSMAPUNITSCALE_H
 
+#include "qgis_core.h"
+#include "qgis.h"
 #include <QtCore>
-#include "qgsrendercontext.h"
+
+class QgsRenderContext;
+
+/**
+ * \ingroup core
+ * \class QgsMapUnitScale
+ * \brief Struct for storing maximum and minimum scales for measurements in map units
+ *
+ * For measurements in map units, a minimum and a maximum scale can be defined.
+ * Outside this range, the measurements aren't scaled anymore proportionally to
+ * the map scale.
+ */
 
 class CORE_EXPORT QgsMapUnitScale
 {
   public:
-    QgsMapUnitScale() : minScale( 0.0 ), maxScale( 0.0 ) {}
-    QgsMapUnitScale( float _minScale, float _maxScale ) : minScale( _minScale ), maxScale( _maxScale ) {}
 
-    /** The minimum scale, or 0.0 if unset */
+    /**
+     * Constructor for QgsMapUnitScale
+     * \param minScale minimum allowed scale, or 0.0 if no minimum scale set
+     * \param maxScale maximum allowed scale, or 0.0 if no maximum scale set
+     * The scale values indicates the scale denominator, e.g. 1000.0 for a 1:1000 map.
+     */
+    explicit QgsMapUnitScale( double minScale = 0.0, double maxScale = 0.0 )
+      : minScale( minScale )
+      , maxScale( maxScale )
+    {}
+
+    /**
+     * The minimum scale, or 0.0 if unset.
+     * The scale value indicates the scale denominator, e.g. 1000.0 for a 1:1000 map.
+     */
     double minScale;
-    /** The maximum scale, or 0.0 if unset */
+
+    /**
+     * The maximum scale, or 0.0 if unset.
+     * The scale value indicates the scale denominator, e.g. 1000.0 for a 1:1000 map.
+     */
     double maxScale;
 
-    double computeMapUnitsPerPixel( const QgsRenderContext& c ) const
+    //! Whether the minimum size in mm should be respected
+    bool minSizeMMEnabled = false;
+    //! The minimum size in millimeters, or 0.0 if unset
+    double minSizeMM = 0.0;
+    //! Whether the maximum size in mm should be respected
+    bool maxSizeMMEnabled = false;
+    //! The maximum size in millimeters, or 0.0 if unset
+    double maxSizeMM = 0.0;
+
+    /**
+     * Computes a map units per pixel scaling factor, respecting the minimum and maximum scales
+     * set for the object.
+     * \param c render context
+     * \returns map units per pixel, limited between minimum and maximum scales
+     */
+    double computeMapUnitsPerPixel( const QgsRenderContext &c ) const;
+
+    bool operator==( const QgsMapUnitScale &other ) const
     {
-      double mup = c.mapToPixel().mapUnitsPerPixel();
-      double renderScale = c.rendererScale(); // Note: this value is 1 / scale
-      if ( minScale != 0 )
-      {
-        mup = qMin( mup / ( minScale * renderScale ), mup );
-      }
-      if ( maxScale != 0 )
-      {
-        mup = qMax( mup / ( maxScale * renderScale ), mup );
-      }
-      return mup;
+      return qgsDoubleNear( minScale, other.minScale )
+             && qgsDoubleNear( maxScale, other.maxScale )
+             && minSizeMMEnabled == other.minSizeMMEnabled
+             && qgsDoubleNear( minSizeMM, other.minSizeMM )
+             && maxSizeMMEnabled == other.maxSizeMMEnabled
+             && qgsDoubleNear( maxSizeMM, other.maxSizeMM );
     }
 
-    bool operator==( const QgsMapUnitScale& other ) const
+    bool operator!=( const QgsMapUnitScale &other ) const
     {
-      return minScale == other.minScale && maxScale == other.maxScale;
-    }
-
-    bool operator!=( const QgsMapUnitScale& other ) const
-    {
-      return minScale != other.minScale || maxScale != other.maxScale;
+      return !operator==( other );
     }
 };
 

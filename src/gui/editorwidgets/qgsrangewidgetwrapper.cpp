@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -19,42 +19,42 @@
 #include "qgsspinbox.h"
 #include "qgsdoublespinbox.h"
 #include "qgsvectorlayer.h"
+#include "qgsdial.h"
+#include "qgsslider.h"
 
-QgsRangeWidgetWrapper::QgsRangeWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
-    :  QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
-    , mIntSpinBox( 0 )
-    , mDoubleSpinBox( 0 )
-    , mSlider( 0 )
-    , mDial( 0 )
+QgsRangeWidgetWrapper::QgsRangeWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent )
+  : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+
 {
 }
 
-QWidget* QgsRangeWidgetWrapper::createWidget( QWidget* parent )
+QWidget *QgsRangeWidgetWrapper::createWidget( QWidget *parent )
 {
-  QWidget* editor = 0;
+  QWidget *editor = nullptr;
 
-  if ( config( "Style" ).toString() == "Dial" )
+  if ( config( QStringLiteral( "Style" ) ).toString() == QLatin1String( "Dial" ) )
   {
     editor = new QgsDial( parent );
   }
-  else if ( config( "Style" ).toString() == "Slider" )
+  else if ( config( QStringLiteral( "Style" ) ).toString() == QLatin1String( "Slider" ) )
   {
     editor = new QgsSlider( Qt::Horizontal, parent );
   }
   else
   {
-    QgsDebugMsg( QString( "%1" ).arg(( int )layer()->pendingFields()[fieldIdx()].type() ) );
-    switch ( layer()->pendingFields()[fieldIdx()].type() )
+    switch ( layer()->fields().at( fieldIdx() ).type() )
     {
       case QVariant::Double:
       {
         editor = new QgsDoubleSpinBox( parent );
+        static_cast<QgsDoubleSpinBox *>( editor )->setLineEditAlignment( Qt::AlignRight );
         break;
       }
       case QVariant::Int:
       case QVariant::LongLong:
       default:
         editor = new QgsSpinBox( parent );
+        static_cast<QgsSpinBox *>( editor )->setLineEditAlignment( Qt::AlignRight );
         break;
     }
   }
@@ -62,100 +62,128 @@ QWidget* QgsRangeWidgetWrapper::createWidget( QWidget* parent )
   return editor;
 }
 
-void QgsRangeWidgetWrapper::initWidget( QWidget* editor )
+template<class T>
+static void setupIntEditor( const QVariant &min, const QVariant &max, const QVariant &step, T *slider, QgsRangeWidgetWrapper *wrapper )
 {
-  mDoubleSpinBox = qobject_cast<QDoubleSpinBox*>( editor );
-  mIntSpinBox = qobject_cast<QSpinBox*>( editor );
-  mDial = qobject_cast<QDial*>( editor );
-  mSlider = qobject_cast<QSlider*>( editor );
+  // must use a template function because those methods are overloaded and not inherited by some classes
+  slider->setMinimum( min.isValid() ? min.toInt() : std::numeric_limits<int>::lowest() );
+  slider->setMaximum( max.isValid() ? max.toInt() : std::numeric_limits<int>::max() );
+  slider->setSingleStep( step.isValid() ? step.toInt() : 1 );
+  QObject::connect( slider, SIGNAL( valueChanged( int ) ), wrapper, SLOT( emitValueChanged() ) );
+}
 
-  bool allowNull = config( "AllowNull" ).toBool();
+void QgsRangeWidgetWrapper::initWidget( QWidget *editor )
+{
+  mDoubleSpinBox = qobject_cast<QDoubleSpinBox *>( editor );
+  mIntSpinBox = qobject_cast<QSpinBox *>( editor );
+
+  mDial = qobject_cast<QDial *>( editor );
+  mSlider = qobject_cast<QSlider *>( editor );
+  mQgsDial = qobject_cast<QgsDial *>( editor );
+  mQgsSlider = qobject_cast<QgsSlider *>( editor );
+
+  bool allowNull = config( QStringLiteral( "AllowNull" ), true ).toBool();
+
+  QVariant min( config( QStringLiteral( "Min" ) ) );
+  QVariant max( config( QStringLiteral( "Max" ) ) );
+  QVariant step( config( QStringLiteral( "Step" ) ) );
+  QVariant precision( config( QStringLiteral( "Precision" ) ) );
 
   if ( mDoubleSpinBox )
   {
-    // set the precision if field is integer
-    int precision = layer()->pendingFields()[fieldIdx()].precision();
-    if ( precision > 0 )
-    {
-      mDoubleSpinBox->setDecimals( layer()->pendingFields()[fieldIdx()].precision() );
-    }
+    double stepval = step.isValid() ? step.toDouble() : 1.0;
+    double minval = min.isValid() ? min.toDouble() : std::numeric_limits<double>::lowest();
+    double maxval  = max.isValid() ? max.toDouble() : std::numeric_limits<double>::max();
+    int precisionval = precision.isValid() ? precision.toInt() : layer()->fields().at( fieldIdx() ).precision();
 
-    double min = config( "Min" ).toDouble();
-    double step = config( "Step" ).toDouble();
-    QgsDoubleSpinBox* qgsWidget = dynamic_cast<QgsDoubleSpinBox*>( mDoubleSpinBox );
+    mDoubleSpinBox->setDecimals( precisionval );
+
+    QgsDoubleSpinBox *qgsWidget = qobject_cast<QgsDoubleSpinBox *>( mDoubleSpinBox );
+
+
     if ( qgsWidget )
       qgsWidget->setShowClearButton( allowNull );
+    // Make room for null value: lower the minimum to allow for NULL special values
     if ( allowNull )
     {
-      if ( precision > 0 )
+      double decr;
+      if ( precisionval > 0 )
       {
-        min -= 10 ^ -precision;
+        decr = std::pow( 10, -precisionval );
       }
       else
       {
-        min -= step;
+        decr = stepval;
       }
-      mDoubleSpinBox->setValue( min );
-      mDoubleSpinBox->setSpecialValueText( QSettings().value( "qgis/nullValue", "NULL" ).toString() );
+      minval -= decr;
+      // Note: call setMinimum here or setValue won't work
+      mDoubleSpinBox->setMinimum( minval );
+      mDoubleSpinBox->setValue( minval );
+      mDoubleSpinBox->setSpecialValueText( QgsApplication::nullRepresentation() );
     }
-    mDoubleSpinBox->setMinimum( min );
-    mDoubleSpinBox->setMaximum( config( "Max" ).toDouble() );
-    mDoubleSpinBox->setSingleStep( step );
-    if ( config( "Suffix" ).isValid() )
-    {
-      mDoubleSpinBox->setSuffix( config( "Suffix" ).toString() );
-    }
-    connect( mDoubleSpinBox, SIGNAL( valueChanged( double ) ), this, SLOT( valueChanged( double ) ) );
-  }
+    mDoubleSpinBox->setMinimum( minval );
+    mDoubleSpinBox->setMaximum( maxval );
+    mDoubleSpinBox->setSingleStep( stepval );
+    if ( config( QStringLiteral( "Suffix" ) ).isValid() )
+      mDoubleSpinBox->setSuffix( config( QStringLiteral( "Suffix" ) ).toString() );
 
-  if ( mIntSpinBox )
+    connect( mDoubleSpinBox, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ),
+    this, [ = ]( double ) { emitValueChanged(); } );
+  }
+  else if ( mIntSpinBox )
   {
-    int min = config( "Min" ).toInt();
-    int step = config( "Step" ).toInt();
-    QgsSpinBox* qgsWidget = dynamic_cast<QgsSpinBox*>( mIntSpinBox );
+    QgsSpinBox *qgsWidget = qobject_cast<QgsSpinBox *>( mIntSpinBox );
     if ( qgsWidget )
       qgsWidget->setShowClearButton( allowNull );
+    int minval = min.toInt();
     if ( allowNull )
     {
-      min -= step;
-      mIntSpinBox->setValue( min );
-      mIntSpinBox->setSpecialValueText( QSettings().value( "qgis/nullValue", "NULL" ).toString() );
+      int stepval = step.isValid() ? step.toInt() : 1;
+      minval -= stepval;
+      mIntSpinBox->setValue( minval );
+      mIntSpinBox->setSpecialValueText( QgsApplication::nullRepresentation() );
     }
-    mIntSpinBox->setMinimum( min );
-    mIntSpinBox->setMaximum( config( "Max" ).toInt() );
-    mIntSpinBox->setSingleStep( step );
-    if ( config( "Suffix" ).isValid() )
-    {
-      mIntSpinBox->setSuffix( config( "Suffix" ).toString() );
-    }
-    connect( mIntSpinBox, SIGNAL( valueChanged( int ) ), this, SLOT( valueChanged( int ) ) );
+    setupIntEditor( minval, max, step, mIntSpinBox, this );
+    if ( config( QStringLiteral( "Suffix" ) ).isValid() )
+      mIntSpinBox->setSuffix( config( QStringLiteral( "Suffix" ) ).toString() );
   }
-
-  if ( mDial )
+  else
   {
-    mDial->setMinimum( config( "Min" ).toInt() );
-    mDial->setMaximum( config( "Max" ).toInt() );
-    mDial->setSingleStep( config( "Step" ).toInt() );
-    connect( mDial, SIGNAL( valueChanged( int ) ), this, SLOT( valueChanged( int ) ) );
-  }
-
-  if ( mSlider )
-  {
-    mSlider->setMinimum( config( "Min" ).toInt() );
-    mSlider->setMaximum( config( "Max" ).toInt() );
-    mSlider->setSingleStep( config( "Step" ).toInt() );
-    connect( mSlider, SIGNAL( valueChanged( int ) ), this, SLOT( valueChanged( int ) ) );
+    ( void )field().convertCompatible( min );
+    ( void )field().convertCompatible( max );
+    ( void )field().convertCompatible( step );
+    if ( mQgsDial )
+      setupIntEditor( min, max, step, mQgsDial, this );
+    else if ( mQgsSlider )
+      setupIntEditor( min, max, step, mQgsSlider, this );
+    else if ( mDial )
+      setupIntEditor( min, max, step, mDial, this );
+    else if ( mSlider )
+      setupIntEditor( min, max, step, mSlider, this );
   }
 }
 
-QVariant QgsRangeWidgetWrapper::value()
+bool QgsRangeWidgetWrapper::valid() const
+{
+  return mSlider || mDial || mQgsDial || mQgsSlider || mIntSpinBox || mDoubleSpinBox;
+}
+
+void QgsRangeWidgetWrapper::valueChangedVariant( const QVariant &v )
+{
+  if ( v.type() == QVariant::Int )
+    emit valueChanged( v.toInt() );
+  if ( v.type() == QVariant::Double )
+    emit valueChanged( v.toDouble() );
+}
+
+QVariant QgsRangeWidgetWrapper::value() const
 {
   QVariant value;
 
   if ( mDoubleSpinBox )
   {
     value = mDoubleSpinBox->value();
-    if ( value == mDoubleSpinBox->minimum() && config( "AllowNull" ).toBool() )
+    if ( value == mDoubleSpinBox->minimum() && config( QStringLiteral( "AllowNull" ), true ).toBool() )
     {
       value = QVariant( field().type() );
     }
@@ -163,10 +191,18 @@ QVariant QgsRangeWidgetWrapper::value()
   else if ( mIntSpinBox )
   {
     value = mIntSpinBox->value();
-    if ( value == mIntSpinBox->minimum() && config( "AllowNull" ).toBool() )
+    if ( value == mIntSpinBox->minimum() && config( QStringLiteral( "AllowNull" ), true ).toBool() )
     {
       value = QVariant( field().type() );
     }
+  }
+  else if ( mQgsDial )
+  {
+    value = mQgsDial->variantValue();
+  }
+  else if ( mQgsSlider )
+  {
+    value = mQgsSlider->variantValue();
   }
   else if ( mDial )
   {
@@ -180,11 +216,11 @@ QVariant QgsRangeWidgetWrapper::value()
   return value;
 }
 
-void QgsRangeWidgetWrapper::setValue( const QVariant& value )
+void QgsRangeWidgetWrapper::setValue( const QVariant &value )
 {
   if ( mDoubleSpinBox )
   {
-    if ( value.isNull() && config( "AllowNull" ).toBool() )
+    if ( value.isNull() && config( QStringLiteral( "AllowNull" ), true ).toBool() )
     {
       mDoubleSpinBox->setValue( mDoubleSpinBox->minimum() );
     }
@@ -196,7 +232,7 @@ void QgsRangeWidgetWrapper::setValue( const QVariant& value )
 
   if ( mIntSpinBox )
   {
-    if ( value.isNull() && config( "AllowNull" ).toBool() )
+    if ( value.isNull() && config( QStringLiteral( "AllowNull" ), true ).toBool() )
     {
       mIntSpinBox->setValue( mIntSpinBox->minimum() );
     }
@@ -205,13 +241,21 @@ void QgsRangeWidgetWrapper::setValue( const QVariant& value )
       mIntSpinBox->setValue( value.toInt() );
     }
   }
-  if ( mDial )
+
+  if ( mQgsDial )
+  {
+    mQgsDial->setValue( value );
+  }
+  else if ( mQgsSlider )
+  {
+    mQgsSlider->setValue( value );
+  }
+  else if ( mDial )
   {
     mDial->setValue( value.toInt() );
   }
-  if ( mSlider )
+  else if ( mSlider )
   {
     mSlider->setValue( value.toInt() );
   }
 }
-

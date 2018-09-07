@@ -25,54 +25,82 @@ __copyright__ = '(C) 2010, Michael Minn'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterTableField
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+from qgis.PyQt.QtCore import QCoreApplication
+
+from qgis.core import (QgsProcessingParameterField,
+                       QgsProcessing,
+                       QgsProcessingFeatureSource)
+from processing.algs.qgis.QgisAlgorithm import QgisFeatureBasedAlgorithm
 
 
-class DeleteColumn(GeoAlgorithm):
-    INPUT = 'INPUT'
-    COLUMN = 'COLUMN'
-    OUTPUT = 'OUTPUT'
+class DeleteColumn(QgisFeatureBasedAlgorithm):
 
-    def defineCharacteristics(self):
-        self.name = 'Delete column'
-        self.group = 'Vector table tools'
+    COLUMNS = 'COLUMN'
 
-        self.addParameter(ParameterVector(
-            self.INPUT, 'Input layer', [ParameterVector.VECTOR_TYPE_ANY]))
-        self.addParameter(ParameterTableField(
-            self.COLUMN, 'Field to delete', self.INPUT))
-        self.addOutput(OutputVector(self.OUTPUT, 'Output'))
+    def tags(self):
+        return self.tr('drop,delete,remove,fields,columns,attributes').split(',')
 
-    def processAlgorithm(self, progress):
-        layer = dataobjects.getObjectFromUri(
-            self.getParameterValue(self.INPUT))
-        idx = layer.fieldNameIndex(self.getParameterValue(self.COLUMN))
+    def group(self):
+        return self.tr('Vector table')
 
-        fields = layer.pendingFields()
-        fields.remove(idx)
+    def groupId(self):
+        return 'vectortable'
 
-        writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(fields,
-            layer.wkbType(), layer.crs())
+    def __init__(self):
+        super().__init__()
+        self.fields_to_delete = []
+        self.field_indices = []
 
-        features = vector.features(layer)
-        count = len(features)
-        total = 100.0 / float(count)
+    def initParameters(self, config=None):
+        self.addParameter(QgsProcessingParameterField(self.COLUMNS,
+                                                      self.tr('Fields to drop'),
+                                                      None, 'INPUT', QgsProcessingParameterField.Any, True))
 
-        feat = QgsFeature()
-        for count, f in enumerate(features):
-            feat.setGeometry(f.geometry())
-            attributes = f.attributes()
-            del attributes[idx]
-            feat.setAttributes(attributes)
-            writer.addFeature(feat)
+    def inputLayerTypes(self):
+        return [QgsProcessing.TypeVector]
 
-            progress.setPercentage(int(count * total))
+    def name(self):
+        return 'deletecolumn'
 
-        del writer
+    def displayName(self):
+        return self.tr('Drop field(s)')
 
+    def outputName(self):
+        return self.tr('Fields dropped')
+
+    def prepareAlgorithm(self, parameters, context, feedback):
+        self.fields_to_delete = self.parameterAsFields(parameters, self.COLUMNS, context)
+
+        source = self.parameterAsSource(parameters, 'INPUT', context)
+        if source is not None:
+            for f in self.fields_to_delete:
+                index = source.fields().lookupField(f)
+                if index < 0:
+                    feedback.pushInfo(QCoreApplication.translate('DeleteColumn', 'Field “{}” does not exist in input layer').format(f))
+
+        return super().prepareAlgorithm(parameters, context, feedback)
+
+    def outputFields(self, input_fields):
+        # loop through twice - first we need to build up a list of original attribute indices
+        for f in self.fields_to_delete:
+            index = input_fields.lookupField(f)
+            if index >= 0:
+                self.field_indices.append(index)
+
+        # important - make sure we remove from the end so we aren't changing used indices as we go
+        self.field_indices.sort(reverse=True)
+
+        # this second time we make a cleaned version of the fields
+        for index in self.field_indices:
+            input_fields.remove(index)
+        return input_fields
+
+    def sourceFlags(self):
+        return QgsProcessingFeatureSource.FlagSkipGeometryValidityChecks
+
+    def processFeature(self, feature, context, feedback):
+        attributes = feature.attributes()
+        for index in self.field_indices:
+            del attributes[index]
+        feature.setAttributes(attributes)
+        return [feature]

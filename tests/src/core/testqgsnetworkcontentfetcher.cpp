@@ -18,12 +18,15 @@
 #include "qgsnetworkcontentfetcher.h"
 #include "qgsapplication.h"
 #include <QObject>
-#include <QtTest>
+#include "qgstest.h"
 #include <QNetworkReply>
 
-class TestQgsNetworkContentFetcher: public QObject
+class TestQgsNetworkContentFetcher : public QObject
 {
-    Q_OBJECT;
+    Q_OBJECT
+  public:
+    TestQgsNetworkContentFetcher() = default;
+
   private slots:
     void initTestCase();// will be called before the first testfunction is executed.
     void cleanupTestCase();// will be called after the last testfunction was executed.
@@ -31,16 +34,12 @@ class TestQgsNetworkContentFetcher: public QObject
     void cleanup();// will be called after every testfunction.
     void fetchEmptyUrl(); //test fetching blank url
     void fetchBadUrl(); //test fetching bad url
-    void fetchUrlContent(); //test fetching url content
-    void doubleFetch(); //fetch content while already fetching content
     void fetchEncodedContent(); //test fetching url content encoded as utf-8
 
     void contentLoaded();
 
   private:
-
-    bool mLoaded;
-
+    bool mLoaded =  false ;
 };
 
 void TestQgsNetworkContentFetcher::initTestCase()
@@ -82,7 +81,7 @@ void TestQgsNetworkContentFetcher::fetchBadUrl()
   QgsNetworkContentFetcher fetcher;
   //test fetching from a bad url
   mLoaded = false;
-  fetcher.fetchContent( QUrl( "http://x" ) );
+  fetcher.fetchContent( QUrl( QStringLiteral( "http://x" ) ) );
   connect( &fetcher, SIGNAL( finished() ), this, SLOT( contentLoaded() ) );
   while ( !mLoaded )
   {
@@ -91,54 +90,13 @@ void TestQgsNetworkContentFetcher::fetchBadUrl()
   QVERIFY( fetcher.reply()->error() != QNetworkReply::NoError );
 }
 
-void TestQgsNetworkContentFetcher::fetchUrlContent()
-{
-  QgsNetworkContentFetcher fetcher;
-  //test fetching content from the QGIS homepage - ideally a dedicate page should be created for these tests so
-  //that we do not rely on content from the homepage
-  mLoaded = false;
-  fetcher.fetchContent( QUrl( "http://www.qgis.org/en/site/" ) );
-  connect( &fetcher, SIGNAL( finished() ), this, SLOT( contentLoaded() ) );
-  while ( !mLoaded )
-  {
-    qApp->processEvents();
-  }
-  QVERIFY( fetcher.reply()->error() == QNetworkReply::NoError );
-
-  //test retrieved content
-  QString mFetchedHtml = fetcher.contentAsString();
-  QVERIFY( mFetchedHtml.contains( QString( "QGIS" ) ) );
-}
-
-void TestQgsNetworkContentFetcher::doubleFetch()
-{
-  QgsNetworkContentFetcher fetcher;
-  //fetch content from the QGIS homepage - ideally a dedicate page should be created for these tests so
-  //that we do not rely on content from the homepage
-  mLoaded = false;
-  fetcher.fetchContent( QUrl( "http://www.osgeo.org/" ) );
-  //double fetch - this should happen before previous request finishes
-  fetcher.fetchContent( QUrl( "http://www.qgis.org/en/site/" ) );
-
-  connect( &fetcher, SIGNAL( finished() ), this, SLOT( contentLoaded() ) );
-
-  while ( !mLoaded )
-  {
-    qApp->processEvents();
-  }
-  QVERIFY( fetcher.reply()->error() == QNetworkReply::NoError );
-
-  //test retrieved content
-  QString mFetchedHtml = fetcher.contentAsString();
-  QVERIFY( mFetchedHtml.contains( QString( "QGIS" ) ) );
-}
 
 void TestQgsNetworkContentFetcher::fetchEncodedContent()
 {
   QgsNetworkContentFetcher fetcher;
   //test fetching encoded content as string
   mLoaded = false;
-  fetcher.fetchContent( QUrl::fromLocalFile( QString( TEST_DATA_DIR ) + QDir::separator() +  "encoded_html.html" ) );
+  fetcher.fetchContent( QUrl::fromLocalFile( QStringLiteral( TEST_DATA_DIR ) + '/' +  "encoded_html.html" ) );
   connect( &fetcher, SIGNAL( finished() ), this, SLOT( contentLoaded() ) );
   while ( !mLoaded )
   {
@@ -156,5 +114,5 @@ void TestQgsNetworkContentFetcher::contentLoaded()
   mLoaded = true;
 }
 
-QTEST_MAIN( TestQgsNetworkContentFetcher )
+QGSTEST_MAIN( TestQgsNetworkContentFetcher )
 #include "testqgsnetworkcontentfetcher.moc"

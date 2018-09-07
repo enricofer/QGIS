@@ -16,11 +16,14 @@
 #ifndef QGSSIMPLIFYMETHOD_H
 #define QGSSIMPLIFYMETHOD_H
 
+#include "qgis_core.h"
+
 class QgsAbstractGeometrySimplifier;
 
 /**
+ * \ingroup core
  * This class contains information about how to simplify geometries fetched from a QgsFeatureIterator
- * @note added in 2.2
+ * \since QGIS 2.2
  */
 class CORE_EXPORT QgsSimplifyMethod
 {
@@ -33,21 +36,22 @@ class CORE_EXPORT QgsSimplifyMethod
     };
 
     //! construct a default method
-    QgsSimplifyMethod();
-    //! copy constructor
-    QgsSimplifyMethod( const QgsSimplifyMethod& rh );
-    //! assignment operator
-    QgsSimplifyMethod& operator=( const QgsSimplifyMethod& rh );
+    QgsSimplifyMethod() = default;
 
     //! Sets the simplification type
     void setMethodType( MethodType methodType );
     //! Gets the simplification type
     inline MethodType methodType() const { return mMethodType; }
 
-    //! Sets the tolerance of simplification. Represents the maximum distance between two coordinates which can be considered equal
+    //! Sets the tolerance of simplification in map units. Represents the maximum distance in map units between two coordinates which can be considered equal.
     void setTolerance( double tolerance );
-    //! Gets the tolerance of simplification
+    //! Gets the tolerance of simplification in map units. Represents the maximum distance in map units between two coordinates which can be considered equal.
     inline double tolerance() const { return mTolerance; }
+
+    //! Sets the simplification threshold in pixels. Represents the maximum distance in pixels between two coordinates which can be considered equal.
+    void setThreshold( float threshold ) { mThreshold = threshold; }
+    //! Gets the simplification threshold in pixels. Represents the maximum distance in pixels between two coordinates which can be considered equal.
+    inline float threshold() const { return mThreshold; }
 
     //! Sets whether the simplification executes after fetch the geometries from provider, otherwise it executes, when supported, in provider before fetch the geometries
     void setForceLocalOptimization( bool localOptimization );
@@ -55,15 +59,17 @@ class CORE_EXPORT QgsSimplifyMethod
     inline bool forceLocalOptimization() const { return mForceLocalOptimization; }
 
     //! Creates a geometry simplifier according to specified method
-    static QgsAbstractGeometrySimplifier* createGeometrySimplifier( const QgsSimplifyMethod& simplifyMethod );
+    static QgsAbstractGeometrySimplifier *createGeometrySimplifier( const QgsSimplifyMethod &simplifyMethod );
 
   protected:
     //! Simplification method
-    MethodType mMethodType;
-    //! Tolerance of simplification, it represents the maximum distance between two coordinates which can be considered equal
-    double mTolerance;
+    MethodType mMethodType = QgsSimplifyMethod::NoSimplification;
+    //! Simplification tolerance, it represents the maximum distance between two coordinates which can be considered equal
+    double mTolerance = 1;
+    //! Simplification threshold
+    float mThreshold = 1;
     //! Simplification executes after fetch the geometries from provider, otherwise it executes, when supported, in provider before fetch the geometries
-    bool mForceLocalOptimization;
+    bool mForceLocalOptimization = true;
 };
 
 #endif // QGSSIMPLIFYMETHOD_H

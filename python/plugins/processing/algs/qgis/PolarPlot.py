@@ -25,56 +25,64 @@ __copyright__ = '(C) 2013, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-import matplotlib.pyplot as plt
-import matplotlib.pylab as lab
-import matplotlib.cm as cm
-from matplotlib.pyplot import figure, show, rc
+import plotly as plt
+import plotly.graph_objs as go
 import numpy as np
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterTable
-from processing.core.parameters import ParameterTableField
-from processing.core.outputs import OutputHTML
-from processing.tools import *
+
+from qgis.core import (QgsProcessingException,
+                       QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterField,
+                       QgsProcessingParameterFileDestination)
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
+from processing.tools import vector
 
 
-class PolarPlot(GeoAlgorithm):
+class PolarPlot(QgisAlgorithm):
 
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
     NAME_FIELD = 'NAME_FIELD'
     VALUE_FIELD = 'VALUE_FIELD'
 
-    def processAlgorithm(self, progress):
-        uri = self.getParameterValue(self.INPUT)
-        layer = getObjectFromUri(uri)
-        namefieldname = self.getParameterValue(self.NAME_FIELD)
-        valuefieldname = self.getParameterValue(self.VALUE_FIELD)
-        output = self.getOutputValue(self.OUTPUT)
-        values = vector.getAttributeValues(layer, namefieldname,
-                valuefieldname)
-        plt.close()
+    def group(self):
+        return self.tr('Graphics')
 
-        fig = figure(figsize=(8, 8))
-        ax = fig.add_axes([0.1, 0.1, 0.8, 0.8], polar=True)
-        N = len(values[valuefieldname])
-        theta = np.arange(0.0, 2 * np.pi, 2 * np.pi / N)
-        radii = values[valuefieldname]
-        width = 2 * np.pi / N
-        ax.bar(theta, radii, width=width, bottom=0.0)
-        plotFilename = output + '.png'
-        lab.savefig(plotFilename)
-        f = open(output, 'w')
-        f.write('<img src="' + plotFilename + '"/>')
-        f.close()
+    def groupId(self):
+        return 'graphics'
 
-    def defineCharacteristics(self):
-        self.name = 'Polar plot'
-        self.group = 'Graphics'
-        self.addParameter(ParameterTable(self.INPUT, 'Input table'))
-        self.addParameter(ParameterTableField(self.NAME_FIELD,
-                          'Category name field', self.INPUT))
-        self.addParameter(ParameterTableField(self.VALUE_FIELD, 'Value field',
-                          self.INPUT))
-        self.addOutput(OutputHTML(self.OUTPUT, 'Output'))
+    def __init__(self):
+        super().__init__()
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input layer')))
+        self.addParameter(QgsProcessingParameterField(self.NAME_FIELD,
+                                                      self.tr('Category name field'), parentLayerParameterName=self.INPUT))  # FIXME unused?
+        self.addParameter(QgsProcessingParameterField(self.VALUE_FIELD,
+                                                      self.tr('Value field'), parentLayerParameterName=self.INPUT))
+
+        self.addParameter(QgsProcessingParameterFileDestination(self.OUTPUT, self.tr('Polar plot'), self.tr('HTML files (*.html)')))
+
+    def name(self):
+        return 'polarplot'
+
+    def displayName(self):
+        return self.tr('Polar plot')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+
+        namefieldname = self.parameterAsString(parameters, self.NAME_FIELD, context)  # NOQA  FIXME unused?
+        valuefieldname = self.parameterAsString(parameters, self.VALUE_FIELD, context)
+
+        output = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
+
+        values = vector.values(source, valuefieldname)
+
+        data = [go.Area(r=values[valuefieldname],
+                        t=np.degrees(np.arange(0.0, 2 * np.pi, 2 * np.pi / len(values[valuefieldname]))))]
+        plt.offline.plot(data, filename=output, auto_open=False)
+
+        return {self.OUTPUT: output}

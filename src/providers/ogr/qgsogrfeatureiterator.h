@@ -16,75 +16,85 @@
 #define QGSOGRFEATUREITERATOR_H
 
 #include "qgsfeatureiterator.h"
+#include "qgsogrconnpool.h"
+#include "qgsfields.h"
 
 #include <ogr_api.h>
 
+#include <memory>
+
 class QgsOgrFeatureIterator;
 class QgsOgrProvider;
-class QgsOgrAbstractGeometrySimplifier;
+class QgsOgrDataset;
+using QgsOgrDatasetSharedPtr = std::shared_ptr< QgsOgrDataset>;
 
 class QgsOgrFeatureSource : public QgsAbstractFeatureSource
 {
   public:
-    QgsOgrFeatureSource( const QgsOgrProvider* p );
+    explicit QgsOgrFeatureSource( const QgsOgrProvider *p );
+    ~QgsOgrFeatureSource() override;
 
-    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request );
+    QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) override;
 
-  protected:
-    QString mFilePath;
+  private:
+    QString mDataSource;
     QString mLayerName;
     int mLayerIndex;
     QString mSubsetString;
-    QTextCodec* mEncoding;
+    QTextCodec *mEncoding = nullptr;
     QgsFields mFields;
+    bool mFirstFieldIsFid;
+    QgsFields mFieldsWithoutFid;
     OGRwkbGeometryType mOgrGeometryTypeFilter;
     QString mDriverName;
+    QgsCoordinateReferenceSystem mCrs;
+    QgsWkbTypes::Type mWkbType = QgsWkbTypes::Unknown;
+    QgsOgrDatasetSharedPtr mSharedDS = nullptr;
 
     friend class QgsOgrFeatureIterator;
+    friend class QgsOgrExpressionCompiler;
 };
 
 class QgsOgrFeatureIterator : public QgsAbstractFeatureIteratorFromSource<QgsOgrFeatureSource>
 {
   public:
-    QgsOgrFeatureIterator( QgsOgrFeatureSource* source, bool ownSource, const QgsFeatureRequest& request );
+    QgsOgrFeatureIterator( QgsOgrFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
 
-    ~QgsOgrFeatureIterator();
+    ~QgsOgrFeatureIterator() override;
 
-    //! reset the iterator to the starting position
-    virtual bool rewind();
-
-    //! end of iterating: free the resources / lock
-    virtual bool close();
+    bool rewind() override;
+    bool close() override;
 
   protected:
-    //! fetch next feature, return true on success
-    virtual bool fetchFeature( QgsFeature& feature );
-
-    //! Setup the simplification of geometries to fetch using the specified simplify method
-    virtual bool prepareSimplification( const QgsSimplifyMethod& simplifyMethod );
-
-
-    bool readFeature( OGRFeatureH fet, QgsFeature& feature );
-
-    //! Get an attribute associated with a feature
-    void getFeatureAttribute( OGRFeatureH ogrFet, QgsFeature & f, int attindex );
-
-    bool mFeatureFetched;
-
-    OGRDataSourceH ogrDataSource;
-    OGRLayerH ogrLayer;
-
-    bool mSubsetStringSet;
-
-    //! Set to true, if geometry is in the requested columns
-    bool mFetchGeometry;
+    bool fetchFeature( QgsFeature &feature ) override;
+    bool nextFeatureFilterExpression( QgsFeature &f ) override;
 
   private:
-    //! optional object to simplify OGR-geometries fecthed by this feature iterator
-    QgsOgrAbstractGeometrySimplifier* mGeometrySimplifier;
 
-    //! returns whether the iterator supports simplify geometries on provider side
-    virtual bool providerCanSimplify( QgsSimplifyMethod::MethodType methodType ) const;
+    bool readFeature( gdal::ogr_feature_unique_ptr fet, QgsFeature &feature ) const;
+
+    //! Gets an attribute associated with a feature
+    void getFeatureAttribute( OGRFeatureH ogrFet, QgsFeature &f, int attindex ) const;
+
+    QgsOgrConn *mConn = nullptr;
+    OGRLayerH mOgrLayer = nullptr;
+    OGRLayerH mOgrOrigLayer = nullptr;
+    OGRLayerH mOgrLayerWithFid = nullptr;
+
+    bool mOrigFidAdded = false;
+
+    //! Sets to true, if geometry is in the requested columns
+    bool mFetchGeometry = false;
+
+    bool mExpressionCompiled = false;
+    QgsFeatureIds mFilterFids;
+    QgsFeatureIds::const_iterator mFilterFidsIt;
+
+    QgsRectangle mFilterRect;
+    QgsCoordinateTransform mTransform;
+    QgsOgrDatasetSharedPtr mSharedDS = nullptr;
+
+    bool fetchFeatureWithId( QgsFeatureId id, QgsFeature &feature ) const;
 };
 
 #endif // QGSOGRFEATUREITERATOR_H

@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 11.8.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -17,17 +17,25 @@
 #define QGSACTIONMENU_H
 
 #include <QMenu>
+#include "qgis.h"
 #include <QSignalMapper>
 
-#include "qgsattributeaction.h"
-#include "qgsmaplayeractionregistry.h"
+#include "qgsfeature.h"
+#include "qgsaction.h"
+#include "qgis_gui.h"
+#include "qgsattributeform.h"
 
+class QgsMapLayer;
+class QgsMapLayerAction;
+class QgsVectorLayer;
+class QgsActionManager;
 
 /**
+ * \ingroup gui
  * This class is a menu that is populated automatically with the actions defined for a given layer.
  */
 
-class QgsActionMenu : public QMenu
+class GUI_EXPORT QgsActionMenu : public QMenu
 {
     Q_OBJECT
 
@@ -39,98 +47,93 @@ class QgsActionMenu : public QMenu
       AttributeAction //!< Custom actions (manually defined in layer properties)
     };
 
-    struct ActionData
+    struct GUI_EXPORT ActionData
     {
-      ActionData()
-          : actionType( Invalid )
-          , actionId( 0 )
-      {}
 
-      ActionData( int actionId, QgsFeatureId featureId, QgsMapLayer* mapLayer )
-          : actionType( AttributeAction )
-          , actionId( actionId )
-          , featureId( featureId )
-          , mapLayer( mapLayer )
-      {}
+      /**
+       * Constructor for ActionData.
+       */
+      ActionData() = default;
+      ActionData( const QgsAction &action, QgsFeatureId featureId, QgsMapLayer *mapLayer );
+      ActionData( QgsMapLayerAction *action, QgsFeatureId featureId, QgsMapLayer *mapLayer );
 
-      ActionData( QgsMapLayerAction* action, QgsFeatureId featureId, QgsMapLayer* mapLayer )
-          : actionType( MapLayerAction )
-          , actionId( action )
-          , featureId( featureId )
-          , mapLayer( mapLayer )
-      {}
-
-      ActionType actionType;
-
-      union aid
-      {
-        aid( int i ) : id( i ) {}
-        aid( QgsMapLayerAction* a ) : action( a ) {}
-        int id;
-        QgsMapLayerAction* action;
-      } actionId;
-
-      QgsFeatureId featureId;
-      QgsMapLayer* mapLayer;
+      QgsActionMenu::ActionType actionType = Invalid;
+      QVariant actionData;
+      QgsFeatureId featureId = 0;
+      QgsMapLayer *mapLayer = nullptr;
     };
 
-
-  public:
     /**
      * Constructs a new QgsActionMenu
      *
-     * @param layer    The layer that this action will be run upon.
-     * @param feature  The feature that this action will be run upon. Make sure that this feature is available
+     * \param layer    The layer that this action will be run upon.
+     * \param feature  The feature that this action will be run upon. Make sure that this feature is available
      *                 for the lifetime of this object.
-     * @param parent   The usual QWidget parent.
+     * \param parent   The usual QWidget parent.
+     * \param actionScope The action scope this menu will run in
      */
-    explicit QgsActionMenu( QgsVectorLayer* layer, const QgsFeature* feature, QWidget*  parent = 0 );
+    explicit QgsActionMenu( QgsVectorLayer *layer, const QgsFeature &feature, const QString &actionScope, QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
     /**
      * Constructs a new QgsActionMenu
      *
-     * @param layer    The layer that this action will be run upon.
-     * @param fid      The feature id of the feature for which this action will be run.
-     * @param parent   The usual QWidget parent.
+     * \param layer    The layer that this action will be run upon.
+     * \param fid      The feature id of the feature for which this action will be run.
+     * \param parent   The usual QWidget parent.
+     * \param actionScope The action scope this menu will run in
      */
-    explicit QgsActionMenu( QgsVectorLayer* layer, const QgsFeatureId fid, QWidget*  parent = 0 );
-
-    /**
-     * Destructor
-     */
-    ~QgsActionMenu();
+    explicit QgsActionMenu( QgsVectorLayer *layer, QgsFeatureId fid, const QString &actionScope, QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
     /**
      * Change the feature on which actions are performed
      *
-     * @param feature  A feature. Will not take ownership. It's the callers responsibility to keep the feature
+     * \param feature  A feature. Will not take ownership. It's the callers responsibility to keep the feature
      *                 as long as the menu is displayed and the action is running.
      */
-    void setFeature( QgsFeature* feature );
+    void setFeature( const QgsFeature &feature );
 
     /**
-     * @brief setFeature
-     * @param feature
+     * Change the mode of the actions
+     *
+     * \param mode The mode of the attribute form
      */
-    void setFeature( QgsFeatureId feature );
+    void setMode( QgsAttributeForm::Mode mode );
 
-  private slots:
-    void triggerAction();
-    void reloadActions();
+    /**
+     * Sets an expression context scope used to resolve underlying actions.
+     *
+     * \since QGIS 3.0
+     */
+    void setExpressionContextScope( const QgsExpressionContextScope &scope );
+
+    /**
+     * Returns an expression context scope used to resolve underlying actions.
+     *
+     * \since QGIS 3.0
+     */
+    QgsExpressionContextScope expressionContextScope() const;
 
   signals:
     void reinit();
 
+  private slots:
+    void triggerAction();
+    void reloadActions();
+    void layerWillBeDeleted();
+
   private:
     void init();
-    const QgsFeature* feature();
+    QgsFeature feature();
 
-    QgsVectorLayer* mLayer;
-    QgsAttributeAction* mActions;
-    const QgsFeature* mFeature;
+    QgsVectorLayer *mLayer = nullptr;
+    QList<QgsAction> mActions;
+    QgsFeature mFeature;
     QgsFeatureId mFeatureId;
-    bool mOwnsFeature;
+    QString mActionScope;
+    QgsExpressionContextScope mExpressionContextScope;
+    QgsAttributeForm::Mode mMode;
 };
+
 
 Q_DECLARE_METATYPE( QgsActionMenu::ActionData )
 

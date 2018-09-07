@@ -1,27 +1,24 @@
 Universal Kriging
-geostatistics_kriging
-ParameterVector|SHAPES|Points|0|False
-ParameterTableField|FIELD|Attribute|SHAPES|-1|False
-ParameterBoolean|BVARIANCE              |Create Variance Grid|True
-ParameterSelection|TARGET|Target Grid|[0] user defined
-ParameterSelection|MODEL|Variogram Model|[0] Spherical Model;[1] Exponential Model;[2] Gaussian Model;[3] Linear Regression;[4] Exponential Regression;[5] Power Function Regression
-ParameterBoolean|BLOCK                  |Block Kriging|True
-ParameterNumber|DBLOCK|Block Size|0|None|100
-ParameterBoolean|BLOG                   |Logarithmic Transformation|True
-ParameterNumber|NUGGET|Nugget|None|None|0.0
-ParameterNumber|SILL|Sill|None|None|0.0
-ParameterNumber|RANGE|Range|None|None|0.0
-ParameterNumber|LIN_B|Linear Regression|None|None|1.0
-ParameterNumber|EXP_B|Exponential Regression|None|None|0.1
-ParameterNumber|POW_A|Power Function - A|None|None|1
-ParameterNumber|POW_B|Power Function - B|None|None|0.5
-ParameterMultipleInput|GRIDS|Grids|3.0|False
-ParameterSelection|INTERPOL|Grid Interpolation|[0] Nearest Neighbor;[1] Bilinear Interpolation;[2] Inverse Distance Interpolation;[3] Bicubic Spline Interpolation;[4] B-Spline Interpolation
-ParameterNumber|NPOINTS_MIN|Min.Number of m_Points|None|None|4
-ParameterNumber|NPOINTS_MAX|Max. Number of m_Points|None|None|20
-ParameterNumber|MAXRADIUS|Maximum Search Radius (map units)|None|None|1000.0
-ParameterNumber|USER_CELL_SIZE|Grid Size|0|None|1.0
-ParameterBoolean|USER_FIT_EXTENT        |Fit Extent|True
-Extent USER_X_EXTENT_MIN USER_X_EXTENT_MAX USER_Y_EXTENT_MIN USER_Y_EXTENT_MIN
-OutputRaster|GRID|Grid
-OutputRaster|VARIANCE|Variance
+statistics_kriging
+QgsProcessingParameterFeatureSource|POINTS|Points|0|None|False
+QgsProcessingParameterField|FIELD|Attribute|None|POINTS|-1|False|False
+QgsProcessingParameterEnum|TQUALITY|Type of Quality Measure|[0] standard deviation;[1] variance
+QgsProcessingParameterBoolean|LOG|Logarithmic Transformation|True
+QgsProcessingParameterBoolean|BLOCK|Block Kriging|True
+QgsProcessingParameterNumber|DBLOCK|Block Size|QgsProcessingParameterNumber.Double|100|False|0|None
+QgsProcessingParameterNumber|VAR_MAXDIST|Maximum Distance|QgsProcessingParameterNumber.Double|-1.0|False|None|None
+QgsProcessingParameterNumber|VAR_NCLASSES|Lag Distance Classes|QgsProcessingParameterNumber.Integer|100|False|1|None
+QgsProcessingParameterNumber|VAR_NSKIP|Skip|QgsProcessingParameterNumber.Integer|1|False|1|None
+QgsProcessingParameterString|VAR_MODEL|Variogram Model|a + b * x
+Hardcoded|-TARGET_DEFINITION 0
+QgsProcessingParameterExtent|TARGET_USER_XMIN TARGET_USER_XMAX TARGET_USER_YMIN TARGET_USER_YMAX|Output extent|None|True
+QgsProcessingParameterNumber|TARGET_USER_SIZE|Cellsize|QgsProcessingParameterNumber.Double|1.0|False|0|None
+QgsProcessingParameterEnum|TARGET_USER_FITS|Fit|[0] nodes;[1] cells
+QgsProcessingParameterRasterDestination|PREDICTION|Prediction
+QgsProcessingParameterRasterDestination|VARIANCE|Quality Measure|None|True
+QgsProcessingParameterEnum|SEARCH_RANGE|Search Range|[0] local;[1] global
+QgsProcessingParameterNumber|SEARCH_RADIUS|Maximum Search Distance|QgsProcessingParameterNumber.Double|1000|False|0|None
+QgsProcessingParameterEnum|SEARCH_POINTS_ALL|Number of Points|[0] maximum number of nearest points;[1] all points within search distance
+QgsProcessingParameterNumber|SEARCH_POINTS_MIN|Minimum|QgsProcessingParameterNumber.Integer|16|False|1|None
+QgsProcessingParameterNumber|SEARCH_POINTS_MAX|Maximum|QgsProcessingParameterNumber.Integer|20|False|1|None
+QgsProcessingParameterEnum|SEARCH_DIRECTION|Search Direction|[0] all directions;[1] quadrants

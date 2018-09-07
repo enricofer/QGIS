@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -15,51 +15,84 @@
 
 #include "qgscheckboxwidgetwrapper.h"
 
-QgsCheckboxWidgetWrapper::QgsCheckboxWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
-    :  QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+QgsCheckboxWidgetWrapper::QgsCheckboxWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent )
+  : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+
 {
 }
 
 
-QVariant QgsCheckboxWidgetWrapper::value()
+QVariant QgsCheckboxWidgetWrapper::value() const
 {
   QVariant v;
 
-  if ( mGroupBox )
-    v = mGroupBox->isChecked() ? config( "CheckedState" ) : config( "UncheckedState" );
+  if ( field().type() == QVariant::Bool )
+  {
+    if ( mGroupBox )
+      v = mGroupBox->isChecked();
+    else if ( mCheckBox )
+      v = mCheckBox->isChecked();
+  }
+  else
+  {
+    if ( mGroupBox )
+      v = mGroupBox->isChecked() ? config( QStringLiteral( "CheckedState" ) ) : config( QStringLiteral( "UncheckedState" ) );
 
-  if ( mCheckBox )
-    v = mCheckBox->isChecked() ? config( "CheckedState" ) : config( "UncheckedState" );
-
+    else if ( mCheckBox )
+      v = mCheckBox->isChecked() ? config( QStringLiteral( "CheckedState" ) ) : config( QStringLiteral( "UncheckedState" ) );
+  }
 
   return v;
 }
 
-QWidget* QgsCheckboxWidgetWrapper::createWidget( QWidget* parent )
+void QgsCheckboxWidgetWrapper::showIndeterminateState()
+{
+  if ( mCheckBox )
+  {
+    whileBlocking( mCheckBox )->setCheckState( Qt::PartiallyChecked );
+  }
+}
+
+QWidget *QgsCheckboxWidgetWrapper::createWidget( QWidget *parent )
 {
   return new QCheckBox( parent );
 }
 
-void QgsCheckboxWidgetWrapper::initWidget( QWidget* editor )
+void QgsCheckboxWidgetWrapper::initWidget( QWidget *editor )
 {
-  mCheckBox = qobject_cast<QCheckBox*>( editor );
-  mGroupBox = qobject_cast<QGroupBox*>( editor );
+  mCheckBox = qobject_cast<QCheckBox *>( editor );
+  mGroupBox = qobject_cast<QGroupBox *>( editor );
 
   if ( mCheckBox )
-    connect( mCheckBox, SIGNAL( toggled( bool ) ), this, SLOT( valueChanged( bool ) ) );
+    connect( mCheckBox, &QAbstractButton::toggled, this, [ = ]( bool state ) { emit valueChanged( state ); } );
   if ( mGroupBox )
-    connect( mGroupBox, SIGNAL( toggled( bool ) ), this, SLOT( valueChanged( bool ) ) );
+    connect( mGroupBox, &QGroupBox::toggled, this, [ = ]( bool state ) { emit valueChanged( state ); } );
 }
 
-void QgsCheckboxWidgetWrapper::setValue( const QVariant& value )
+bool QgsCheckboxWidgetWrapper::valid() const
 {
+  return mCheckBox || mGroupBox;
+}
+
+void QgsCheckboxWidgetWrapper::setValue( const QVariant &value )
+{
+  bool state = false;
+
+  if ( field().type() == QVariant::Bool )
+  {
+    state = value.toBool();
+  }
+  else
+  {
+    state = ( value == config( QStringLiteral( "CheckedState" ) ) );
+  }
   if ( mGroupBox )
   {
-    mGroupBox->setChecked( value == config( "CheckedState" ) );
+    mGroupBox->setChecked( state );
   }
 
   if ( mCheckBox )
   {
-    mCheckBox->setChecked( value == config( "CheckedState" ) );
+    mCheckBox->setChecked( state );
   }
 }

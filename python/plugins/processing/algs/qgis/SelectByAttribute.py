@@ -25,100 +25,151 @@ __copyright__ = '(C) 2010, Michael Minn'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.GeoAlgorithmExecutionException import \
-        GeoAlgorithmExecutionException
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterTableField
-from processing.core.parameters import ParameterSelection
-from processing.core.parameters import ParameterString
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+from qgis.PyQt.QtCore import QVariant
+from qgis.core import (QgsExpression,
+                       QgsVectorLayer,
+                       QgsProcessing,
+                       QgsProcessingException,
+                       QgsProcessingAlgorithm,
+                       QgsProcessingParameterVectorLayer,
+                       QgsProcessingParameterField,
+                       QgsProcessingParameterEnum,
+                       QgsProcessingParameterString,
+                       QgsProcessingOutputVectorLayer)
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
 
 
-class SelectByAttribute(GeoAlgorithm):
+class SelectByAttribute(QgisAlgorithm):
     INPUT = 'INPUT'
     FIELD = 'FIELD'
     OPERATOR = 'OPERATOR'
     VALUE = 'VALUE'
+    METHOD = 'METHOD'
     OUTPUT = 'OUTPUT'
 
     OPERATORS = ['=',
-                 '!=',
+                 '≠',
                  '>',
                  '>=',
                  '<',
                  '<=',
                  'begins with',
-                 'contains'
-                ]
+                 'contains',
+                 'is null',
+                 'is not null',
+                 'does not contain'
+                 ]
+    STRING_OPERATORS = ['begins with',
+                        'contains',
+                        'does not contain']
 
-    def defineCharacteristics(self):
-        self.name = 'Select by attribute'
-        self.group = 'Vector selection tools'
+    def tags(self):
+        return self.tr('select,attribute,value,contains,null,field').split(',')
 
-        self.addParameter(ParameterVector(
-            self.INPUT, 'Input Layer', [ParameterVector.VECTOR_TYPE_ANY]))
-        self.addParameter(ParameterTableField(
-            self.FIELD, 'Selection attribute', self.INPUT))
-        self.addParameter(ParameterSelection(
-            self.OPERATOR, 'Operator', self.OPERATORS))
-        self.addParameter(ParameterString(self.VALUE, 'Value'))
+    def group(self):
+        return self.tr('Vector selection')
 
-        self.addOutput(OutputVector(self.OUTPUT, 'Output'))
+    def groupId(self):
+        return 'vectorselection'
 
-    def processAlgorithm(self, progress):
-        layer = dataobjects.getObjectFromUri(
-                self.getParameterValue(self.INPUT))
-        fieldName = self.getParameterValue(self.FIELD)
-        operator = self.OPERATORS[self.getParameterValue(self.OPERATOR)]
-        value = self.getParameterValue(self.VALUE)
+    def __init__(self):
+        super().__init__()
 
-        fields = layer.pendingFields()
+    def flags(self):
+        return super().flags() | QgsProcessingAlgorithm.FlagNoThreading
 
-        idx = layer.fieldNameIndex(fieldName)
+    def initAlgorithm(self, config=None):
+        self.operators = ['=',
+                          '≠',
+                          '>',
+                          '>=',
+                          '<',
+                          '<=',
+                          self.tr('begins with'),
+                          self.tr('contains'),
+                          self.tr('is null'),
+                          self.tr('is not null'),
+                          self.tr('does not contain')
+                          ]
+
+        self.methods = [self.tr('creating new selection'),
+                        self.tr('adding to current selection'),
+                        self.tr('removing from current selection'),
+                        self.tr('selecting within current selection')]
+
+        self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT,
+                                                            self.tr('Input layer'),
+                                                            types=[QgsProcessing.TypeVector]))
+        self.addParameter(QgsProcessingParameterField(self.FIELD,
+                                                      self.tr('Selection attribute'),
+                                                      parentLayerParameterName=self.INPUT))
+        self.addParameter(QgsProcessingParameterEnum(self.OPERATOR,
+                                                     self.tr('Operator'), self.operators))
+        self.addParameter(QgsProcessingParameterString(self.VALUE,
+                                                       self.tr('Value'),
+                                                       optional=True))
+        self.addParameter(QgsProcessingParameterEnum(self.METHOD,
+                                                     self.tr('Modify current selection by'),
+                                                     self.methods,
+                                                     0))
+
+        self.addOutput(QgsProcessingOutputVectorLayer(self.OUTPUT, self.tr('Selected (attribute)')))
+
+    def name(self):
+        return 'selectbyattribute'
+
+    def displayName(self):
+        return self.tr('Select by attribute')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
+
+        fieldName = self.parameterAsString(parameters, self.FIELD, context)
+        operator = self.OPERATORS[self.parameterAsEnum(parameters, self.OPERATOR, context)]
+        value = self.parameterAsString(parameters, self.VALUE, context)
+
+        fields = layer.fields()
+
+        idx = layer.fields().lookupField(fieldName)
+        if idx < 0:
+            raise QgsProcessingException(self.tr("Field '{}' was not found in layer").format(fieldName))
+
         fieldType = fields[idx].type()
 
-        if fieldType != QVariant.String and operator in self.OPERATORS[-2:]:
-            op = ''.join(['"%s", ' % o for o in self.OPERATORS[-2:]])
-            raise GeoAlgorithmExecutionException(
-                'Operators %s can be used only with string fields.' % op)
+        if fieldType != QVariant.String and operator in self.STRING_OPERATORS:
+            op = ''.join(['"%s", ' % o for o in self.STRING_OPERATORS])
+            raise QgsProcessingException(
+                self.tr('Operators {0} can be used only with string fields.').format(op))
 
-        if fieldType in [QVariant.Int, QVariant.Double]:
-            progress.setInfo('Numeric field')
-            expr = '"%s" %s %s' % (fieldName, operator, value)
-            progress.setInfo(expr)
-        elif fieldType == QVariant.String:
-            progress.setInfo('String field')
-            if operator not in self.OPERATORS[-2:]:
-                expr = """"%s" %s '%s'""" % (fieldName, operator, value)
-            elif operator == 'begins with':
-                expr = """"%s" LIKE '%s%%'""" % (fieldName, value)
-            elif operator == 'contains':
-                expr = """"%s" LIKE '%%%s%%'""" % (fieldName, value)
-            progress.setInfo(expr)
-        elif fieldType in [QVariant.Date, QVariant.DateTime]:
-            progress.setInfo('Date field')
-            expr = """"%s" %s '%s'""" % (fieldX, operator, value)
-            progress.setInfo(expr)
+        field_ref = QgsExpression.quotedColumnRef(fieldName)
+        quoted_val = QgsExpression.quotedValue(value)
+        if operator == 'is null':
+            expression_string = '{} IS NULL'.format(field_ref)
+        elif operator == 'is not null':
+            expression_string = '{} IS NOT NULL'.format(field_ref)
+        elif operator == 'begins with':
+            expression_string = "{} LIKE '{}%'".format(field_ref, value)
+        elif operator == 'contains':
+            expression_string = "{} LIKE '%{}%'".format(field_ref, value)
+        elif operator == 'does not contain':
+            expression_string = "{} NOT LIKE '%{}%'".format(field_ref, value)
         else:
-            raise GeoAlgorithmExecutionException(
-                'Unsupported field type "%s"' % fields[idx].typeName())
+            expression_string = '{} {} {}'.format(field_ref, operator, quoted_val)
 
-        expression = QgsExpression(expr)
-        expression.prepare(fields)
+        method = self.parameterAsEnum(parameters, self.METHOD, context)
+        if method == 0:
+            behavior = QgsVectorLayer.SetSelection
+        elif method == 1:
+            behavior = QgsVectorLayer.AddToSelection
+        elif method == 2:
+            behavior = QgsVectorLayer.RemoveFromSelection
+        elif method == 3:
+            behavior = QgsVectorLayer.IntersectSelection
 
-        features = vector.features(layer)
+        expression = QgsExpression(expression_string)
+        if expression.hasParserError():
+            raise QgsProcessingException(expression.parserErrorString())
 
-        selected = []
-        count = len(features)
-        total = 100.0 / float(count)
-        for count, f in enumerate(features):
-            if expression.evaluate(f, fields):
-                selected.append(f.id())
-            progress.setPercentage(int(count * total))
+        layer.selectByExpression(expression_string, behavior)
 
-        layer.setSelectedFeatures(selected)
-        self.setOutputValue(self.OUTPUT, self.getParameterValue(self.INPUT))
+        return {self.OUTPUT: parameters[self.INPUT]}

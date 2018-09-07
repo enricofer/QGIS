@@ -19,8 +19,8 @@
 
 
 QgsRelationReferenceWidgetPlugin::QgsRelationReferenceWidgetPlugin( QObject *parent )
-    : QObject( parent )
-    , mInitialized( false )
+  : QObject( parent )
+  , mInitialized( false )
 {
 }
 
@@ -42,7 +42,7 @@ QString QgsRelationReferenceWidgetPlugin::includeFile() const
 
 QIcon QgsRelationReferenceWidgetPlugin::icon() const
 {
-  return QIcon();
+  return QIcon( ":/images/icons/qgis-icon-60x60.png" );
 }
 
 bool QgsRelationReferenceWidgetPlugin::isContainer() const

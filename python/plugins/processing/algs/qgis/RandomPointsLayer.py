@@ -25,95 +25,140 @@ __copyright__ = '(C) 2014, Alexander Bruy'
 
 __revision__ = '$Format:%H$'
 
-import math
+import os
 import random
 
-from PyQt4.QtCore import *
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QVariant
+from qgis.core import (QgsApplication,
+                       QgsField,
+                       QgsFeatureSink,
+                       QgsFeature,
+                       QgsFields,
+                       QgsGeometry,
+                       QgsPointXY,
+                       QgsWkbTypes,
+                       QgsSpatialIndex,
+                       QgsFeatureRequest,
+                       QgsProcessing,
+                       QgsProcessingException,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterDistance,
+                       QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterFeatureSink,
+                       QgsProcessingParameterDefinition)
 
-from qgis.core import *
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
+from processing.tools import vector
 
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.ProcessingLog import ProcessingLog
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterNumber
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
-class RandomPointsLayer(GeoAlgorithm):
+class RandomPointsLayer(QgisAlgorithm):
 
-    VECTOR = 'VECTOR'
-    POINT_NUMBER = 'POINT_NUMBER'
+    INPUT = 'INPUT'
+    POINTS_NUMBER = 'POINTS_NUMBER'
     MIN_DISTANCE = 'MIN_DISTANCE'
     OUTPUT = 'OUTPUT'
 
-    def defineCharacteristics(self):
-        self.name = 'Random points in layer bounds'
-        self.group = 'Vector creation tools'
-        self.addParameter(ParameterVector(self.VECTOR,
-            'Input layer',[ParameterVector.VECTOR_TYPE_POLYGON]))
-        self.addParameter(
-            ParameterNumber(self.POINT_NUMBER, 'Points number', 1, 9999999, 1))
-        self.addParameter(ParameterNumber(
-            self.MIN_DISTANCE, 'Minimum distance', 0.0, 9999999, 0.0))
-        self.addOutput(OutputVector(self.OUTPUT, 'Random points'))
+    def icon(self):
+        return QgsApplication.getThemeIcon("/algorithms/mAlgorithmRandomPointsWithinExtent.svg")
 
-    def processAlgorithm(self, progress):
-        layer = dataobjects.getObjectFromUri(
-            self.getParameterValue(self.VECTOR))
-        pointCount = int(self.getParameterValue(self.POINT_NUMBER))
-        minDistance = float(self.getParameterValue(self.MIN_DISTANCE))
+    def svgIconPath(self):
+        return QgsApplication.iconPath("/algorithms/mAlgorithmRandomPointsWithinExtent.svg")
 
-        bbox = layer.extent()
-        extent = QgsGeometry().fromRect(bbox)
-        idxLayer = vector.spatialindex(layer)
+    def group(self):
+        return self.tr('Vector creation')
+
+    def groupId(self):
+        return 'vectorcreation'
+
+    def __init__(self):
+        super().__init__()
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input layer'),
+                                                              [QgsProcessing.TypeVectorPolygon]))
+        self.addParameter(QgsProcessingParameterNumber(self.POINTS_NUMBER,
+                                                       self.tr('Number of points'),
+                                                       QgsProcessingParameterNumber.Integer,
+                                                       1, False, 1, 1000000000))
+        self.addParameter(QgsProcessingParameterDistance(self.MIN_DISTANCE,
+                                                         self.tr('Minimum distance between points'),
+                                                         0, self.INPUT, False, 0, 1000000000))
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT,
+                                                            self.tr('Random points'),
+                                                            type=QgsProcessing.TypeVectorPoint))
+
+    def name(self):
+        return 'randompointsinlayerbounds'
+
+    def displayName(self):
+        return self.tr('Random points in layer bounds')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+
+        pointCount = self.parameterAsDouble(parameters, self.POINTS_NUMBER, context)
+        minDistance = self.parameterAsDouble(parameters, self.MIN_DISTANCE, context)
+
+        bbox = source.sourceExtent()
+        sourceIndex = QgsSpatialIndex(source, feedback)
 
         fields = QgsFields()
         fields.append(QgsField('id', QVariant.Int, '', 10, 0))
-        writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(
-            fields, QGis.WKBPoint, layer.dataProvider().crs())
+
+        (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT, context,
+                                               fields, QgsWkbTypes.Point, source.sourceCrs())
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
 
         nPoints = 0
         nIterations = 0
         maxIterations = pointCount * 200
-        total = 100.0 / pointCount
+        total = 100.0 / pointCount if pointCount else 1
 
         index = QgsSpatialIndex()
         points = dict()
 
-        request = QgsFeatureRequest()
-
         random.seed()
 
         while nIterations < maxIterations and nPoints < pointCount:
+            if feedback.isCanceled():
+                break
+
             rx = bbox.xMinimum() + bbox.width() * random.random()
             ry = bbox.yMinimum() + bbox.height() * random.random()
 
-            pnt = QgsPoint(rx, ry)
-            geom = QgsGeometry.fromPoint(pnt)
-            ids = idxLayer.intersects(geom.buffer(5, 5).boundingBox())
+            p = QgsPointXY(rx, ry)
+            geom = QgsGeometry.fromPointXY(p)
+            ids = sourceIndex.intersects(geom.buffer(5, 5).boundingBox())
             if len(ids) > 0 and \
-                    vector.checkMinDistance(pnt, index, minDistance, points):
-                for i in ids:
-                    f = layer.getFeatures(request.setFilterFid(i)).next()
-                    tmpGeom = QgsGeometry(f.geometry())
+                    vector.checkMinDistance(p, index, minDistance, points):
+                request = QgsFeatureRequest().setFilterFids(ids).setSubsetOfAttributes([])
+                for f in source.getFeatures(request):
+                    if feedback.isCanceled():
+                        break
+
+                    tmpGeom = f.geometry()
                     if geom.within(tmpGeom):
                         f = QgsFeature(nPoints)
                         f.initAttributes(1)
                         f.setFields(fields)
                         f.setAttribute('id', nPoints)
                         f.setGeometry(geom)
-                        writer.addFeature(f)
+                        sink.addFeature(f, QgsFeatureSink.FastInsert)
                         index.insertFeature(f)
-                        points[nPoints] = pnt
+                        points[nPoints] = p
                         nPoints += 1
-                        progress.setPercentage(int(nPoints * total))
+                        feedback.setProgress(int(nPoints * total))
             nIterations += 1
 
         if nPoints < pointCount:
-             ProcessingLog.addToLog(
-                 ProcessingLog.LOG_INFO,
-                 'Can not generate requested number of random points. Maximum '
-                 'number of attempts exceeded.')
+            feedback.pushInfo(self.tr('Could not generate requested number of random points. '
+                                      'Maximum number of attempts exceeded.'))
 
-        del writer
+        return {self.OUTPUT: dest_id}

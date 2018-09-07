@@ -17,47 +17,45 @@
 #ifndef QGSMESSAGELOGVIEWER_H
 #define QGSMESSAGELOGVIEWER_H
 
-#include <ui_qgsmessagelogviewer.h>
-#include <qgisgui.h>
+#include "ui_qgsmessagelogviewer.h"
+#include "qgsguiutils.h"
 #include "qgsmessagelog.h"
 
 #include <QString>
+#include "qgis_gui.h"
+#include "qgis.h"
 
 class QStatusBar;
-class QToolButton;
-class QShowEvent;
-class QHideEvent;
+class QCloseEvent;
 
-/** \ingroup gui
- * A generic message for displaying QGIS log messages.
+/**
+ * \ingroup gui
+ * A generic dialog widget for displaying QGIS log messages.
  */
 class GUI_EXPORT QgsMessageLogViewer: public QDialog, private Ui::QgsMessageLogViewer
 {
     Q_OBJECT
   public:
-    QgsMessageLogViewer( QStatusBar *statusBar = 0, QWidget *parent = 0, Qt::WindowFlags fl = QgisGui::ModalDialogFlags );
-    ~QgsMessageLogViewer();
 
-    //! @note added in 2.4
-    void setShowToolTips( bool enabled ) { mShowToolTips = enabled; }
-    //! @note added in 2.4
-    bool showToolTips() const { return mShowToolTips; }
+    /**
+     * Create a new message log viewer. The viewer will automatically connect to the system's
+     * QgsApplication::messageLog() instance.
+     */
+    QgsMessageLogViewer( QWidget *parent SIP_TRANSFERTHIS = nullptr, Qt::WindowFlags fl = QgsGuiUtils::ModalDialogFlags );
 
   public slots:
-    void logMessage( QString message, QString tag, QgsMessageLog::MessageLevel level );
+
+    /**
+     * Logs a \a message to the viewer.
+     */
+    void logMessage( const QString &message, const QString &tag, Qgis::MessageLevel level );
 
   protected:
-    void showEvent( QShowEvent * );
-    void hideEvent( QHideEvent * );
-
-  private:
-    QToolButton *mButton;
-    bool mShowToolTips;
+    void closeEvent( QCloseEvent *e ) override;
+    void reject() override;
 
   private slots:
     void closeTab( int index );
-    void buttonToggled( bool checked );
-    void buttonDestroyed();
 };
 
 #endif

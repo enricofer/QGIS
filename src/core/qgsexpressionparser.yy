@@ -17,7 +17,11 @@
 #include <qglobal.h>
 #include <QList>
 #include <cstdlib>
-#include "qgsexpression.h"
+#include "qgslogger.h"
+#include "expression/qgsexpression.h"
+#include "expression/qgsexpressionnode.h"
+#include "expression/qgsexpressionnodeimpl.h"
+#include "expression/qgsexpressionfunction.h"
 
 #ifdef _MSC_VER
 #  pragma warning( disable: 4065 )  // switch statement contains 'default' but no 'case' labels
@@ -27,6 +31,9 @@
 // don't redeclare malloc/free
 #define YYINCLUDED_STDLIB_H 1
 
+// maximum number of errors encountered before parser aborts
+#define MAX_ERRORS 10
+
 struct expression_parser_context;
 #include "qgsexpressionparser.hpp"
 
@@ -35,26 +42,29 @@ typedef void* yyscan_t;
 typedef struct yy_buffer_state* YY_BUFFER_STATE;
 extern int exp_lex_init(yyscan_t* scanner);
 extern int exp_lex_destroy(yyscan_t scanner);
-extern int exp_lex(YYSTYPE* yylval_param, yyscan_t yyscanner);
+extern int exp_lex(YYSTYPE* yylval_param, YYLTYPE* yyloc, yyscan_t yyscanner);
 extern YY_BUFFER_STATE exp__scan_string(const char* buffer, yyscan_t scanner);
 
-/** returns parsed tree, otherwise returns NULL and sets parserErrorMsg
+/** returns parsed tree, otherwise returns nullptr and sets parserErrorMsg
     (interface function to be called from QgsExpression)
   */
-QgsExpression::Node* parseExpression(const QString& str, QString& parserErrorMsg);
+QgsExpressionNode* parseExpression(const QString& str, QString& parserErrorMsg, QList<QgsExpression::ParserError>& parserError);
 
 /** error handler for bison */
-void exp_error(expression_parser_context* parser_ctx, const char* msg);
+void exp_error(YYLTYPE* yyloc, expression_parser_context* parser_ctx, const char* msg);
 
 struct expression_parser_context
 {
   // lexer context
   yyscan_t flex_scanner;
 
-  // varible where the parser error will be stored
+  // List of all errors.
+  QList<QgsExpression::ParserError> parserErrors;
   QString errorMsg;
+  // Current parser error.
+  QgsExpression::ParserError::ParserErrorType currentErrorType = QgsExpression::ParserError::Unknown;
   // root node of the expression
-  QgsExpression::Node* rootNode;
+  QgsExpressionNode* rootNode;
 };
 
 #define scanner parser_ctx->flex_scanner
@@ -62,11 +72,20 @@ struct expression_parser_context
 // we want verbose error messages
 #define YYERROR_VERBOSE 1
 
-#define BINOP(x, y, z)  new QgsExpression::NodeBinaryOperator(x, y, z)
+#define BINOP(x, y, z)  new QgsExpressionNodeBinaryOperator(x, y, z)
+
+void addParserLocation(YYLTYPE* yyloc, QgsExpressionNode *node)
+{
+  node->parserFirstLine = yyloc->first_line;
+  node->parserFirstColumn = yyloc->first_column;
+  node->parserLastLine = yyloc->last_line;
+  node->parserLastColumn = yyloc->last_column;
+}
 
 %}
 
 // make the parser reentrant
+%locations
 %define api.pure
 %lex-param {void * scanner}
 %parse-param {expression_parser_context* parser_ctx}
@@ -75,15 +94,17 @@ struct expression_parser_context
 
 %union
 {
-  QgsExpression::Node* node;
-  QgsExpression::NodeList* nodelist;
+  QgsExpressionNode* node;
+  QgsExpressionNode::NodeList* nodelist;
+  QgsExpressionNode::NamedNode* namednode;
   double numberFloat;
   int    numberInt;
+  bool   boolVal;
   QString* text;
-  QgsExpression::BinaryOperator b_op;
-  QgsExpression::UnaryOperator u_op;
-  QgsExpression::WhenThen* whenthen;
-  QgsExpression::WhenThenList* whenthenlist;
+  QgsExpressionNodeBinaryOperator::BinaryOperator b_op;
+  QgsExpressionNodeUnaryOperator::UnaryOperator u_op;
+  QgsExpressionNodeCondition::WhenThen* whenthen;
+  QgsExpressionNodeCondition::WhenThenList* whenthenlist;
 }
 
 %start root
@@ -94,19 +115,20 @@ struct expression_parser_context
 //
 
 // operator tokens
-%token <b_op> OR AND EQ NE LE GE LT GT REGEXP LIKE IS PLUS MINUS MUL DIV MOD CONCAT POW
+%token <b_op> OR AND EQ NE LE GE LT GT REGEXP LIKE IS PLUS MINUS MUL DIV INTDIV MOD CONCAT POW
 %token <u_op> NOT
 %token IN
 
 // literals
 %token <numberFloat> NUMBER_FLOAT
 %token <numberInt> NUMBER_INT
+%token <boolVal> BOOLEAN
 %token NULLVALUE
 
 // tokens for conditional expressions
 %token CASE WHEN THEN ELSE END
 
-%token <text> STRING COLUMN_REF FUNCTION SPECIAL_COL
+%token <text> STRING QUOTED_COLUMN_REF NAME SPECIAL_COL VARIABLE NAMED_NODE
 
 %token COMMA
 
@@ -120,6 +142,7 @@ struct expression_parser_context
 %type <nodelist> exp_list
 %type <whenthen> when_then_clause
 %type <whenthenlist> when_then_clauses
+%type <namednode> named_node
 
 // debugging
 %error-verbose
@@ -136,7 +159,7 @@ struct expression_parser_context
 %right NOT
 %left EQ NE LE GE LT GT REGEXP LIKE IS IN
 %left PLUS MINUS
-%left MUL DIV MOD
+%left MUL DIV INTDIV MOD
 %right POW
 %left CONCAT
 
@@ -146,12 +169,23 @@ struct expression_parser_context
 
 %destructor { delete $$; } <node>
 %destructor { delete $$; } <nodelist>
+%destructor { delete $$; } <namednode>
 %destructor { delete $$; } <text>
+%destructor { delete $$; } <whenthen>
+%destructor { delete $$; } <whenthenlist>
 
 %%
 
 root: expression { parser_ctx->rootNode = $1; }
-    ;
+    | error expression
+        {
+            delete $2;
+            if ( parser_ctx->parserErrors.count() < MAX_ERRORS )
+              yyerrok;
+            else
+              YYABORT;
+        }
+   ;
 
 expression:
       expression AND expression       { $$ = BINOP($2, $1, $3); }
@@ -168,95 +202,174 @@ expression:
     | expression PLUS expression      { $$ = BINOP($2, $1, $3); }
     | expression MINUS expression     { $$ = BINOP($2, $1, $3); }
     | expression MUL expression       { $$ = BINOP($2, $1, $3); }
+    | expression INTDIV expression    { $$ = BINOP($2, $1, $3); }
     | expression DIV expression       { $$ = BINOP($2, $1, $3); }
     | expression MOD expression       { $$ = BINOP($2, $1, $3); }
     | expression POW expression       { $$ = BINOP($2, $1, $3); }
     | expression CONCAT expression    { $$ = BINOP($2, $1, $3); }
-    | NOT expression                  { $$ = new QgsExpression::NodeUnaryOperator($1, $2); }
+    | NOT expression                  { $$ = new QgsExpressionNodeUnaryOperator($1, $2); }
     | '(' expression ')'              { $$ = $2; }
-
-    | FUNCTION '(' exp_list ')'
+    | NAME '(' exp_list ')'
         {
           int fnIndex = QgsExpression::functionIndex(*$1);
+          delete $1;
           if (fnIndex == -1)
           {
-            // this should not actually happen because already in lexer we check whether an identifier is a known function
-            // (if the name is not known the token is parsed as a column)
-            exp_error(parser_ctx, "Function is not known");
+            QgsExpression::ParserError::ParserErrorType errorType = QgsExpression::ParserError::FunctionUnknown;
+            parser_ctx->currentErrorType = errorType;
+            exp_error(&yyloc, parser_ctx, "Function is not known");
+            delete $3;
             YYERROR;
           }
-          if ( QgsExpression::Functions()[fnIndex]->params() != -1
-               && QgsExpression::Functions()[fnIndex]->params() != $3->count() )
+          QString paramError;
+          if ( !QgsExpressionNodeFunction::validateParams( fnIndex, $3, paramError ) )
           {
-            exp_error(parser_ctx, "Function is called with wrong number of arguments");
+            QgsExpression::ParserError::ParserErrorType errorType = QgsExpression::ParserError::FunctionInvalidParams;
+            parser_ctx->currentErrorType = errorType;
+            exp_error( &yyloc, parser_ctx, paramError.toLocal8Bit().constData() );
+            delete $3;
             YYERROR;
           }
-          $$ = new QgsExpression::NodeFunction(fnIndex, $3);
-          delete $1;
+          QgsExpressionFunction* func = QgsExpression::Functions()[fnIndex];
+          if ( func->params() != -1
+               && !( func->params() >= $3->count()
+               && func->minParams() <= $3->count() ) )
+          {
+            QgsExpression::ParserError::ParserErrorType errorType = QgsExpression::ParserError::FunctionWrongArgs;
+            parser_ctx->currentErrorType = errorType;
+            QString expectedMessage;
+            if (func->params() == func->minParams())
+            {
+               expectedMessage = QString("Expected %2" ).arg( func->params());
+            }
+            else
+            {
+               expectedMessage = QString("Expected between %2 and %4 max but got %3" ).arg( func->minParams(), func->params() );
+            }
+            exp_error(&yyloc, parser_ctx, QString( "%1 function is called with wrong number of arguments."
+                                                   "%2 but got %3" ).arg( QgsExpression::Functions()[fnIndex]->name() )
+                                                                             .arg( expectedMessage )
+                                                                             .arg( $3->count() ).toLocal8Bit().constData() );
+            delete $3;
+            YYERROR;
+          }
+          $$ = new QgsExpressionNodeFunction(fnIndex, $3);
+          addParserLocation(&@1, $$);
         }
 
-    | expression IN '(' exp_list ')'     { $$ = new QgsExpression::NodeInOperator($1, $4, false);  }
-    | expression NOT IN '(' exp_list ')' { $$ = new QgsExpression::NodeInOperator($1, $5, true); }
+    | NAME '(' ')'
+        {
+          int fnIndex = QgsExpression::functionIndex(*$1);
+          delete $1;
+          if (fnIndex == -1)
+          {
+            QgsExpression::ParserError::ParserErrorType errorType = QgsExpression::ParserError::FunctionUnknown;
+            parser_ctx->currentErrorType = errorType;
+            exp_error(&yyloc, parser_ctx, "Function is not known");
+            YYERROR;
+          }
+          // 0 parameters is expected, -1 parameters means leave it to the
+          // implementation
+          if ( QgsExpression::Functions()[fnIndex]->params() > 0 )
+          {
+            QgsExpression::ParserError::ParserErrorType errorType = QgsExpression::ParserError::FunctionWrongArgs;
+            parser_ctx->currentErrorType = errorType;
+            exp_error(&yyloc, parser_ctx, QString( "%1 function is called with wrong number of arguments" ).arg( QgsExpression::Functions()[fnIndex]->name() ).toLocal8Bit().constData() );
+            YYERROR;
+          }
+          $$ = new QgsExpressionNodeFunction(fnIndex, new QgsExpressionNode::NodeList());
+          addParserLocation(&@1, $$);
+        }
+
+    | expression IN '(' exp_list ')'     { $$ = new QgsExpressionNodeInOperator($1, $4, false);  }
+    | expression NOT IN '(' exp_list ')' { $$ = new QgsExpressionNodeInOperator($1, $5, true); }
 
     | PLUS expression %prec UMINUS { $$ = $2; }
-    | MINUS expression %prec UMINUS { $$ = new QgsExpression::NodeUnaryOperator( QgsExpression::uoMinus, $2); }
+    | MINUS expression %prec UMINUS { $$ = new QgsExpressionNodeUnaryOperator( QgsExpressionNodeUnaryOperator::uoMinus, $2); }
 
-    | CASE when_then_clauses END      { $$ = new QgsExpression::NodeCondition($2); }
-    | CASE when_then_clauses ELSE expression END  { $$ = new QgsExpression::NodeCondition($2,$4); }
+    | CASE when_then_clauses END      { $$ = new QgsExpressionNodeCondition($2); }
+    | CASE when_then_clauses ELSE expression END  { $$ = new QgsExpressionNodeCondition($2,$4); }
 
     // columns
-    | COLUMN_REF                  { $$ = new QgsExpression::NodeColumnRef( *$1 ); delete $1; }
+    | NAME                  { $$ = new QgsExpressionNodeColumnRef( *$1 ); delete $1; }
+    | QUOTED_COLUMN_REF                  { $$ = new QgsExpressionNodeColumnRef( *$1 ); delete $1; }
 
     // special columns (actually functions with no arguments)
     | SPECIAL_COL
         {
           int fnIndex = QgsExpression::functionIndex(*$1);
-          if (fnIndex == -1)
+          if (fnIndex >= 0)
           {
-      if ( !QgsExpression::hasSpecialColumn( *$1 ) )
-	    {
-        exp_error(parser_ctx, "Special column is not known");
-	      YYERROR;
-	    }
-	    // $var is equivalent to _specialcol_( "$var" )
-	    QgsExpression::NodeList* args = new QgsExpression::NodeList();
-	    QgsExpression::NodeLiteral* literal = new QgsExpression::NodeLiteral( *$1 );
-	    args->append( literal );
-	    $$ = new QgsExpression::NodeFunction( QgsExpression::functionIndex( "_specialcol_" ), args );
+            $$ = new QgsExpressionNodeFunction( fnIndex, nullptr );
           }
-	  else
-	  {
-	    $$ = new QgsExpression::NodeFunction( fnIndex, NULL );
-	    delete $1;
-	  }
+          else
+          {
+            QgsExpression::ParserError::ParserErrorType errorType = QgsExpression::ParserError::FunctionUnknown;
+            parser_ctx->currentErrorType = errorType;
+            exp_error(&yyloc, parser_ctx, QString("%1 function is not known").arg(*$1).toLocal8Bit().constData());
+            YYERROR;
+          }
+          delete $1;
+        }
+
+    // variables
+    | VARIABLE
+        {
+          // @var is equivalent to var( "var" )
+          QgsExpressionNode::NodeList* args = new QgsExpressionNode::NodeList();
+          QgsExpressionNodeLiteral* literal = new QgsExpressionNodeLiteral( QString(*$1).mid(1) );
+          args->append( literal );
+          $$ = new QgsExpressionNodeFunction( QgsExpression::functionIndex( "var" ), args );
+          delete $1;
         }
 
     //  literals
-    | NUMBER_FLOAT                { $$ = new QgsExpression::NodeLiteral( QVariant($1) ); }
-    | NUMBER_INT                  { $$ = new QgsExpression::NodeLiteral( QVariant($1) ); }
-    | STRING                      { $$ = new QgsExpression::NodeLiteral( QVariant(*$1) ); delete $1; }
-    | NULLVALUE                   { $$ = new QgsExpression::NodeLiteral( QVariant() ); }
+    | NUMBER_FLOAT                { $$ = new QgsExpressionNodeLiteral( QVariant($1) ); }
+    | NUMBER_INT                  { $$ = new QgsExpressionNodeLiteral( QVariant($1) ); }
+    | BOOLEAN                     { $$ = new QgsExpressionNodeLiteral( QVariant($1) ); }
+    | STRING                      { $$ = new QgsExpressionNodeLiteral( QVariant(*$1) ); delete $1; }
+    | NULLVALUE                   { $$ = new QgsExpressionNodeLiteral( QVariant() ); }
 ;
 
+named_node:
+    NAMED_NODE expression { $$ = new QgsExpressionNode::NamedNode( *$1, $2 ); delete $1; }
+   ;
+
 exp_list:
-      exp_list COMMA expression { $$ = $1; $1->append($3); }
-    | expression              { $$ = new QgsExpression::NodeList(); $$->append($1); }
-    ;
+      exp_list COMMA expression
+       {
+         if ( $1->hasNamedNodes() )
+         {
+           QgsExpression::ParserError::ParserErrorType errorType = QgsExpression::ParserError::FunctionNamedArgsError;
+           parser_ctx->currentErrorType = errorType;
+           exp_error(&yyloc, parser_ctx, "All parameters following a named parameter must also be named.");
+           delete $1;
+           YYERROR;
+         }
+         else
+         {
+           $$ = $1; $1->append($3);
+         }
+       }
+    | exp_list COMMA named_node { $$ = $1; $1->append($3); }
+    | expression              { $$ = new QgsExpressionNode::NodeList(); $$->append($1); }
+    | named_node              { $$ = new QgsExpressionNode::NodeList(); $$->append($1); }
+   ;
 
 when_then_clauses:
       when_then_clauses when_then_clause  { $$ = $1; $1->append($2); }
-    | when_then_clause                    { $$ = new QgsExpression::WhenThenList(); $$->append($1); }
-    ;
+    | when_then_clause                    { $$ = new QgsExpressionNodeCondition::WhenThenList(); $$->append($1); }
+   ;
 
 when_then_clause:
-      WHEN expression THEN expression     { $$ = new QgsExpression::WhenThen($2,$4); }
-    ;
+      WHEN expression THEN expression     { $$ = new QgsExpressionNodeCondition::WhenThen($2,$4); }
+   ;
 
 %%
 
 
-// returns parsed tree, otherwise returns NULL and sets parserErrorMsg
-QgsExpression::Node* parseExpression(const QString& str, QString& parserErrorMsg)
+// returns parsed tree, otherwise returns nullptr and sets parserErrorMsg
+QgsExpressionNode* parseExpression(const QString& str, QString& parserErrorMsg, QList<QgsExpression::ParserError> &parserErrors)
 {
   expression_parser_context ctx;
   ctx.rootNode = 0;
@@ -267,20 +380,32 @@ QgsExpression::Node* parseExpression(const QString& str, QString& parserErrorMsg
   exp_lex_destroy(ctx.flex_scanner);
 
   // list should be empty when parsing was OK
-  if (res == 0) // success?
+  if (res == 0 && ctx.parserErrors.count() == 0) // success?
   {
     return ctx.rootNode;
   }
   else // error?
   {
     parserErrorMsg = ctx.errorMsg;
-    return NULL;
+    parserErrors = ctx.parserErrors;
+    delete ctx.rootNode;
+    return nullptr;
   }
 }
 
 
-void exp_error(expression_parser_context* parser_ctx, const char* msg)
+void exp_error(YYLTYPE* yyloc,expression_parser_context* parser_ctx, const char* msg)
 {
-  parser_ctx->errorMsg = msg;
-}
+  QgsExpression::ParserError error = QgsExpression::ParserError();
+  error.firstColumn = yyloc->first_column;
+  error.firstLine = yyloc->first_line;
+  error.lastColumn = yyloc->last_column;
+  error.lastLine = yyloc->last_line;
+  error.errorMsg = msg;
+  error.errorType = parser_ctx->currentErrorType;
+  parser_ctx->parserErrors.append(error);
+  // Reset the current error type for the next error.
+  parser_ctx->currentErrorType = QgsExpression::ParserError::Unknown;
 
+  parser_ctx->errorMsg = parser_ctx->errorMsg + "\n" + msg;
+}

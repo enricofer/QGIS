@@ -1,9 +1,23 @@
+/***************************************************************************
+    testmaprendererjob.cpp
+    ---------------------
+    begin                : November 2013
+    copyright            : (C) 2013 by Martin Dobias
+    email                : wonder dot sk at gmail dot com
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
 
-#include <QtTest>
+#include "qgstest.h"
 #include <QObject>
 
 #include "qgsapplication.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 #include "qgsmaprenderercache.h"
 #include "qgsmaprendererjob.h"
 #include "qgsvectorlayer.h"
@@ -35,9 +49,9 @@ class TestQgsMapRendererJob : public QObject
 
 static QString _loadLayer( QString path )
 {
-  QgsMapLayer* layer = new QgsVectorLayer( path, "testlayer", "ogr" );
-  Q_ASSERT( layer->isValid() );
-  QgsMapLayerRegistry::instance()->addMapLayer( layer );
+  QgsMapLayer *layer = new QgsVectorLayer( path, "testlayer", "ogr" );
+  QVERIFY( layer->isValid() );
+  QgsProject::instance()->addMapLayer( layer );
   return layer->id();
 }
 
@@ -93,9 +107,9 @@ void TestQgsMapRendererJob::testNormal()
 
   // TODO: custom painter
 
-  imgS.save( "/tmp/imgS.png" );
-  imgP.save( "/tmp/imgP.png" );
-  //img.save("/tmp/img5.png");
+  imgS.save( QDir::tempPath() + "/imgS.png" );
+  imgP.save( QDir::tempPath() + "/imgP.png" );
+  //img.save( QDir::tempPath() + "/img5.png");
 
   QCOMPARE( imgS, imgP );
 }
@@ -209,12 +223,12 @@ void TestQgsMapRendererJob::testDestructWhileRunning()
 
 void TestQgsMapRendererJob::testErrors()
 {
-  QgsVectorLayer* l = new QgsVectorLayer( "/data/gis/sas/trans-trail-l.dbf", "test", "ogr" );
+  QgsVectorLayer *l = new QgsVectorLayer( "/data/gis/sas/trans-trail-l.dbf", "test", "ogr" );
   QVERIFY( l->isValid() );
-  QgsMapLayerRegistry::instance()->addMapLayer( l );
+  QgsProject::instance()->addMapLayer( l );
   QgsMapSettings settings( _mapSettings( QStringList( l->id() ) ) );
 
-  l->setRendererV2( 0 ); // this has to produce an error
+  l->setRenderer( nullptr ); // this has to produce an error
 
   QgsMapRendererSequentialJob job( settings );
   job.start();
@@ -223,7 +237,7 @@ void TestQgsMapRendererJob::testErrors()
   QCOMPARE( job.errors().count(), 1 );
   QCOMPARE( job.errors()[0].layerID, l->id() );
 
-  QgsMapLayerRegistry::instance()->removeMapLayer( l->id() );
+  QgsProject::instance()->removeMapLayer( l->id() );
 
   QString fakeLayerID = "non-existing layer ID";
   QgsMapSettings settings2( _mapSettings( QStringList( fakeLayerID ) ) );
@@ -238,9 +252,9 @@ void TestQgsMapRendererJob::testErrors()
 
 void TestQgsMapRendererJob::testCache()
 {
-  QgsVectorLayer* l = new QgsVectorLayer( "/data/gis/sas/trans-trail-l.dbf", "test", "ogr" );
+  QgsVectorLayer *l = new QgsVectorLayer( "/data/gis/sas/trans-trail-l.dbf", "test", "ogr" );
   QVERIFY( l->isValid() );
-  QgsMapLayerRegistry::instance()->addMapLayer( l );
+  QgsProject::instance()->addMapLayer( l );
   QgsMapSettings settings( _mapSettings( QStringList( l->id() ) ) );
 
   QgsMapRendererCache cache;
@@ -271,9 +285,9 @@ void TestQgsMapRendererJob::testCache()
   QVERIFY( timeCachedMS < 10 );
   qDebug( "CACHING %d vs %d (ms)", timeNotCachedMS, timeCachedMS );
 
-  QgsMapLayerRegistry::instance()->removeMapLayer( l->id() );
+  QgsProject::instance()->removeMapLayer( l->id() );
 }
 
 
-QTEST_MAIN( TestQgsMapRendererJob )
+QGSTEST_MAIN( TestQgsMapRendererJob )
 #include "testmaprendererjob.moc"

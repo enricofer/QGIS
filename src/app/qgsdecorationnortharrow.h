@@ -22,6 +22,7 @@
 #include "qgsdecorationitem.h"
 
 #include <QStringList>
+#include "qgis_app.h"
 
 class QAction;
 class QToolBar;
@@ -32,42 +33,48 @@ class APP_EXPORT QgsDecorationNorthArrow: public QgsDecorationItem
     Q_OBJECT
 
   public:
-    //! Constructor
-    QgsDecorationNorthArrow( QObject* parent = NULL );
-    //! Destructor
-    virtual ~QgsDecorationNorthArrow();
+
+    /**
+     * Constructor for QgsDecorationNorthArrow, with the specified \a parent object.
+     */
+    QgsDecorationNorthArrow( QObject *parent = nullptr );
 
   public slots:
-    //! set values on the gui when a project is read or the gui first loaded
-    void projectRead();
-    //! save values to the project
-    void saveToProject();
+    //! Sets values on the gui when a project is read or the gui first loaded
+    void projectRead() override;
+    //! Save values to the project
+    void saveToProject() override;
 
     //! Show the dialog box
-    void run();
-    //! draw some arbitary text to the screen
-    void render( QPainter * );
+    void run() override;
+    //! Draw some arbitrary text to the screen
+    void render( const QgsMapSettings &mapSettings, QgsRenderContext &context ) override;
 
-    //! try to calculate the direction for the north arrow. Sets the
-    //! private class rotation variable. If unable to calculate the
-    //! direction, the function returns false and leaves the rotation
-    //! variable as is.
-    bool calculateNorthDirection();
+    //! Returns the north arrow SVG path
+    QString svgPath();
 
   private:
 
-    static const double PI;
     //  static const double DEG2RAD;
     static const double TOL;
 
+    //! The north arrow fill color
+    QColor mColor;
+    //! The north arrow outline color
+    QColor mOutlineColor;
+    //! The north arrow size in millimeter
+    double mSize = 16.0;
+    //! Custom north arrow svg path
+    QString mSvgPath;
+
     // The amount of rotation for the north arrow
-    int mRotationInt;
-    int pluginType;
+    int mRotationInt = 0;
+
     //! enable or disable the automatic setting of the arrow direction
-    bool mAutomatic;
-    // The placement index and translated text
-    int mPlacementIndex;
-    QStringList mPlacementLabels;
+    bool mAutomatic = true;
+    //! margin values
+    int mMarginHorizontal = 0;
+    int mMarginVertical = 0;
 
     friend class QgsDecorationNorthArrowDialog;
 };

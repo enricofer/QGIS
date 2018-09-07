@@ -26,22 +26,30 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from PyQt4 import QtGui
+
+from qgis.PyQt.QtCore import QCoreApplication
+
+from qgis.core import QgsApplication
+
 from processing.gui.ToolboxAction import ToolboxAction
 from processing.modeler.ModelerDialog import ModelerDialog
+
+pluginPath = os.path.split(os.path.dirname(__file__))[0]
+
 
 class CreateNewModelAction(ToolboxAction):
 
     def __init__(self):
-        self.name = self.tr('Create new model', 'CreateNewModelAction')
-        self.group = self.tr('Tools', 'CreateNewModelAction')
+        self.name = QCoreApplication.translate('CreateNewModelAction', 'Create New Model…')
+        self.group = self.tr('Tools')
 
     def getIcon(self):
-        return QtGui.QIcon(os.path.dirname(__file__) + '/../images/model.png')
+        return QgsApplication.getThemeIcon("/processingModel.svg")
 
     def execute(self):
         dlg = ModelerDialog()
+        dlg.update_model.connect(self.updateModel)
         dlg.show()
-        dlg.exec_()
-        if dlg.update:
-            self.toolbox.updateProvider('model')
+
+    def updateModel(self):
+        QgsApplication.processingRegistry().providerById('model').refreshAlgorithms()

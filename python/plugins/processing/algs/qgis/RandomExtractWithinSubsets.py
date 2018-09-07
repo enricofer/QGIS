@@ -26,20 +26,21 @@ __copyright__ = '(C) 2012, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import random
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.GeoAlgorithmExecutionException import \
-        GeoAlgorithmExecutionException
-from processing.core.parameters import ParameterSelection
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterNumber
-from processing.core.parameters import ParameterTableField
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+
+from qgis.core import (QgsFeatureSink,
+                       QgsProcessingException,
+                       QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterEnum,
+                       QgsProcessingParameterField,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterFeatureSink,
+                       QgsProcessingFeatureSource,
+                       QgsFeatureRequest)
+from collections import defaultdict
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
 
 
-class RandomExtractWithinSubsets(GeoAlgorithm):
+class RandomExtractWithinSubsets(QgisAlgorithm):
 
     INPUT = 'INPUT'
     METHOD = 'METHOD'
@@ -47,88 +48,94 @@ class RandomExtractWithinSubsets(GeoAlgorithm):
     FIELD = 'FIELD'
     OUTPUT = 'OUTPUT'
 
-    METHODS = ['Number of selected features',
-               'Percentage of selected features']
+    def group(self):
+        return self.tr('Vector selection')
 
-    def defineCharacteristics(self):
-        self.name = 'Random extract within subsets'
-        self.group = 'Vector selection tools'
+    def groupId(self):
+        return 'vectorselection'
 
-        self.addParameter(ParameterVector(self.INPUT, 'Input layer',
-                          [ParameterVector.VECTOR_TYPE_ANY]))
-        self.addParameter(ParameterTableField(self.FIELD, 'ID Field',
-                          self.INPUT))
-        self.addParameter(ParameterSelection(self.METHOD, 'Method',
-                          self.METHODS, 0))
-        self.addParameter(ParameterNumber(self.NUMBER,
-                          'Number/percentage of selected features', 1, None,
-                          10))
+    def __init__(self):
+        super().__init__()
 
-        self.addOutput(OutputVector(self.OUTPUT, 'Selection'))
+    def initAlgorithm(self, config=None):
+        self.methods = [self.tr('Number of selected features'),
+                        self.tr('Percentage of selected features')]
 
-    def processAlgorithm(self, progress):
-        filename = self.getParameterValue(self.INPUT)
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input layer')))
 
-        layer = dataobjects.getObjectFromUri(filename)
-        field = self.getParameterValue(self.FIELD)
-        method = self.getParameterValue(self.METHOD)
+        self.addParameter(QgsProcessingParameterField(self.FIELD,
+                                                      self.tr('ID field'), None, self.INPUT))
 
-        index = layer.fieldNameIndex(field)
+        self.addParameter(QgsProcessingParameterEnum(self.METHOD,
+                                                     self.tr('Method'), self.methods, False, 0))
 
-        features = vector.features(layer)
-        featureCount = len(features)
-        unique = vector.getUniqueValues(layer, index)
-        value = int(self.getParameterValue(self.NUMBER))
+        self.addParameter(QgsProcessingParameterNumber(self.NUMBER,
+                                                       self.tr('Number/percentage of selected features'), QgsProcessingParameterNumber.Integer,
+                                                       10, False, 0.0, 999999999999.0))
+
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Extracted (random stratified)')))
+
+    def name(self):
+        return 'randomextractwithinsubsets'
+
+    def displayName(self):
+        return self.tr('Random extract within subsets')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+
+        method = self.parameterAsEnum(parameters, self.METHOD, context)
+
+        field = self.parameterAsString(parameters, self.FIELD, context)
+
+        index = source.fields().lookupField(field)
+
+        features = source.getFeatures(QgsFeatureRequest(), QgsProcessingFeatureSource.FlagSkipGeometryValidityChecks)
+        featureCount = source.featureCount()
+        unique = source.uniqueValues(index)
+        value = self.parameterAsInt(parameters, self.NUMBER, context)
         if method == 0:
             if value > featureCount:
-                raise GeoAlgorithmExecutionException(
-                        'Selected number is greater that feature count. \
-                        Choose lesser value and try again.')
+                raise QgsProcessingException(
+                    self.tr('Selected number is greater that feature count. '
+                            'Choose lesser value and try again.'))
         else:
             if value > 100:
-                raise GeoAlgorithmExecutionException(
-                        "Percentage can't be greater than 100. Set correct \
-                        value and try again.")
+                raise QgsProcessingException(
+                    self.tr("Percentage can't be greater than 100. Set "
+                            "correct value and try again."))
             value = value / 100.0
 
-
-        output = self.getOutputFromName(self.OUTPUT)
-        writer = output.getVectorWriter(layer.fields(),
-                layer.geometryType(), layer.crs())
+        (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT, context,
+                                               source.fields(), source.wkbType(), source.sourceCrs())
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
 
         selran = []
-        current = 0
-        total = 100.0 / float(featureCount * len(unique))
-        features = vector.features(layer)
+        total = 100.0 / (featureCount * len(unique)) if featureCount else 1
 
-        if not len(unique) == featureCount:
-            for classValue in unique:
-                classFeatures = []
-                for i, feature in enumerate(features):
-                    attrs = feature.attributes()
-                    if attrs[index] == classValue:
-                        classFeatures.append(i)
-                    current += 1
-                    progress.setPercentage(int(current * total))
+        classes = defaultdict(list)
+        for i, feature in enumerate(features):
+            if feedback.isCanceled():
+                break
+            attrs = feature.attributes()
+            classes[attrs[index]].append(feature)
+            feedback.setProgress(int(i * total))
 
-                if method == 1:
-                    selValue = int(round(value * len(classFeatures), 0))
-                else:
-                    selValue = value
+        for k, subset in classes.items():
+            selValue = value if method != 1 else int(round(value * len(subset), 0))
+            if selValue > len(subset):
+                selValue = len(subset)
+                feedback.reportError(self.tr('Subset "{}" is smaller than requested number of features.'.format(k)))
+            selran.extend(random.sample(subset, selValue))
 
-                if selValue >= len(classFeatures):
-                    selFeat = classFeatures
-                else:
-                    selFeat = random.sample(classFeatures, selValue)
-
-                selran.extend(selFeat)
-        else:
-            selran = range(0, featureCount)
-
-
-        features = vector.features(layer)
-        for (i, feat) in enumerate(features):
-            if i in selran:
-                writer.addFeature(feat)
-            progress.setPercentage(100 * i / float(featureCount))
-        del writer
+        total = 100.0 / featureCount if featureCount else 1
+        for (i, feat) in enumerate(selran):
+            if feedback.isCanceled():
+                break
+            sink.addFeature(feat, QgsFeatureSink.FastInsert)
+            feedback.setProgress(int(i * total))
+        return {self.OUTPUT: dest_id}

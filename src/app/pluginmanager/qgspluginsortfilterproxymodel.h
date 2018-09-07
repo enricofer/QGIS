@@ -34,7 +34,7 @@ const int SPACER_ROLE = Qt::UserRole + 20;  // for sorting
 
 
 
-/*!
+/**
  * \brief Proxy model for filtering and sorting items in Plugin Manager
 */
 class QgsPluginSortFilterProxyModel : public QSortFilterProxyModel
@@ -42,15 +42,15 @@ class QgsPluginSortFilterProxyModel : public QSortFilterProxyModel
     Q_OBJECT
 
   public:
-    QgsPluginSortFilterProxyModel( QObject *parent = 0 );
+    explicit QgsPluginSortFilterProxyModel( QObject *parent = nullptr );
 
-    //! (Re)configire the status filter
-    void setAcceptedStatuses( QStringList statuses );
+    //! (Re)configure the status filter
+    void setAcceptedStatuses( const QStringList &statuses );
 
-    //! (Re)configire the spacer filter
-    void setAcceptedSpacers( QString spacers = "" );
+    //! (Re)configure the spacer filter
+    void setAcceptedSpacers( const QString &spacers = QString() );
 
-    //! Return number of item with status filter matching (no other filters are considered)
+    //! Returns the number of item with status filter matching (no other filters are considered)
     int countWithCurrentStatus();
 
   public slots:
@@ -67,11 +67,13 @@ class QgsPluginSortFilterProxyModel : public QSortFilterProxyModel
     bool filterByPhrase( QModelIndex &index ) const;
 
     //! The main filter method
-    bool filterAcceptsRow( int sourceRow, const QModelIndex &sourceParent ) const;
+    bool filterAcceptsRow( int sourceRow, const QModelIndex &sourceParent ) const override;
 
   private:
     QStringList mAcceptedStatuses;
     QString mAcceptedSpacers;
 };
+
+// clazy:excludeall=qstring-allocations
 
 #endif

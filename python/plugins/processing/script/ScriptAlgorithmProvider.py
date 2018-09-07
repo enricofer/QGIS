@@ -25,51 +25,92 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+import os
+
+from qgis.core import (QgsApplication,
+                       QgsProcessingProvider)
+
 from processing.core.ProcessingConfig import ProcessingConfig, Setting
-from processing.core.AlgorithmProvider import AlgorithmProvider
-from processing.gui.EditScriptAction import EditScriptAction
-from processing.gui.DeleteScriptAction import DeleteScriptAction
-from processing.gui.CreateNewScriptAction import CreateNewScriptAction
-from processing.script.ScriptUtils import ScriptUtils
+
+from processing.gui.ProviderActions import (ProviderActions,
+                                            ProviderContextMenuActions)
+
 from processing.script.AddScriptFromFileAction import AddScriptFromFileAction
-from processing.gui.GetScriptsAndModels import GetScriptsAction
-import processing.resources_rc
+from processing.script.CreateNewScriptAction import CreateNewScriptAction
+from processing.script.AddScriptFromTemplateAction import AddScriptFromTemplateAction
+from processing.script.DeleteScriptAction import DeleteScriptAction
+from processing.script.EditScriptAction import EditScriptAction
+from processing.script.OpenScriptFromFileAction import OpenScriptFromFileAction
+from processing.script import ScriptUtils
 
 
-class ScriptAlgorithmProvider(AlgorithmProvider):
+class ScriptAlgorithmProvider(QgsProcessingProvider):
 
     def __init__(self):
-        AlgorithmProvider.__init__(self)
-        self.actions.extend([CreateNewScriptAction(self.tr('Create new script', 'ScriptAlgorithmProvider'),
-                            CreateNewScriptAction.SCRIPT_PYTHON),
-                            AddScriptFromFileAction(),
-                            GetScriptsAction()])
-        self.contextMenuActions = \
-            [EditScriptAction(EditScriptAction.SCRIPT_PYTHON),
-             DeleteScriptAction(DeleteScriptAction.SCRIPT_PYTHON)]
+        super().__init__()
+        self.algs = []
+        self.folder_algorithms = []
+        self.actions = [CreateNewScriptAction(),
+                        AddScriptFromTemplateAction(),
+                        OpenScriptFromFileAction(),
+                        AddScriptFromFileAction()
+                        ]
+        self.contextMenuActions = [EditScriptAction(),
+                                   DeleteScriptAction()]
 
-    def initializeSettings(self):
-        AlgorithmProvider.initializeSettings(self)
-        ProcessingConfig.addSetting(Setting(self.getDescription(),
-                                    ScriptUtils.SCRIPTS_FOLDER,
-                                    self.tr('Scripts folder', 'ScriptAlgorithmProvider'),
-                                    ScriptUtils.scriptsFolder()))
+    def load(self):
+        ProcessingConfig.settingIcons[self.name()] = self.icon()
+        ProcessingConfig.addSetting(Setting(self.name(),
+                                            ScriptUtils.SCRIPTS_FOLDERS,
+                                            self.tr("Scripts folder(s)"),
+                                            ScriptUtils.defaultScriptsFolder(),
+                                            valuetype=Setting.MULTIPLE_FOLDERS))
+
+        ProviderActions.registerProviderActions(self, self.actions)
+        ProviderContextMenuActions.registerProviderContextMenuActions(self.contextMenuActions)
+
+        ProcessingConfig.readSettings()
+        self.refreshAlgorithms()
+
+        return True
 
     def unload(self):
-        AlgorithmProvider.unload(self)
-        ProcessingConfig.addSetting(ScriptUtils.SCRIPTS_FOLDER)
+        ProcessingConfig.removeSetting(ScriptUtils.SCRIPTS_FOLDERS)
 
-    def getIcon(self):
-        return QIcon(':/processing/images/script.png')
+        ProviderActions.deregisterProviderActions(self)
+        ProviderContextMenuActions.deregisterProviderContextMenuActions(self.contextMenuActions)
 
-    def getName(self):
-        return 'script'
+    def icon(self):
+        return QgsApplication.getThemeIcon("/processingScript.svg")
 
-    def getDescription(self):
-        return self.tr('Scripts', 'ScriptAlgorithmProvider')
+    def svgIconPath(self):
+        return QgsApplication.iconPath("processingScript.svg")
 
-    def _loadAlgorithms(self):
-        folder = ScriptUtils.scriptsFolder()
-        self.algs = ScriptUtils.loadFromFolder(folder)
+    def id(self):
+        return "script"
+
+    def name(self):
+        return self.tr("Scripts")
+
+    def supportsNonFileBasedOutput(self):
+        # TODO - this may not be strictly true. We probably need a way for scripts
+        # to indicate whether individual outputs support non-file based outputs,
+        # but for now allow it. At best we expose nice features to users, at worst
+        # they'll get an error if they use them with incompatible outputs...
+        return True
+
+    def loadAlgorithms(self):
+        self.algs = []
+        folders = ScriptUtils.scriptsFolders()
+        for folder in folders:
+            items = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
+            for entry in items:
+                if entry.lower().endswith(".py"):
+                    moduleName = os.path.splitext(os.path.basename(entry))[0]
+                    filePath = os.path.abspath(os.path.join(folder, entry))
+                    alg = ScriptUtils.loadAlgorithm(moduleName, filePath)
+                    if alg is not None:
+                        self.algs.append(alg)
+
+        for a in self.algs:
+            self.addAlgorithm(a)

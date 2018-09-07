@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -20,9 +20,13 @@
 
 #include <QLineEdit>
 #include <QPlainTextEdit>
-#include <QTextEdit>
+#include <QTextBrowser>
+#include "qgis_gui.h"
+
+SIP_NO_FILE
 
 /**
+ * \ingroup gui
  * Wraps a text widget. Users will be able to modify text with this widget type.
  *
  * Options:
@@ -30,33 +34,50 @@
  * <li><b>IsMultiline</b> <i>If set to True, a multiline widget will be used.</i></li>
  * <li><b>UseHtml</b> <i>Will represent the content as HTML. Only available for multiline widgets.</i></li>
  * </ul>
- *
+ * \note not available in Python bindings
  */
 
 class GUI_EXPORT QgsTextEditWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsTextEditWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = 0, QWidget* parent = 0 );
+    explicit QgsTextEditWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor = nullptr, QWidget *parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
-    QVariant value();
+    QVariant value() const override;
+    void showIndeterminateState() override;
+
+    /**
+     * Add a hint text on the widget
+     * \param hintText The hint text to display
+     * \since QGIS 3.0
+     */
+    void setHint( const QString &hintText ) override;
 
   protected:
-    QWidget*createWidget( QWidget* parent );
-    void initWidget( QWidget* editor );
+    QWidget *createWidget( QWidget *parent ) override;
+    void initWidget( QWidget *editor ) override;
+    bool valid() const override;
 
   public slots:
-    void setValue( const QVariant& value );
-    void setEnabled( bool enabled );
+    void setValue( const QVariant &value ) override;
+    void setEnabled( bool enabled ) override;
+
+  private slots:
+    void textChanged( const QString &text );
 
   private:
-    QTextEdit* mTextEdit;
-    QPlainTextEdit* mPlainTextEdit;
-    QLineEdit* mLineEdit;
+    QTextBrowser *mTextBrowser = nullptr;
+    QTextEdit *mTextEdit = nullptr;
+    QPlainTextEdit *mPlainTextEdit = nullptr;
+    QLineEdit *mLineEdit = nullptr;
     QPalette mReadOnlyPalette;
     QPalette mWritablePalette;
+    QString mPlaceholderText;
+    QString mPlaceholderTextBackup;
+
+    void setWidgetValue( const QVariant &value );
 };
 
 #endif // QGSTEXTEDITWRAPPER_H

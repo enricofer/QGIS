@@ -1,0 +1,87 @@
+/***************************************************************************
+                              qgsserverlogger.h
+                              -----------------
+  begin                : May 5, 2014
+  copyright            : (C) 2014 by Marco Hugentobler
+  email                : marco dot hugentobler at sourcepole dot ch
+ ***************************************************************************/
+
+/***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
+
+#ifndef QGSSERVERLOGGER_H
+#define QGSSERVERLOGGER_H
+
+#define SIP_NO_FILE
+
+
+#include "qgsmessagelog.h"
+
+#include <QFile>
+#include <QObject>
+#include <QString>
+#include <QTextStream>
+
+/**
+ * \ingroup server
+ * \brief Writes message log into server logfile
+ * \since QGIS 2.8
+ */
+class QgsServerLogger: public QObject
+{
+    Q_OBJECT
+  public:
+
+    /**
+     * Gets the singleton instance
+     */
+    static QgsServerLogger *instance();
+
+    /**
+     * Gets the current log level
+     * \returns the log level
+     * \since QGIS 3.0
+     */
+    Qgis::MessageLevel logLevel() const { return mLogLevel; }
+
+    /**
+      * Set the current log level
+      * \param level the log level
+      * \since QGIS 3.0
+      */
+    void setLogLevel( Qgis::MessageLevel level );
+
+    /**
+      * Set the current log file
+      */
+    void setLogFile( const QString &f );
+
+  public slots:
+
+    /**
+     * Log a message from the server context
+     *
+     * \param message the message
+     * \param tag tag of the message
+     * \param level log level of the message
+     */
+    void logMessage( const QString &message, const QString &tag, Qgis::MessageLevel level );
+
+  protected:
+    QgsServerLogger();
+
+  private:
+    static QgsServerLogger *sInstance;
+
+    QFile mLogFile;
+    QTextStream mTextStream;
+    Qgis::MessageLevel mLogLevel = Qgis::None;
+};
+
+#endif // QGSSERVERLOGGER_H

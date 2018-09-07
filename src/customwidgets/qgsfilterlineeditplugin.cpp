@@ -19,8 +19,8 @@
 
 
 QgsFilterLineEditPlugin::QgsFilterLineEditPlugin( QObject *parent )
-    : QObject( parent )
-    , mInitialized( false )
+  : QObject( parent )
+  , mInitialized( false )
 {
 }
 
@@ -42,7 +42,7 @@ QString QgsFilterLineEditPlugin::includeFile() const
 
 QIcon QgsFilterLineEditPlugin::icon() const
 {
-  return QIcon();
+  return QIcon( ":/images/icons/qgis-icon-60x60.png" );
 }
 
 bool QgsFilterLineEditPlugin::isContainer() const

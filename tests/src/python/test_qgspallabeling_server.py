@@ -17,35 +17,23 @@ __copyright__ = 'Copyright 2013, The QGIS Project'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
+import qgis  # NOQA
+
 import sys
 import os
 import glob
 import shutil
-import tempfile
-import time
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
 
-from qgis.core import *
+from qgis.PyQt.QtCore import qDebug
 
-from utilities import (
-    unittest,
-    expectedFailure,
-    mapSettingsString
-)
+from qgis.core import QgsProject, QgsApplication, QgsSettings, QgsPalLabeling
 
-from qgis_local_server import (
-    QgisLocalServer,
-    FcgiServerProcess,
-    WebServerProcess,
-    getLocalServer
-)
+from utilities import mapSettingsString
+
+from qgis_local_server import getLocalServer
 
 from test_qgspallabeling_base import TestQgsPalLabeling, runSuite
-from test_qgspallabeling_tests import (
-    TestPointBase,
-    suiteTests
-)
+from test_qgspallabeling_tests import TestPointBase, TestLineBase, suiteTests
 
 MAPSERV = getLocalServer()
 
@@ -65,23 +53,24 @@ class TestServerBase(TestQgsPalLabeling):
             TestQgsPalLabeling.setUpClass()
         MAPSERV.startup()
         MAPSERV.web_dir_install(glob.glob(cls._PalDataDir + os.sep + '*.qml'))
+        MAPSERV.web_dir_install(glob.glob(cls._PalDataDir + os.sep + '*.qgs'))
 
         # noinspection PyArgumentList
         cls._TestProj = QgsProject.instance()
-        cls._TestProjName = 'pal_test.qgs'
+        cls._TestProjName = 'test-labeling.qgs'
         cls._TestProj.setFileName(
             os.path.join(MAPSERV.web_dir(), cls._TestProjName))
 
         # the blue background (set via layer style) to match renderchecker's
         TestQgsPalLabeling.loadFeatureLayer('background', True)
 
-        settings = QSettings()
+        settings = QgsSettings()
         # noinspection PyArgumentList
         cls._CacheDir = settings.value(
             "cache/directory",
-            os.path.join(unicode(QgsApplication.qgisSettingsDirPath()),
+            os.path.join(str(QgsApplication.qgisSettingsDirPath()),
                          "cache"),
-            type=unicode)
+            type=str)
 
     @classmethod
     def tearDownClass(cls):
@@ -122,8 +111,8 @@ class TestServerBase(TestQgsPalLabeling):
         # TODO: support other types of servers, besides WMS
         ms = self._TestMapSettings
         osize = ms.outputSize()
-        dpi = str(ms.outputDpi())
-        lyrs = [str(self._MapRegistry.mapLayer(i).name()) for i in ms.layers()]
+        dpi = str(int(ms.outputDpi()))
+        lyrs = [str(layer.name()) for layer in ms.layers()]
         lyrs.reverse()
         params = {
             'SERVICE': 'WMS',
@@ -149,17 +138,7 @@ class TestServerBase(TestQgsPalLabeling):
         # print params
         return params
 
-    def sync_map_settings(self):
-        """
-        Sync custom test QgsMapSettings to Project file
-        """
-        pal = QgsPalLabeling()
-        pal.loadEngineSettings()
-        pal.init(self._TestMapSettings)
-        pal.saveEngineSettings()
-
     def checkTest(self, **kwargs):
-        self.sync_map_settings()
         self.lyr.writeToLayer(self.layer)
         # save project file
         self._TestProj.write()
@@ -220,6 +199,29 @@ class TestServerVsCanvasPoint(TestServerBasePoint, TestPointBase):
     def setUp(self):
         super(TestServerVsCanvasPoint, self).setUp()
         self.configTest('pal_canvas', 'sp')
+
+
+class TestServerBaseLine(TestServerBase):
+
+    @classmethod
+    def setUpClass(cls):
+        TestServerBase.setUpClass()
+        cls.layer = TestQgsPalLabeling.loadFeatureLayer('line')
+
+
+class TestServerLine(TestServerBaseLine, TestLineBase):
+
+    def setUp(self):
+        """Run before each test."""
+        super(TestServerLine, self).setUp()
+        self.configTest('pal_server_line', 'sp')
+
+
+class TestServerVsCanvasLine(TestServerBaseLine, TestLineBase):
+
+    def setUp(self):
+        super(TestServerVsCanvasLine, self).setUp()
+        self.configTest('pal_canvas_line', 'sp')
 
 
 if __name__ == '__main__':

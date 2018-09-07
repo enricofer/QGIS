@@ -11,49 +11,36 @@ __copyright__ = 'Copyright 2012, The QGIS Project'
 # This will get replaced with a git SHA1 when you do a git archive
 __revision__ = '$Format:%H$'
 
+import qgis  # NOQA
+
 import os
 import sys
 import platform
 import tempfile
-import qgis
-from PyQt4 import QtGui, QtCore
+import re
+
+try:
+    from urllib2 import urlopen, HTTPError, URLError
+except ImportError:
+    from urllib.request import urlopen, HTTPError, URLError
+
+from qgis.PyQt.QtCore import QDir
+
 from qgis.core import (
-    QgsApplication,
     QgsCoordinateReferenceSystem,
     QgsVectorFileWriter,
-    QgsMapLayerRegistry,
     QgsMapSettings,
     QgsMapRendererParallelJob,
     QgsMapRendererSequentialJob,
     QgsFontUtils
 )
-from qgis.gui import QgsMapCanvas
-from qgis_interface import QgisInterface
+from qgis.testing import start_app
 import hashlib
-import re
-from itertools import izip
+
 
 import webbrowser
 import subprocess
 
-# Support python < 2.7 via unittest2 needed for expected failure decorator.
-# Note that you should ignore unused import warnings here as these are imported
-# from this module by other tests.
-if sys.version_info[0:2] < (2, 7):
-    try:
-        from unittest2 import TestCase, expectedFailure
-        import unittest2 as unittest
-    except ImportError:
-        print "You should install unittest2 to run the salt tests"
-        sys.exit(0)
-else:
-    from unittest import TestCase, expectedFailure
-    import unittest
-
-QGISAPP = None  # Static variable used to hold hand to running QGis app
-CANVAS = None
-PARENT = None
-IFACE = None
 GEOCRS = 4326  # constant for EPSG:GEOCRS Geographic CRS id
 
 FONTSLOADED = False
@@ -84,66 +71,18 @@ def assertHashForFile(theHash, theFilename):
 def hashForFile(theFilename):
     """Return an md5 checksum for a file"""
     myPath = theFilename
-    myData = file(myPath).read()
+    myData = open(myPath).read()
     myHash = hashlib.md5()
     myHash.update(myData)
     myHash = myHash.hexdigest()
     return myHash
 
 
-def getQgisTestApp():
-    """ Start one QGis application to test agaist
-
-    Input
-        NIL
-
-    Output
-        handle to qgis app
-
-
-    If QGis is already running the handle to that app will be returned
-    """
-
-    global QGISAPP  # pylint: disable=W0603
-
-    if QGISAPP is None:
-        myGuiFlag = True  # All test will run qgis in gui mode
-
-        # Note: QGIS_PREFIX_PATH is evaluated in QgsApplication -
-        # no need to mess with it here.
-        QGISAPP = QgsApplication(sys.argv, myGuiFlag)
-
-        QGISAPP.initQgis()
-        s = QGISAPP.showSettings()
-        print s
-
-    global PARENT  # pylint: disable=W0603
-    if PARENT is None:
-        PARENT = QtGui.QWidget()
-
-    global CANVAS  # pylint: disable=W0603
-    if CANVAS is None:
-        CANVAS = QgsMapCanvas(PARENT)
-        CANVAS.resize(QtCore.QSize(400, 400))
-
-    global IFACE  # pylint: disable=W0603
-    if IFACE is None:
-        # QgisInterface is a stub implementation of the QGIS plugin interface
-        IFACE = QgisInterface(CANVAS)
-
-    return QGISAPP, CANVAS, IFACE, PARENT
-
-
 def unitTestDataPath(theSubdir=None):
-    """Return the absolute path to the InaSAFE unit test data dir.
-
-    .. note:: This is not the same thing as the SVN inasafe_data dir. Rather
-       this is a new dataset where the test datasets are all tiny for fast
-       testing and the datasets live in the same repo as the code.
+    """Return the absolute path to the QGIS unit test data dir.
 
     Args:
-       * theSubdir: (Optional) Additional subdir to add to the path - typically
-         'hazard' or 'exposure'.
+       * theSubdir: (Optional) Additional subdir to add to the path
     """
     myPath = __file__
     tmpPath = os.path.split(os.path.dirname(myPath))
@@ -162,69 +101,77 @@ def svgSymbolsPath():
         os.path.join(unitTestDataPath(), '..', '..', 'images', 'svg'))
 
 
-def setCanvasCrs(theEpsgId, theOtfpFlag=False):
-    """Helper to set the crs for the CANVAS before a test is run.
-
-    Args:
-
-        * theEpsgId  - Valid EPSG identifier (int)
-        * theOtfpFlag - whether on the fly projections should be enabled
-                        on the CANVAS. Default to False.
-    """
-    # Enable on-the-fly reprojection
-    CANVAS.mapRenderer().setProjectionsEnabled(theOtfpFlag)
-
-    # Create CRS Instance
-    myCrs = QgsCoordinateReferenceSystem()
-    myCrs.createFromId(theEpsgId, QgsCoordinateReferenceSystem.EpsgCrsId)
-
-    # Reproject all layers to WGS84 geographic CRS
-    CANVAS.mapRenderer().setDestinationCrs(myCrs)
-
-
 def writeShape(theMemoryLayer, theFileName):
-    myFileName = os.path.join(str(QtCore.QDir.tempPath()), theFileName)
-    print myFileName
+    myFileName = os.path.join(str(QDir.tempPath()), theFileName)
+    print(myFileName)
     # Explicitly giving all options, not really needed but nice for clarity
-    myErrorMessage = ''
     myOptions = []
     myLayerOptions = []
     mySelectedOnlyFlag = False
     mySkipAttributesFlag = False
     myGeoCrs = QgsCoordinateReferenceSystem()
     myGeoCrs.createFromId(4326, QgsCoordinateReferenceSystem.EpsgCrsId)
-    myResult = QgsVectorFileWriter.writeAsVectorFormat(
+    myResult, myErrorMessage = QgsVectorFileWriter.writeAsVectorFormat(
         theMemoryLayer,
         myFileName,
         'utf-8',
         myGeoCrs,
         'ESRI Shapefile',
         mySelectedOnlyFlag,
-        myErrorMessage,
         myOptions,
         myLayerOptions,
         mySkipAttributesFlag)
-    assert myResult == QgsVectorFileWriter.NoError
+    assert myResult == QgsVectorFileWriter.NoError, 'Writing shape failed, Error {} ({})'.format(myResult, myErrorMessage)
+
+    return myFileName
+
+
+def doubleNear(a, b, tol=0.0000000001):
+    """
+    Tests whether two floats are near, within a specified tolerance
+    """
+    return abs(float(a) - float(b)) < tol
 
 
 def compareWkt(a, b, tol=0.000001):
-    r0 = re.compile( "-?\d+(?:\.\d+)?(?:[eE]\d+)?" )
-    r1 = re.compile( "\s*,\s*" )
+    """
+    Compares two WKT strings, ignoring allowed differences between strings
+    and allowing a tolerance for coordinates
+    """
+    # ignore case
+    a0 = a.lower()
+    b0 = b.lower()
+
+    # remove optional spaces before z/m
+    r = re.compile("\s+([zm])")
+    a0 = r.sub(r'\1', a0)
+    b0 = r.sub(r'\1', b0)
+
+    # spaces before brackets are optional
+    r = re.compile("\s*\(\s*")
+    a0 = r.sub('(', a0)
+    b0 = r.sub('(', b0)
+    # spaces after brackets are optional
+    r = re.compile("\s*\)\s*")
+    a0 = r.sub(')', a0)
+    b0 = r.sub(')', b0)
 
     # compare the structure
-    a0 = r1.sub( ",", r0.sub( "#", a ) )
-    b0 = r1.sub( ",", r0.sub( "#", b ) )
+    r0 = re.compile("-?\d+(?:\.\d+)?(?:[eE]\d+)?")
+    r1 = re.compile("\s*,\s*")
+    a0 = r1.sub(",", r0.sub("#", a0))
+    b0 = r1.sub(",", r0.sub("#", b0))
     if a0 != b0:
         return False
 
     # compare the numbers with given tolerance
-    a0 = r0.findall( a )
-    b0 = r0.findall( b )
+    a0 = r0.findall(a)
+    b0 = r0.findall(b)
     if len(a0) != len(b0):
         return False
 
-    for (a1,b1) in izip(a0,b0):
-        if abs(float(a1)-float(b1))>tol:
+    for (a1, b1) in zip(a0, b0):
+        if not doubleNear(a1, b1, tol):
             return False
 
     return True
@@ -269,8 +216,7 @@ def mapSettingsString(ms):
 
     s = 'MapSettings...\n'
     s += '  layers(): {0}\n'.format(
-        [unicode(QgsMapLayerRegistry.instance().mapLayer(i).name())
-         for i in ms.layers()])
+        [layer.name() for layer in ms.layers()])
     s += '  backgroundColor(): rgba {0},{1},{2},{3}\n'.format(
         ms.backgroundColor().red(), ms.backgroundColor().green(),
         ms.backgroundColor().blue(), ms.backgroundColor().alpha())
@@ -288,8 +234,6 @@ def mapSettingsString(ms):
     s += '  visibleExtent():\n    {0}\n'.format(
         ms.visibleExtent().toString().replace(' : ', '\n    '))
     s += '  fullExtent():\n    {0}\n'.format(full_ext.replace(' : ', '\n    '))
-    s += '  hasCrsTransformEnabled(): {0}\n'.format(
-        ms.hasCrsTransformEnabled())
     s += '  destinationCrs(): {0}\n'.format(
         ms.destinationCrs().authid())
     s += '  flag.Antialiasing: {0}\n'.format(
@@ -340,15 +284,14 @@ def getTestFont(style='Roman', size=12):
 
 
 def loadTestFonts():
-    if QGISAPP is None:
-        getQgisTestApp()
+    start_app()
 
     global FONTSLOADED  # pylint: disable=W0603
     if FONTSLOADED is False:
         QgsFontUtils.loadStandardTestFonts(['Roman', 'Bold'])
         msg = getTestFontFamily() + ' base test font styles could not be loaded'
-        res = (QgsFontUtils.fontFamilyHasStyle(getTestFontFamily(), 'Roman')
-               and QgsFontUtils.fontFamilyHasStyle(getTestFontFamily(), 'Bold'))
+        res = (QgsFontUtils.fontFamilyHasStyle(getTestFontFamily(), 'Roman') and
+               QgsFontUtils.fontFamilyHasStyle(getTestFontFamily(), 'Bold'))
         assert res, msg
         FONTSLOADED = True
 
@@ -363,3 +306,34 @@ def openInBrowserTab(url):
         subprocess.Popen([sys.executable, "-c", cmd],
                          stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT)
+
+
+def printImportant(info):
+    """
+    Prints important information to stdout and to a file which in the end
+    should be printed on test result pages.
+    :param info: A string to print
+    """
+
+    print(info)
+    with open(os.path.join(tempfile.gettempdir(), 'ctest-important.log'), 'a+') as f:
+        f.write('{}\n'.format(info))
+
+
+def waitServer(url, timeout=10):
+    """ Wait for a server to be online and to respond
+        HTTP errors are ignored
+        \param timeout: in seconds
+        \return: True of False
+    """
+    from time import time as now
+    end = now() + timeout
+    while True:
+        try:
+            urlopen(url, timeout=1)
+            return True
+        except (HTTPError, URLError):
+            return True
+        except Exception as e:
+            if now() > end:
+                return False

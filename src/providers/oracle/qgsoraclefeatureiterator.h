@@ -31,53 +31,59 @@ class QgsOracleProvider;
 class QgsOracleFeatureSource : public QgsAbstractFeatureSource
 {
   public:
-    QgsOracleFeatureSource( const QgsOracleProvider* p );
+    explicit QgsOracleFeatureSource( const QgsOracleProvider *p );
 
-    virtual QgsFeatureIterator getFeatures( const QgsFeatureRequest& request );
+    QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) override;
 
   protected:
-    QgsDataSourceURI mUri;
+    QgsDataSourceUri mUri;
     QgsFields mFields;
 
     QString mGeometryColumn;          //! name of the geometry column
     int mSrid;                        //! srid of column
     bool mHasSpatialIndex;            //! has spatial index of geometry column
-    QGis::WkbType mDetectedGeomType;  //! geometry type detected in the database
-    QGis::WkbType mRequestedGeomType; //! geometry type requested in the uri
+    QgsWkbTypes::Type mDetectedGeomType;  //! geometry type detected in the database
+    QgsWkbTypes::Type mRequestedGeomType; //! geometry type requested in the uri
     QString mSqlWhereClause;
     QgsOraclePrimaryKeyType mPrimaryKeyType;
     QList<int> mPrimaryKeyAttrs;
     QString mQuery;
+    QgsCoordinateReferenceSystem mCrs;
 
-    QSharedPointer<QgsOracleSharedData> mShared;
+    std::shared_ptr<QgsOracleSharedData> mShared;
 
     friend class QgsOracleFeatureIterator;
+    friend class QgsOracleExpressionCompiler;
 };
 
 
 class QgsOracleFeatureIterator : public QgsAbstractFeatureIteratorFromSource<QgsOracleFeatureSource>
 {
   public:
-    QgsOracleFeatureIterator( QgsOracleFeatureSource* source, bool ownSource, const QgsFeatureRequest &request );
+    QgsOracleFeatureIterator( QgsOracleFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
 
-    ~QgsOracleFeatureIterator();
+    ~QgsOracleFeatureIterator() override;
 
-    //! reset the iterator to the starting position
-    virtual bool rewind();
-
-    //! end of iterating: free the resources / lock
-    virtual bool close();
+    bool rewind() override;
+    bool close() override;
 
   protected:
-    //! fetch next feature, return true on success
-    virtual bool fetchFeature( QgsFeature& feature );
+    bool fetchFeature( QgsFeature &feature ) override;
+    bool nextFeatureFilterExpression( QgsFeature &f ) override;
 
-    bool openQuery( QString whereClause );
+    bool openQuery( const QString &whereClause, const QVariantList &args, bool showLog = true );
 
-    QgsOracleConn *mConnection;
+    QgsOracleConn *mConnection = nullptr;
     QSqlQuery mQry;
-    bool mRewind;
+    bool mRewind = false;
+    bool mExpressionCompiled = false;
+    bool mFetchGeometry = false;
     QgsAttributeList mAttributeList;
+    QString mSql;
+    QVariantList mArgs;
+
+    QgsCoordinateTransform mTransform;
+    QgsRectangle mFilterRect;
 };
 
 #endif // QGSORACLEFEATUREITERATOR_H

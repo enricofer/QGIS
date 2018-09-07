@@ -16,48 +16,49 @@
 #ifndef QGSMAPTOOLDELETERING_H
 #define QGSMAPTOOLDELETERING_H
 
-#include "qgsmaptoolvertexedit.h"
-#include "qgsrubberband.h"
+#include "qgsmaptooledit.h"
+#include "qgis_app.h"
 
 class QgsVertexMarker;
-/**Map tool to delete vertices from line/polygon features*/
+//! Map tool to delete vertices from line/polygon features
 
-class APP_EXPORT QgsMapToolDeleteRing : public QgsMapToolVertexEdit
+class APP_EXPORT QgsMapToolDeleteRing : public QgsMapToolEdit
 {
     Q_OBJECT
 
   public:
-    QgsMapToolDeleteRing( QgsMapCanvas* canvas );
-    virtual ~QgsMapToolDeleteRing();
+    QgsMapToolDeleteRing( QgsMapCanvas *canvas );
+    ~QgsMapToolDeleteRing() override;
 
-    void canvasMoveEvent( QMouseEvent * e );
+    void canvasMoveEvent( QgsMapMouseEvent *e ) override;
 
-    void canvasPressEvent( QMouseEvent * e );
+    void canvasPressEvent( QgsMapMouseEvent *e ) override;
 
-    void canvasReleaseEvent( QMouseEvent * e );
+    void canvasReleaseEvent( QgsMapMouseEvent *e ) override;
 
     //! called when map tool is being deactivated
-    void deactivate();
+    void deactivate() override;
 
   private:
-    QgsVectorLayer* vlayer;
+    QgsVectorLayer *vlayer = nullptr;
 
     //! delete inner ring from the geometry
-    void deleteRing( QgsFeatureId fId, int beforeVertexNr, QgsVectorLayer* vlayer );
+    void deleteRing( QgsFeatureId fId, int beforeVertexNr, QgsVectorLayer *vlayer );
 
-    //! return ring number in polygon
-    int ringNumInPolygon( QgsGeometry* g, int vertexNr );
+    //! Returns the ring number in polygon
+    int ringNumInPolygon( const QgsGeometry &g, int vertexNr );
 
-    //! return ring number in multipolygon and set parNum to index of the part
-    int ringNumInMultiPolygon( QgsGeometry* g, int vertexNr, int& partNum );
+    //! Returns the ring number in multipolygon and set parNum to index of the part
+    int ringNumInMultiPolygon( const QgsGeometry &g, int vertexNr, int &partNum );
 
-    /*! return the geometry of the ring under the point p and sets fid to the feature id,
+    /**
+     * Returns the geometry of the ring under the point p and sets fid to the feature id,
      * partNum to the part number in the feature and ringNum to the ring number in the part
      */
-    QgsGeometry* ringUnderPoint( QgsPoint p, QgsFeatureId& fid, int& partNum, int& ringNum );
+    QgsGeometry ringUnderPoint( const QgsPointXY &p, QgsFeatureId &fid, int &partNum, int &ringNum );
 
     /* Rubberband that shows the ring being deleted*/
-    QgsRubberBand* mRubberBand;
+    QgsRubberBand *mRubberBand = nullptr;
 
     //The feature, part and ring the mouse was pressed in, to  check we are still in the same ring at release
     QgsFeatureId mPressedFid;

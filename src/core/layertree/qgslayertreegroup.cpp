@@ -17,74 +17,114 @@
 
 #include "qgslayertree.h"
 #include "qgslayertreeutils.h"
+#include "qgsmaplayer.h"
 
 #include <QDomElement>
 #include <QStringList>
 
 
-QgsLayerTreeGroup::QgsLayerTreeGroup( const QString& name, Qt::CheckState checked )
-    : QgsLayerTreeNode( NodeGroup )
-    , mName( name )
-    , mChecked( checked )
-    , mChangingChildVisibility( false )
+QgsLayerTreeGroup::QgsLayerTreeGroup( const QString &name, bool checked )
+  : QgsLayerTreeNode( NodeGroup, checked )
+  , mName( name )
 {
-  connect( this, SIGNAL( visibilityChanged( QgsLayerTreeNode*, Qt::CheckState ) ), this, SLOT( nodeVisibilityChanged( QgsLayerTreeNode* ) ) );
+  connect( this, &QgsLayerTreeNode::visibilityChanged, this, &QgsLayerTreeGroup::nodeVisibilityChanged );
 }
 
-QgsLayerTreeGroup::QgsLayerTreeGroup( const QgsLayerTreeGroup& other )
-    : QgsLayerTreeNode( other )
-    , mName( other.mName )
-    , mChecked( other.mChecked )
-    , mChangingChildVisibility( false )
+QgsLayerTreeGroup::QgsLayerTreeGroup( const QgsLayerTreeGroup &other )
+  : QgsLayerTreeNode( other )
+  , mName( other.mName )
+  , mChangingChildVisibility( other.mChangingChildVisibility )
+  , mMutuallyExclusive( other.mMutuallyExclusive )
+  , mMutuallyExclusiveChildIndex( other.mMutuallyExclusiveChildIndex )
 {
-  connect( this, SIGNAL( visibilityChanged( QgsLayerTreeNode*, Qt::CheckState ) ), this, SLOT( nodeVisibilityChanged( QgsLayerTreeNode* ) ) );
+  connect( this, &QgsLayerTreeNode::visibilityChanged, this, &QgsLayerTreeGroup::nodeVisibilityChanged );
+}
+
+QString QgsLayerTreeGroup::name() const
+{
+  return mName;
+}
+
+void QgsLayerTreeGroup::setName( const QString &n )
+{
+  if ( mName == n )
+    return;
+
+  mName = n;
+  emit nameChanged( this, n );
 }
 
 
-QgsLayerTreeGroup* QgsLayerTreeGroup::insertGroup( int index, const QString& name )
+QgsLayerTreeGroup *QgsLayerTreeGroup::insertGroup( int index, const QString &name )
 {
-  QgsLayerTreeGroup* grp = new QgsLayerTreeGroup( name );
+  QgsLayerTreeGroup *grp = new QgsLayerTreeGroup( name );
   insertChildNode( index, grp );
   return grp;
 }
 
-QgsLayerTreeGroup* QgsLayerTreeGroup::addGroup( const QString &name )
+QgsLayerTreeGroup *QgsLayerTreeGroup::addGroup( const QString &name )
 {
-  QgsLayerTreeGroup* grp = new QgsLayerTreeGroup( name );
+  QgsLayerTreeGroup *grp = new QgsLayerTreeGroup( name );
   addChildNode( grp );
   return grp;
 }
 
-QgsLayerTreeLayer*QgsLayerTreeGroup::insertLayer( int index, QgsMapLayer* layer )
+QgsLayerTreeLayer *QgsLayerTreeGroup::insertLayer( int index, QgsMapLayer *layer )
 {
-  QgsLayerTreeLayer* ll = new QgsLayerTreeLayer( layer );
+  if ( !layer )
+    return nullptr;
+
+  QgsLayerTreeLayer *ll = new QgsLayerTreeLayer( layer );
   insertChildNode( index, ll );
   return ll;
 }
 
-QgsLayerTreeLayer* QgsLayerTreeGroup::addLayer( QgsMapLayer* layer )
+QgsLayerTreeLayer *QgsLayerTreeGroup::addLayer( QgsMapLayer *layer )
 {
-  QgsLayerTreeLayer* ll = new QgsLayerTreeLayer( layer );
+  if ( !layer )
+    return nullptr;
+
+  QgsLayerTreeLayer *ll = new QgsLayerTreeLayer( layer );
   addChildNode( ll );
   return ll;
 }
 
-void QgsLayerTreeGroup::insertChildNode( int index, QgsLayerTreeNode* node )
+void QgsLayerTreeGroup::insertChildNode( int index, QgsLayerTreeNode *node )
 {
-  QList<QgsLayerTreeNode*> nodes;
+  QList<QgsLayerTreeNode *> nodes;
   nodes << node;
   insertChildNodes( index, nodes );
 }
 
-void QgsLayerTreeGroup::insertChildNodes( int index, QList<QgsLayerTreeNode*> nodes )
+void QgsLayerTreeGroup::insertChildNodes( int index, const QList<QgsLayerTreeNode *> &nodes )
 {
+  QgsLayerTreeNode *meChild = nullptr;
+  if ( mMutuallyExclusive && mMutuallyExclusiveChildIndex >= 0 && mMutuallyExclusiveChildIndex < mChildren.count() )
+    meChild = mChildren.at( mMutuallyExclusiveChildIndex );
+
   // low-level insert
   insertChildrenPrivate( index, nodes );
 
-  updateVisibilityFromChildren();
+  if ( mMutuallyExclusive )
+  {
+    if ( meChild )
+    {
+      // the child could have change its index - or the new children may have been also set as visible
+      mMutuallyExclusiveChildIndex = mChildren.indexOf( meChild );
+    }
+    else if ( mChecked )
+    {
+      // we have not picked a child index yet, but we should pick one now
+      // ... so pick the first one from the newly added
+      if ( index == -1 )
+        index = mChildren.count() - nodes.count(); // get real insertion index
+      mMutuallyExclusiveChildIndex = index;
+    }
+    updateChildVisibilityMutuallyExclusive();
+  }
 }
 
-void QgsLayerTreeGroup::addChildNode( QgsLayerTreeNode* node )
+void QgsLayerTreeGroup::addChildNode( QgsLayerTreeNode *node )
 {
   insertChildNode( -1, node );
 }
@@ -96,13 +136,13 @@ void QgsLayerTreeGroup::removeChildNode( QgsLayerTreeNode *node )
     removeChildren( i, 1 );
 }
 
-void QgsLayerTreeGroup::removeLayer( QgsMapLayer* layer )
+void QgsLayerTreeGroup::removeLayer( QgsMapLayer *layer )
 {
-  foreach ( QgsLayerTreeNode* child, mChildren )
+  Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
   {
     if ( QgsLayerTree::isLayer( child ) )
     {
-      QgsLayerTreeLayer* childLayer = QgsLayerTree::toLayer( child );
+      QgsLayerTreeLayer *childLayer = QgsLayerTree::toLayer( child );
       if ( childLayer->layer() == layer )
       {
         removeChildren( mChildren.indexOf( child ), 1 );
@@ -114,20 +154,31 @@ void QgsLayerTreeGroup::removeLayer( QgsMapLayer* layer )
 
 void QgsLayerTreeGroup::removeChildren( int from, int count )
 {
+  QgsLayerTreeNode *meChild = nullptr;
+  if ( mMutuallyExclusive && mMutuallyExclusiveChildIndex >= 0 && mMutuallyExclusiveChildIndex < mChildren.count() )
+    meChild = mChildren.at( mMutuallyExclusiveChildIndex );
+
   removeChildrenPrivate( from, count );
 
-  updateVisibilityFromChildren();
+  if ( meChild )
+  {
+    // the child could have change its index - or may have been removed completely
+    mMutuallyExclusiveChildIndex = mChildren.indexOf( meChild );
+    // we need to uncheck this group
+    //if ( mMutuallyExclusiveChildIndex == -1 )
+    //  setItemVisibilityChecked( false );
+  }
 }
 
 void QgsLayerTreeGroup::removeChildrenGroupWithoutLayers()
 {
   // clean the layer tree by removing empty group
-  foreach ( QgsLayerTreeNode* treeNode, children() )
+  Q_FOREACH ( QgsLayerTreeNode *treeNode, children() )
   {
     if ( treeNode->nodeType() == QgsLayerTreeNode::NodeGroup )
     {
-      QgsLayerTreeGroup* treeGroup = qobject_cast<QgsLayerTreeGroup*>( treeNode );
-      if ( treeGroup->findLayerIds().count() == 0 )
+      QgsLayerTreeGroup *treeGroup = qobject_cast<QgsLayerTreeGroup *>( treeNode );
+      if ( treeGroup->findLayerIds().isEmpty() )
         removeChildNode( treeNode );
       else
         treeGroup->removeChildrenGroupWithoutLayers();
@@ -140,30 +191,38 @@ void QgsLayerTreeGroup::removeAllChildren()
   removeChildren( 0, mChildren.count() );
 }
 
-QgsLayerTreeLayer *QgsLayerTreeGroup::findLayer( const QString& layerId ) const
+QgsLayerTreeLayer *QgsLayerTreeGroup::findLayer( QgsMapLayer *layer ) const
 {
-  foreach ( QgsLayerTreeNode* child, mChildren )
+  if ( !layer )
+    return nullptr;
+
+  return findLayer( layer->id() );
+}
+
+QgsLayerTreeLayer *QgsLayerTreeGroup::findLayer( const QString &layerId ) const
+{
+  Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
   {
     if ( QgsLayerTree::isLayer( child ) )
     {
-      QgsLayerTreeLayer* childLayer = QgsLayerTree::toLayer( child );
+      QgsLayerTreeLayer *childLayer = QgsLayerTree::toLayer( child );
       if ( childLayer->layerId() == layerId )
         return childLayer;
     }
     else if ( QgsLayerTree::isGroup( child ) )
     {
-      QgsLayerTreeLayer* res = QgsLayerTree::toGroup( child )->findLayer( layerId );
+      QgsLayerTreeLayer *res = QgsLayerTree::toGroup( child )->findLayer( layerId );
       if ( res )
         return res;
     }
   }
-  return 0;
+  return nullptr;
 }
 
-QList<QgsLayerTreeLayer*> QgsLayerTreeGroup::findLayers() const
+QList<QgsLayerTreeLayer *> QgsLayerTreeGroup::findLayers() const
 {
-  QList<QgsLayerTreeLayer*> list;
-  foreach ( QgsLayerTreeNode* child, mChildren )
+  QList<QgsLayerTreeLayer *> list;
+  Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
   {
     if ( QgsLayerTree::isLayer( child ) )
       list << QgsLayerTree::toLayer( child );
@@ -173,68 +232,97 @@ QList<QgsLayerTreeLayer*> QgsLayerTreeGroup::findLayers() const
   return list;
 }
 
-QgsLayerTreeGroup* QgsLayerTreeGroup::findGroup( const QString& name )
+QgsLayerTreeGroup *QgsLayerTreeGroup::findGroup( const QString &name )
 {
-  foreach ( QgsLayerTreeNode* child, mChildren )
+  Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
   {
     if ( QgsLayerTree::isGroup( child ) )
     {
-      QgsLayerTreeGroup* childGroup = QgsLayerTree::toGroup( child );
+      QgsLayerTreeGroup *childGroup = QgsLayerTree::toGroup( child );
       if ( childGroup->name() == name )
         return childGroup;
       else
       {
-        QgsLayerTreeGroup* grp = childGroup->findGroup( name );
+        QgsLayerTreeGroup *grp = childGroup->findGroup( name );
         if ( grp )
           return grp;
       }
     }
   }
-  return 0;
+  return nullptr;
 }
 
-QgsLayerTreeGroup* QgsLayerTreeGroup::readXML( QDomElement& element )
+QList<QgsLayerTreeGroup *> QgsLayerTreeGroup::findGroups() const
 {
-  if ( element.tagName() != "layer-tree-group" )
-    return 0;
+  QList<QgsLayerTreeGroup *> list;
 
-  QString name = element.attribute( "name" );
-  bool isExpanded = ( element.attribute( "expanded", "1" ) == "1" );
-  Qt::CheckState checked = QgsLayerTreeUtils::checkStateFromXml( element.attribute( "checked" ) );
+  for ( QgsLayerTreeNode *child : mChildren )
+  {
+    if ( QgsLayerTree::isGroup( child ) )
+      list << QgsLayerTree::toGroup( child );
+  }
+  return list;
+}
 
-  QgsLayerTreeGroup* groupNode = new QgsLayerTreeGroup( name, checked );
+QgsLayerTreeGroup *QgsLayerTreeGroup::readXml( QDomElement &element, const QgsReadWriteContext &context )
+{
+  if ( element.tagName() != QLatin1String( "layer-tree-group" ) )
+    return nullptr;
+
+  QString name =  context.projectTranslator()->translate( QStringLiteral( "project:layergroups" ), element.attribute( QStringLiteral( "name" ) ) );
+  bool isExpanded = ( element.attribute( QStringLiteral( "expanded" ), QStringLiteral( "1" ) ) == QLatin1String( "1" ) );
+  bool checked = QgsLayerTreeUtils::checkStateFromXml( element.attribute( QStringLiteral( "checked" ) ) ) != Qt::Unchecked;
+  bool isMutuallyExclusive = element.attribute( QStringLiteral( "mutually-exclusive" ), QStringLiteral( "0" ) ) == QLatin1String( "1" );
+  int mutuallyExclusiveChildIndex = element.attribute( QStringLiteral( "mutually-exclusive-child" ), QStringLiteral( "-1" ) ).toInt();
+
+  QgsLayerTreeGroup *groupNode = new QgsLayerTreeGroup( name, checked );
   groupNode->setExpanded( isExpanded );
 
-  groupNode->readCommonXML( element );
+  groupNode->readCommonXml( element );
 
-  groupNode->readChildrenFromXML( element );
+  groupNode->readChildrenFromXml( element, context );
+
+  groupNode->setIsMutuallyExclusive( isMutuallyExclusive, mutuallyExclusiveChildIndex );
 
   return groupNode;
 }
 
-void QgsLayerTreeGroup::writeXML( QDomElement& parentElement )
+QgsLayerTreeGroup *QgsLayerTreeGroup::readXml( QDomElement &element, const QgsProject *project, const QgsReadWriteContext &context )
+{
+  QgsLayerTreeGroup *node = readXml( element, context );
+  if ( node )
+    node->resolveReferences( project );
+  return node;
+}
+
+void QgsLayerTreeGroup::writeXml( QDomElement &parentElement, const QgsReadWriteContext &context )
 {
   QDomDocument doc = parentElement.ownerDocument();
-  QDomElement elem = doc.createElement( "layer-tree-group" );
-  elem.setAttribute( "name", mName );
-  elem.setAttribute( "expanded", mExpanded ? "1" : "0" );
-  elem.setAttribute( "checked", QgsLayerTreeUtils::checkStateToXml( mChecked ) );
+  QDomElement elem = doc.createElement( QStringLiteral( "layer-tree-group" ) );
+  elem.setAttribute( QStringLiteral( "name" ), mName );
+  elem.setAttribute( QStringLiteral( "expanded" ), mExpanded ? "1" : "0" );
+  elem.setAttribute( QStringLiteral( "checked" ), mChecked ? QStringLiteral( "Qt::Checked" ) : QStringLiteral( "Qt::Unchecked" ) );
+  if ( mMutuallyExclusive )
+  {
+    elem.setAttribute( QStringLiteral( "mutually-exclusive" ), QStringLiteral( "1" ) );
+    elem.setAttribute( QStringLiteral( "mutually-exclusive-child" ), mMutuallyExclusiveChildIndex );
+  }
 
-  writeCommonXML( elem );
+  writeCommonXml( elem );
 
-  foreach ( QgsLayerTreeNode* node, mChildren )
-    node->writeXML( elem );
+  Q_FOREACH ( QgsLayerTreeNode *node, mChildren )
+    node->writeXml( elem, context );
 
   parentElement.appendChild( elem );
 }
 
-void QgsLayerTreeGroup::readChildrenFromXML( QDomElement& element )
+void QgsLayerTreeGroup::readChildrenFromXml( QDomElement &element, const QgsReadWriteContext &context )
 {
-  QList<QgsLayerTreeNode*> nodes;
+  QList<QgsLayerTreeNode *> nodes;
   QDomElement childElem = element.firstChildElement();
   while ( !childElem.isNull() )
   {
-    QgsLayerTreeNode* newNode = QgsLayerTreeNode::readXML( childElem );
+    QgsLayerTreeNode *newNode = QgsLayerTreeNode::readXml( childElem, context );
     if ( newNode )
       nodes << newNode;
 
@@ -246,49 +334,69 @@ void QgsLayerTreeGroup::readChildrenFromXML( QDomElement& element )
 
 QString QgsLayerTreeGroup::dump() const
 {
-  QString header = QString( "GROUP: %1 visible=%2 expanded=%3\n" ).arg( name() ).arg( mChecked ).arg( mExpanded );
+  QString header = QStringLiteral( "GROUP: %1 checked=%2 expanded=%3\n" ).arg( name() ).arg( mChecked ).arg( mExpanded );
   QStringList childrenDump;
-  foreach ( QgsLayerTreeNode* node, mChildren )
-    childrenDump << node->dump().split( "\n" );
+  Q_FOREACH ( QgsLayerTreeNode *node, mChildren )
+    childrenDump << node->dump().split( '\n' );
   for ( int i = 0; i < childrenDump.count(); ++i )
     childrenDump[i].prepend( "  " );
-  return header + childrenDump.join( "\n" );
+  return header + childrenDump.join( QStringLiteral( "\n" ) );
 }
 
-QgsLayerTreeNode* QgsLayerTreeGroup::clone() const
+QgsLayerTreeGroup *QgsLayerTreeGroup::clone() const
 {
   return new QgsLayerTreeGroup( *this );
 }
 
-void QgsLayerTreeGroup::setVisible( Qt::CheckState state )
+void QgsLayerTreeGroup::resolveReferences( const QgsProject *project, bool looseMatching )
 {
-  if ( mChecked == state )
-    return;
+  Q_FOREACH ( QgsLayerTreeNode *node, mChildren )
+    node->resolveReferences( project, looseMatching );
+}
 
-  mChecked = state;
-  emit visibilityChanged( this, state );
+static bool _nodeIsChecked( QgsLayerTreeNode *node )
+{
+  return node->itemVisibilityChecked();
+}
 
-  if ( mChecked == Qt::Unchecked || mChecked == Qt::Checked )
+
+bool QgsLayerTreeGroup::isMutuallyExclusive() const
+{
+  return mMutuallyExclusive;
+}
+
+void QgsLayerTreeGroup::setIsMutuallyExclusive( bool enabled, int initialChildIndex )
+{
+  mMutuallyExclusive = enabled;
+  mMutuallyExclusiveChildIndex = initialChildIndex;
+
+  if ( !enabled )
   {
-    mChangingChildVisibility = true; // guard against running again setVisible() triggered from children
-
-    // update children to have the correct visibility
-    foreach ( QgsLayerTreeNode* child, mChildren )
-    {
-      if ( QgsLayerTree::isGroup( child ) )
-        QgsLayerTree::toGroup( child )->setVisible( mChecked );
-      else if ( QgsLayerTree::isLayer( child ) )
-        QgsLayerTree::toLayer( child )->setVisible( mChecked );
-    }
-
-    mChangingChildVisibility = false;
+    return;
   }
+
+  if ( mMutuallyExclusiveChildIndex < 0 || mMutuallyExclusiveChildIndex >= mChildren.count() )
+  {
+    // try to use first checked index
+    int index = 0;
+    Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
+    {
+      if ( _nodeIsChecked( child ) )
+      {
+        mMutuallyExclusiveChildIndex = index;
+        break;
+      }
+      index++;
+    }
+  }
+
+  updateChildVisibilityMutuallyExclusive();
 }
 
 QStringList QgsLayerTreeGroup::findLayerIds() const
 {
   QStringList lst;
-  foreach ( QgsLayerTreeNode* child, mChildren )
+  Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
   {
     if ( QgsLayerTree::isGroup( child ) )
       lst << QgsLayerTree::toGroup( child )->findLayerIds();
@@ -298,53 +406,53 @@ QStringList QgsLayerTreeGroup::findLayerIds() const
   return lst;
 }
 
-
-void QgsLayerTreeGroup::layerDestroyed()
+void QgsLayerTreeGroup::nodeVisibilityChanged( QgsLayerTreeNode *node )
 {
-  //QgsMapLayer* layer = static_cast<QgsMapLayer*>( sender() );
-  //removeLayer( layer );
-}
+  int childIndex = mChildren.indexOf( node );
+  if ( childIndex == -1 )
+    return; // not a direct child - ignore
 
-void QgsLayerTreeGroup::nodeVisibilityChanged( QgsLayerTreeNode* node )
-{
-  if ( mChildren.indexOf( node ) != -1 )
-    updateVisibilityFromChildren();
-}
-
-void QgsLayerTreeGroup::updateVisibilityFromChildren()
-{
-  if ( mChangingChildVisibility )
-    return;
-
-  if ( mChildren.count() == 0 )
-    return;
-
-  bool hasVisible = false, hasHidden = false;
-
-  foreach ( QgsLayerTreeNode* child, mChildren )
+  if ( mMutuallyExclusive )
   {
-    if ( QgsLayerTree::isLayer( child ) )
-    {
-      bool layerVisible = QgsLayerTree::toLayer( child )->isVisible() == Qt::Checked;
-      if ( layerVisible ) hasVisible = true;
-      if ( !layerVisible ) hasHidden = true;
-    }
-    else if ( QgsLayerTree::isGroup( child ) )
-    {
-      Qt::CheckState state = QgsLayerTree::toGroup( child )->isVisible();
-      if ( state == Qt::Checked || state == Qt::PartiallyChecked ) hasVisible = true;
-      if ( state == Qt::Unchecked || state == Qt::PartiallyChecked ) hasHidden = true;
-    }
+    if ( _nodeIsChecked( node ) )
+      mMutuallyExclusiveChildIndex = childIndex;
+    else if ( mMutuallyExclusiveChildIndex == childIndex )
+      mMutuallyExclusiveChildIndex = -1;
+
+    // we need to make sure there is only one child node checked
+    updateChildVisibilityMutuallyExclusive();
+  }
+}
+
+void QgsLayerTreeGroup::updateChildVisibilityMutuallyExclusive()
+{
+  if ( mChildren.isEmpty() )
+    return;
+
+  mChangingChildVisibility = true; // guard against running again setVisible() triggered from children
+
+  int index = 0;
+  Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
+  {
+    child->setItemVisibilityChecked( index == mMutuallyExclusiveChildIndex );
+    ++index;
   }
 
-  Qt::CheckState newState;
-  if ( hasVisible && !hasHidden )
-    newState = Qt::Checked;
-  else if ( hasHidden && !hasVisible )
-    newState = Qt::Unchecked;
-  else
-    newState = Qt::PartiallyChecked;
-
-  setVisible( newState );
+  mChangingChildVisibility = false;
 }
 
+void QgsLayerTreeGroup::setItemVisibilityCheckedRecursive( bool checked )
+{
+  QgsLayerTreeNode::setItemVisibilityChecked( checked );
+
+  mChangingChildVisibility = true; // guard against running again setVisible() triggered from children
+
+  int index = 0;
+  Q_FOREACH ( QgsLayerTreeNode *child, mChildren )
+  {
+    child->setItemVisibilityCheckedRecursive( checked && ( mMutuallyExclusiveChildIndex < 0 || index == mMutuallyExclusiveChildIndex ) );
+    ++index;
+  }
+
+  mChangingChildVisibility = false;
+}

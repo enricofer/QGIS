@@ -18,26 +18,6 @@
 #include "qgsgeometrysimplifier.h"
 #include "qgsmaptopixelgeometrysimplifier.h"
 
-QgsSimplifyMethod::QgsSimplifyMethod()
-    : mMethodType( QgsSimplifyMethod::NoSimplification )
-    , mTolerance( 1 )
-    , mForceLocalOptimization( true )
-{
-}
-
-QgsSimplifyMethod::QgsSimplifyMethod( const QgsSimplifyMethod &rh )
-{
-  operator=( rh );
-}
-
-QgsSimplifyMethod& QgsSimplifyMethod::operator=( const QgsSimplifyMethod & rh )
-{
-  mMethodType = rh.mMethodType;
-  mTolerance = rh.mTolerance;
-  mForceLocalOptimization = rh.mForceLocalOptimization;
-
-  return *this;
-}
 
 void QgsSimplifyMethod::setMethodType( MethodType methodType )
 {
@@ -54,7 +34,7 @@ void QgsSimplifyMethod::setForceLocalOptimization( bool localOptimization )
   mForceLocalOptimization = localOptimization;
 }
 
-QgsAbstractGeometrySimplifier* QgsSimplifyMethod::createGeometrySimplifier( const QgsSimplifyMethod& simplifyMethod )
+QgsAbstractGeometrySimplifier *QgsSimplifyMethod::createGeometrySimplifier( const QgsSimplifyMethod &simplifyMethod )
 {
   QgsSimplifyMethod::MethodType methodType = simplifyMethod.methodType();
 
@@ -62,7 +42,7 @@ QgsAbstractGeometrySimplifier* QgsSimplifyMethod::createGeometrySimplifier( cons
   if ( methodType == QgsSimplifyMethod::OptimizeForRendering )
   {
     int simplifyFlags = QgsMapToPixelSimplifier::SimplifyGeometry | QgsMapToPixelSimplifier::SimplifyEnvelope;
-    return new QgsMapToPixelSimplifier( simplifyFlags, simplifyMethod.tolerance() );
+    return new QgsMapToPixelSimplifier( simplifyFlags, simplifyMethod.tolerance(), QgsMapToPixelSimplifier::Distance );
   }
   else if ( methodType == QgsSimplifyMethod::PreserveTopology )
   {
@@ -71,6 +51,6 @@ QgsAbstractGeometrySimplifier* QgsSimplifyMethod::createGeometrySimplifier( cons
   else
   {
     QgsDebugMsg( QString( "Simplification method type (%1) is not recognised" ).arg( methodType ) );
-    return NULL;
+    return nullptr;
   }
 }

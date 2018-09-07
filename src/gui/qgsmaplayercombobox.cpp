@@ -17,22 +17,65 @@
 #include "qgsmaplayermodel.h"
 
 
-QgsMapLayerComboBox::QgsMapLayerComboBox( QWidget *parent ) :
-    QComboBox( parent )
+QgsMapLayerComboBox::QgsMapLayerComboBox( QWidget *parent )
+  : QComboBox( parent )
 {
   mProxyModel = new QgsMapLayerProxyModel( this );
   setModel( mProxyModel );
 
-  connect( this, SIGNAL( activated( int ) ), this, SLOT( indexChanged( int ) ) );
+  connect( this, static_cast < void ( QComboBox::* )( int ) > ( &QComboBox::activated ), this, &QgsMapLayerComboBox::indexChanged );
+  connect( mProxyModel, &QAbstractItemModel::rowsInserted, this, &QgsMapLayerComboBox::rowsChanged );
+  connect( mProxyModel, &QAbstractItemModel::rowsRemoved, this, &QgsMapLayerComboBox::rowsChanged );
 }
 
-void QgsMapLayerComboBox::setFilters( QgsMapLayerProxyModel::Filters filters )
+void QgsMapLayerComboBox::setExcludedProviders( const QStringList &providers )
 {
-  mProxyModel->setFilters( filters );
+  mProxyModel->setExcludedProviders( providers );
+}
+
+QStringList QgsMapLayerComboBox::excludedProviders() const
+{
+  return mProxyModel->excludedProviders();
+}
+
+void QgsMapLayerComboBox::setAllowEmptyLayer( bool allowEmpty )
+{
+  mProxyModel->sourceLayerModel()->setAllowEmptyLayer( allowEmpty );
+}
+
+bool QgsMapLayerComboBox::allowEmptyLayer() const
+{
+  return mProxyModel->sourceLayerModel()->allowEmptyLayer();
+}
+
+void QgsMapLayerComboBox::setShowCrs( bool showCrs )
+{
+  mProxyModel->sourceLayerModel()->setShowCrs( showCrs );
+}
+
+bool QgsMapLayerComboBox::showCrs() const
+{
+  return mProxyModel->sourceLayerModel()->showCrs();
+}
+
+void QgsMapLayerComboBox::setAdditionalItems( const QStringList &items )
+{
+  mProxyModel->sourceLayerModel()->setAdditionalItems( items );
+}
+
+QStringList QgsMapLayerComboBox::additionalItems() const
+{
+  return mProxyModel->sourceLayerModel()->additionalItems();
 }
 
 void QgsMapLayerComboBox::setLayer( QgsMapLayer *layer )
 {
+  if ( !layer )
+  {
+    setCurrentIndex( -1 );
+    return;
+  }
+
   QModelIndex idx = mProxyModel->sourceLayerModel()->indexFromLayer( layer );
   if ( idx.isValid() )
   {
@@ -48,33 +91,50 @@ void QgsMapLayerComboBox::setLayer( QgsMapLayer *layer )
   emit layerChanged( currentLayer() );
 }
 
-QgsMapLayer* QgsMapLayerComboBox::currentLayer() const
+QgsMapLayer *QgsMapLayerComboBox::currentLayer() const
 {
-  int i = currentIndex();
+  return layer( currentIndex() );
+}
 
-  const QModelIndex proxyIndex = mProxyModel->index( i, 0 );
+QgsMapLayer *QgsMapLayerComboBox::layer( int layerIndex ) const
+{
+  const QModelIndex proxyIndex = mProxyModel->index( layerIndex, 0 );
   if ( !proxyIndex.isValid() )
   {
-    return 0;
+    return nullptr;
   }
 
   const QModelIndex index = mProxyModel->mapToSource( proxyIndex );
   if ( !index.isValid() )
   {
-    return 0;
+    return nullptr;
   }
 
-  QgsMapLayer* layer = static_cast<QgsMapLayer*>( index.internalPointer() );
+  QgsMapLayer *layer = static_cast<QgsMapLayer *>( index.internalPointer() );
   if ( layer )
   {
     return layer;
   }
-  return 0;
+  return nullptr;
 }
 
 void QgsMapLayerComboBox::indexChanged( int i )
 {
   Q_UNUSED( i );
-  QgsMapLayer* layer = currentLayer();
+  QgsMapLayer *layer = currentLayer();
   emit layerChanged( layer );
 }
+
+void QgsMapLayerComboBox::rowsChanged()
+{
+  if ( count() == 1 )
+  {
+    //currently selected layer item has changed
+    emit layerChanged( currentLayer() );
+  }
+  else if ( count() == 0 )
+  {
+    emit layerChanged( nullptr );
+  }
+}
+

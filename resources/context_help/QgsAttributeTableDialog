@@ -1,7 +1,7 @@
 <h3>Attribute table</h3>
 The attribute table displays features of a selected layer. Each row in the table represents one map feature with its attributes shown in several columns. The features in the table can be searched, selected, moved or even edited.  By default the attribute table is a separate window. If you opened it and cannot see it anymore, it is most likely hidden under the main QGIS window. You can make it also a docked window, by checking <label>Open attribute table in a dock window</label> in <label>Settings > Options > Data Sources</label>.<p>
 
-The number of total number of layer features, filtered features and selected features is printed on the window header.<p>
+The total number of layer features, filtered features and selected features is printed on the window header.<p>
 At the bottom right of the dialog, you can choose whether to display features in a form or in a table.<p>
 <p>
 <a href="#Selecting">Selecting</a><br/>
@@ -35,7 +35,7 @@ Shows all features which are currently visible on the map canvas, taking the cur
 <h5>Show Edited and New Features</h5>
 Shows only edited and new features. In this mode, features with uncommitted changes are shown and this is therefore a good filter to review changes, before committing them. Please note, that deleted features are not shown in this mode.
 <h5>Column Filter</h5>
-A simple filter, which lets you filter by an attribute. If the attribute contains text, it looks for sub-strings also. Searching for <b>man</b> will therefore also show records containing <b>woman</b>. After changing the filter text, press <label>Enter</label> or click on <label>Apply</label>. You can also toggle the check-box <label>Case sensitive</label>, so your filter will also match <b>Night</b> when your search text is <b>night</b>.   
+A simple filter, which lets you filter by an attribute. If the attribute contains text, it looks for sub-strings also. Searching for <b>man</b> will therefore also show records containing <b>woman</b>. After changing the filter text, press <label>Enter</label> or click on <label>Apply</label>. You can also toggle the checkbox <label>Case sensitive</label>, so your filter will also match <b>Night</b> when your search text is <b>night</b>.
 <h5>Advanced Filter</h5>
 For more complex searches, this mode offers a powerful expression builder, which is similar to a SQL WHERE clause. Please refer to the built-in help of the expression builder for details on the syntax.
 
@@ -55,5 +55,5 @@ The vector layer needs to be in editing mode, before you can click on the <label
 <a name="FieldCalcBar">
 <h4>Field Calculator Bar</h4>
 </a>
-When you toggle to edition the layer, a new row of functions appears in the attribute table: the <label>Field Calculator Bar</label>. This allows to quickly edit values of existing fields by performing calculations on basis of existing attribute values or defined functions button in the attribute table, e.g. to calculate length or area of geometry features.<br>
+When you toggle to edition the layer, a new row of functions appears in the attribute table: the <label>Field Calculator Bar</label>. This allows quick editing values of existing fields by performing calculations on basis of existing attribute values or defined functions button in the attribute table, e.g. to calculate length or area of geometry features.<br>
 To edit values, select the field to modify with the filter button on the left and fill the text box with the new value or an expression to calculate new value. Then, press <label>Update all</label> button to update all the rows of the attribute table or <label>Update selected</label> button if some features are selected or a filter is applied on the attribute table display. You can also use the <label>Expression builder</label> button to calculate the new value in the column.<br>

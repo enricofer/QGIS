@@ -16,23 +16,27 @@
 #ifndef QGISCUSTOMWIDGETS_H
 #define QGISCUSTOMWIDGETS_H
 
-#include <QDesignerCustomWidgetCollectionInterface>
+
+#include <QtGlobal>
+#include <QtUiPlugin/QDesignerCustomWidgetCollectionInterface>
 #include <qplugin.h>
+
 
 class QgisCustomWidgets : public QObject, public QDesignerCustomWidgetCollectionInterface
 {
     Q_OBJECT
+    Q_PLUGIN_METADATA( IID "org.qgis.customwidgets" )
     Q_INTERFACES( QDesignerCustomWidgetCollectionInterface )
 
   public:
-    explicit QgisCustomWidgets( QObject *parent = 0 );
+    explicit QgisCustomWidgets( QObject *parent = nullptr );
 
-    virtual QList<QDesignerCustomWidgetInterface*> customWidgets() const;
+    QList<QDesignerCustomWidgetInterface *> customWidgets() const override;
 
     static QString groupName() { return tr( "QGIS custom widgets" ); }
 
   private:
-    QList<QDesignerCustomWidgetInterface*> mWidgets;
+    QList<QDesignerCustomWidgetInterface *> mWidgets;
 };
 
 #endif // QGISCUSTOMWIDGETS_H

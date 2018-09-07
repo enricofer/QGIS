@@ -25,81 +25,88 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.ProcessingLog import ProcessingLog
-from processing.core.GeoAlgorithmExecutionException import \
-        GeoAlgorithmExecutionException
+import sys
+from qgis.PyQt.QtCore import QCoreApplication
+from qgis.core import (Qgis,
+                       QgsFeatureSink,
+                       QgsProcessingFeedback,
+                       QgsProcessingUtils,
+                       QgsMessageLog,
+                       QgsProcessingException,
+                       QgsProcessingParameters)
 from processing.gui.Postprocessing import handleAlgorithmResults
 from processing.tools import dataobjects
-from processing.tools.system import *
-from processing.tools import vector
-from processing.gui.SilentProgress import SilentProgress
 
 
-def runalg(alg, progress=None):
+def execute(alg, parameters, context=None, feedback=None):
     """Executes a given algorithm, showing its progress in the
     progress object passed along.
 
     Return true if everything went OK, false if the algorithm
     could not be completed.
     """
-    if progress is None:
-        progress = SilentProgress()
+
+    if feedback is None:
+        feedback = QgsProcessingFeedback()
+    if context is None:
+        context = dataobjects.createContext(feedback)
+
     try:
-        alg.execute(progress)
-        return True
-    except GeoAlgorithmExecutionException, e:
-        ProcessingLog.addToLog(sys.exc_info()[0], ProcessingLog.LOG_ERROR)
-        progress.error(e.msg)
-        return False
-    except Exception:
-        msg = tr('Uncaught error executing %s.\nSee log for more information') % unicode(alg.name)
-        ProcessingLog.addToLog(sys.exc_info()[0], ProcessingLog.LOG_ERROR)
-        progress.error(msg)
-        return False
+        results, ok = alg.run(parameters, context, feedback)
+        return ok, results
+    except QgsProcessingException as e:
+        QgsMessageLog.logMessage(str(sys.exc_info()[0]), 'Processing', Qgis.Critical)
+        if feedback is not None:
+            feedback.reportError(e.msg)
+        return False, {}
 
-def runalgIterating(alg, paramToIter, progress):
+
+def executeIterating(alg, parameters, paramToIter, context, feedback):
     # Generate all single-feature layers
-    settings = QSettings()
-    systemEncoding = settings.value('/UI/encoding', 'System')
-    layerfile = alg.getParameterValue(paramToIter)
-    layer = dataobjects.getObjectFromUri(layerfile, False)
-    feat = QgsFeature()
-    filelist = []
-    outputs = {}
-    provider = layer.dataProvider()
-    features = vector.features(layer)
-    for feat in features:
-        output = getTempFilename('shp')
-        filelist.append(output)
-        writer = QgsVectorFileWriter(output, systemEncoding,
-                provider.fields(), provider.geometryType(), layer.crs())
-        writer.addFeature(feat)
-        del writer
+    parameter_definition = alg.parameterDefinition(paramToIter)
+    if not parameter_definition:
+        return False
 
-    # store output values to use them later as basenames for all outputs
-    for out in alg.outputs:
-        outputs[out.name] = out.value
+    iter_source = QgsProcessingParameters.parameterAsSource(parameter_definition, parameters, context)
+    sink_list = []
+    if iter_source.featureCount() == 0:
+        return False
 
-    # now run all the algorithms
-    for i,f in enumerate(filelist):
-        alg.setParameterValue(paramToIter, f)
-        for out in alg.outputs:
-            filename = outputs[out.name]
-            if filename:
-                filename = filename[:filename.rfind('.')] + '_' + str(i) \
-                    + filename[filename.rfind('.'):]
-            out.value = filename
-        progress.setText(tr('Executing iteration %s/%s...' % (str(i), str(len(filelist)))))
-        progress.setPercentage(i * 100 / len(filelist))
-        if runalg(alg):
-            handleAlgorithmResults(alg, None, False)
-        else:
+    total = 100.0 / iter_source.featureCount()
+    for current, feat in enumerate(iter_source.getFeatures()):
+        if feedback.isCanceled():
             return False
 
+        sink, sink_id = QgsProcessingUtils.createFeatureSink('memory:', context, iter_source.fields(), iter_source.wkbType(), iter_source.sourceCrs())
+        sink_list.append(sink_id)
+        sink.addFeature(feat, QgsFeatureSink.FastInsert)
+        del sink
+
+        feedback.setProgress(int(current * total))
+
+    # store output values to use them later as basenames for all outputs
+    outputs = {}
+    for out in alg.destinationParameterDefinitions():
+        outputs[out.name()] = parameters[out.name()]
+
+    # now run all the algorithms
+    for i, f in enumerate(sink_list):
+        if feedback.isCanceled():
+            return False
+
+        parameters[paramToIter] = f
+        for out in alg.destinationParameterDefinitions():
+            o = outputs[out.name()]
+            parameters[out.name()] = QgsProcessingUtils.generateIteratingDestination(o, i, context)
+        feedback.setProgressText(QCoreApplication.translate('AlgorithmExecutor', 'Executing iteration {0}/{1}…').format(i, len(sink_list)))
+        feedback.setProgress(i * 100 / len(sink_list))
+        ret, results = execute(alg, parameters, context, feedback)
+        if not ret:
+            return False
+
+    handleAlgorithmResults(alg, context, feedback, False)
     return True
+
 
 def tr(string, context=''):
     if context == '':

@@ -25,69 +25,91 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterBoolean
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+import os
+
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QVariant
+
+from qgis.core import (QgsApplication,
+                       QgsField,
+                       QgsFeatureSink,
+                       QgsGeometry,
+                       QgsFeature,
+                       QgsWkbTypes,
+                       QgsProcessing,
+                       QgsProcessingException,
+                       QgsProcessingParameterMapLayer,
+                       QgsProcessingParameterFeatureSink,
+                       QgsFields)
+
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
-class ExtentFromLayer(GeoAlgorithm):
+class ExtentFromLayer(QgisAlgorithm):
 
-    INPUT_LAYER = 'INPUT_LAYER'
+    INPUT = 'INPUT'
     BY_FEATURE = 'BY_FEATURE'
 
     OUTPUT = 'OUTPUT'
 
-    #==========================================================================
-    #def getIcon(self):
-    #   return QIcon(os.path.dirname(__file__) + "/icons/layer_extent.png")
-    #==========================================================================
+    def icon(self):
+        return QgsApplication.getThemeIcon("/algorithms/mAlgorithmExtractLayerExtent.svg")
 
-    def defineCharacteristics(self):
-        self.name = 'Polygon from layer extent'
-        self.group = 'Vector general tools'
+    def svgIconPath(self):
+        return QgsApplication.iconPath("/algorithms/mAlgorithmExtractLayerExtent.svg")
 
-        self.addParameter(ParameterVector(self.INPUT_LAYER, 'Input layer',
-                          [ParameterVector.VECTOR_TYPE_ANY]))
-        self.addParameter(ParameterBoolean(self.BY_FEATURE,
-                          'Calculate extent for each feature separately',
-                          False))
+    def tags(self):
+        return self.tr('polygon,from,vector,raster,extent,envelope,bounds,bounding,boundary,layer').split(',')
 
-        self.addOutput(OutputVector(self.OUTPUT, 'Output layer'))
+    def group(self):
+        return self.tr('Layer tools')
 
-    def processAlgorithm(self, progress):
-        layer = dataobjects.getObjectFromUri(
-                self.getParameterValue(self.INPUT_LAYER))
-        byFeature = self.getParameterValue(self.BY_FEATURE)
+    def groupId(self):
+        return 'layertools'
 
-        fields = [
-            QgsField('MINX', QVariant.Double),
-            QgsField('MINY', QVariant.Double),
-            QgsField('MAXX', QVariant.Double),
-            QgsField('MAXY', QVariant.Double),
-            QgsField('CNTX', QVariant.Double),
-            QgsField('CNTY', QVariant.Double),
-            QgsField('AREA', QVariant.Double),
-            QgsField('PERIM', QVariant.Double),
-            QgsField('HEIGHT', QVariant.Double),
-            QgsField('WIDTH', QVariant.Double),
-            ]
+    def __init__(self):
+        super().__init__()
 
-        writer = self.getOutputFromName(self.OUTPUT).getVectorWriter(fields,
-                QGis.WKBPolygon, layer.crs())
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterMapLayer(self.INPUT, self.tr('Input layer')))
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Extent'), type=QgsProcessing.TypeVectorPolygon))
 
-        if byFeature:
-            self.featureExtent(layer, writer, progress)
-        else:
-            self.layerExtent(layer, writer, progress)
+    def name(self):
+        return 'polygonfromlayerextent'
 
-        del writer
+    def displayName(self):
+        return self.tr('Extract layer extent')
 
-    def layerExtent(self, layer, writer, progress):
+    def processAlgorithm(self, parameters, context, feedback):
+        layer = self.parameterAsLayer(parameters, self.INPUT, context)
+
+        fields = QgsFields()
+        fields.append(QgsField('MINX', QVariant.Double))
+        fields.append(QgsField('MINY', QVariant.Double))
+        fields.append(QgsField('MAXX', QVariant.Double))
+        fields.append(QgsField('MAXY', QVariant.Double))
+        fields.append(QgsField('CNTX', QVariant.Double))
+        fields.append(QgsField('CNTY', QVariant.Double))
+        fields.append(QgsField('AREA', QVariant.Double))
+        fields.append(QgsField('PERIM', QVariant.Double))
+        fields.append(QgsField('HEIGHT', QVariant.Double))
+        fields.append(QgsField('WIDTH', QVariant.Double))
+
+        (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT, context,
+                                               fields, QgsWkbTypes.Polygon, layer.crs())
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
+
+        try:
+            # may not be possible
+            layer.updateExtents()
+        except:
+            pass
+
         rect = layer.extent()
+        geometry = QgsGeometry.fromRect(rect)
         minx = rect.xMinimum()
         miny = rect.yMinimum()
         maxx = rect.xMaximum()
@@ -99,9 +121,6 @@ class ExtentFromLayer(GeoAlgorithm):
         area = width * height
         perim = 2 * width + 2 * height
 
-        rect = [QgsPoint(minx, miny), QgsPoint(minx, maxy), QgsPoint(maxx,
-                maxy), QgsPoint(maxx, miny), QgsPoint(minx, miny)]
-        geometry = QgsGeometry().fromPolygon([rect])
         feat = QgsFeature()
         feat.setGeometry(geometry)
         attrs = [
@@ -115,46 +134,8 @@ class ExtentFromLayer(GeoAlgorithm):
             perim,
             height,
             width,
-            ]
+        ]
         feat.setAttributes(attrs)
-        writer.addFeature(feat)
+        sink.addFeature(feat, QgsFeatureSink.FastInsert)
 
-    def featureExtent(self, layer, writer, progress):
-        current = 0
-        features = vector.features(layer)
-        total = 100.0 / float(len(features))
-        feat = QgsFeature()
-        for f in features:
-            rect = f.geometry().boundingBox()
-            minx = rect.xMinimum()
-            miny = rect.yMinimum()
-            maxx = rect.xMaximum()
-            maxy = rect.yMaximum()
-            height = rect.height()
-            width = rect.width()
-            cntx = minx + width / 2.0
-            cnty = miny + height / 2.0
-            area = width * height
-            perim = 2 * width + 2 * height
-            rect = [QgsPoint(minx, miny), QgsPoint(minx, maxy), QgsPoint(maxx,
-                    maxy), QgsPoint(maxx, miny), QgsPoint(minx, miny)]
-
-            geometry = QgsGeometry().fromPolygon([rect])
-            feat.setGeometry(geometry)
-            attrs = [
-                minx,
-                miny,
-                maxx,
-                maxy,
-                cntx,
-                cnty,
-                area,
-                perim,
-                height,
-                width,
-                ]
-            feat.setAttributes(attrs)
-
-            writer.addFeature(feat)
-            current += 1
-            progress.setPercentage(int(current * total))
+        return {self.OUTPUT: dest_id}

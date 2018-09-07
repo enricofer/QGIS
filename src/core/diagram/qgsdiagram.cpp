@@ -13,20 +13,14 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsdiagram.h"
-#include "qgsdiagramrendererv2.h"
+#include "qgsdiagramrenderer.h"
 #include "qgsrendercontext.h"
 #include "qgsexpression.h"
+#include "qgssymbollayerutils.h"
 
 #include <QPainter>
 
-
-
-QgsDiagram::QgsDiagram()
-{
-
-}
-
-QgsDiagram::QgsDiagram( const QgsDiagram& other )
+QgsDiagram::QgsDiagram( const QgsDiagram &other )
 {
   Q_UNUSED( other );
   // do not copy the cached expression map - the expressions need to be created and prepared with getExpression(...) call
@@ -35,7 +29,7 @@ QgsDiagram::QgsDiagram( const QgsDiagram& other )
 
 void QgsDiagram::clearCache()
 {
-  QMapIterator<QString, QgsExpression*> i( mExpressions );
+  QMapIterator<QString, QgsExpression *> i( mExpressions );
   while ( i.hasNext() )
   {
     i.next();
@@ -44,79 +38,82 @@ void QgsDiagram::clearCache()
   mExpressions.clear();
 }
 
-QgsExpression* QgsDiagram::getExpression( const QString& expression, const QgsFields* fields )
+QgsExpression *QgsDiagram::getExpression( const QString &expression, const QgsExpressionContext &context )
 {
   if ( !mExpressions.contains( expression ) )
   {
-    QgsExpression* expr = new QgsExpression( expression );
-    expr->prepare( *fields );
+    QgsExpression *expr = new QgsExpression( expression );
+    expr->prepare( &context );
     mExpressions[expression] = expr;
   }
   return mExpressions[expression];
 }
 
-void QgsDiagram::setPenWidth( QPen& pen, const QgsDiagramSettings& s, const QgsRenderContext& c )
+void QgsDiagram::setPenWidth( QPen &pen, const QgsDiagramSettings &s, const QgsRenderContext &c )
 {
-  if ( s.sizeType == QgsDiagramSettings::MM )
-  {
-    pen.setWidthF( s.penWidth * c.scaleFactor() );
-  }
-  else
-  {
-    pen.setWidthF( s.penWidth / c.mapToPixel().mapUnitsPerPixel() );
-  }
+  pen.setWidthF( c.convertToPainterUnits( s.penWidth, s.lineSizeUnit, s.lineSizeScale ) );
 }
 
 
-QSizeF QgsDiagram::sizePainterUnits( const QSizeF& size, const QgsDiagramSettings& s, const QgsRenderContext& c )
+QSizeF QgsDiagram::sizePainterUnits( QSizeF size, const QgsDiagramSettings &s, const QgsRenderContext &c )
 {
-  if ( s.sizeType == QgsDiagramSettings::MM )
-  {
-    return QSizeF( size.width() * c.scaleFactor(), size.height() * c.scaleFactor() );
-  }
-  else
-  {
-    return QSizeF( size.width() / c.mapToPixel().mapUnitsPerPixel(), size.height() / c.mapToPixel().mapUnitsPerPixel() );
-  }
+  return QSizeF( c.convertToPainterUnits( size.width(), s.sizeType, s.sizeScale ), c.convertToPainterUnits( size.height(), s.sizeType, s.sizeScale ) );
 }
 
-float QgsDiagram::sizePainterUnits( float l, const QgsDiagramSettings& s, const QgsRenderContext& c )
+double QgsDiagram::sizePainterUnits( double l, const QgsDiagramSettings &s, const QgsRenderContext &c )
 {
-  if ( s.sizeType == QgsDiagramSettings::MM )
-  {
-    return l * c.scaleFactor();
-  }
-  else
-  {
-    return l / c.mapToPixel().mapUnitsPerPixel();
-  }
+  return c.convertToPainterUnits( l, s.sizeType, s.sizeScale );
 }
 
-QFont QgsDiagram::scaledFont( const QgsDiagramSettings& s, const QgsRenderContext& c )
+QFont QgsDiagram::scaledFont( const QgsDiagramSettings &s, const QgsRenderContext &c )
 {
   QFont f = s.font;
-  if ( s.sizeType == QgsDiagramSettings::MM )
+  if ( s.sizeType == QgsUnitTypes::RenderMapUnits )
   {
-    f.setPixelSize( s.font.pointSizeF() * 0.376 * c.scaleFactor() );
+    int pixelsize = s.font.pointSizeF() / c.mapToPixel().mapUnitsPerPixel();
+    f.setPixelSize( pixelsize > 0 ? pixelsize : 1 );
   }
   else
   {
-    f.setPixelSize( s.font.pointSizeF() / c.mapToPixel().mapUnitsPerPixel() );
+    f.setPixelSize( s.font.pointSizeF() * 0.376 * c.scaleFactor() );
   }
 
   return f;
 }
 
-void QgsDiagram::renderDiagram( const QgsAttributes& attributes, QgsRenderContext& c, const QgsDiagramSettings& s, const QPointF& position )
+QSizeF QgsDiagram::sizeForValue( double value, const QgsDiagramSettings &s, const QgsDiagramInterpolationSettings &is ) const
 {
-  QgsFeature feature;
-  feature.setAttributes( attributes );
-  renderDiagram( feature, c, s, position );
-}
+  double scaledValue = value;
+  double scaledLowerValue = is.lowerValue;
+  double scaledUpperValue = is.upperValue;
 
-QSizeF QgsDiagram::diagramSize( const QgsAttributes& attributes, const QgsRenderContext& c, const QgsDiagramSettings& s, const QgsDiagramInterpolationSettings& is )
-{
-  QgsFeature feature;
-  feature.setAttributes( attributes );
-  return diagramSize( feature, c, s, is );
+  // interpolate the squared value if scale by area
+  if ( s.scaleByArea )
+  {
+    scaledValue = std::sqrt( scaledValue );
+    scaledLowerValue = std::sqrt( scaledLowerValue );
+    scaledUpperValue = std::sqrt( scaledUpperValue );
+  }
+
+  //interpolate size
+  double scaledRatio = ( scaledValue - scaledLowerValue ) / ( scaledUpperValue - scaledLowerValue );
+
+  QSizeF size = QSizeF( is.upperSize.width() * scaledRatio + is.lowerSize.width() * ( 1 - scaledRatio ),
+                        is.upperSize.height() * scaledRatio + is.lowerSize.height() * ( 1 - scaledRatio ) );
+
+  // Scale, if extension is smaller than the specified minimum
+  if ( size.width() <= s.minimumSize && size.height() <= s.minimumSize )
+  {
+    bool p = false; // preserve height == width
+    if ( qgsDoubleNear( size.width(), size.height() ) )
+      p = true;
+
+    size.scale( s.minimumSize, s.minimumSize, Qt::KeepAspectRatio );
+
+    // If height == width, recover here (overwrite floating point errors)
+    if ( p )
+      size.setWidth( size.height() );
+  }
+
+  return size;
 }

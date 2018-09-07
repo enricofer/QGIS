@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 14.5.2013
     Copyright            : (C) 2013 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -18,23 +18,39 @@
 
 #include <QWidget>
 
-QgsWidgetWrapper::QgsWidgetWrapper( QgsVectorLayer* vl, QWidget* editor, QWidget* parent )
-    : QObject( parent )
-    , mWidget( editor )
-    , mParent( parent )
-    , mLayer( vl )
-    , mInitialized( false )
+
+const QgsPropertiesDefinition &QgsWidgetWrapper::propertyDefinitions()
+{
+  static QgsPropertiesDefinition properties;
+
+  if ( properties.isEmpty() )
+  {
+    properties =
+    {
+      { RootPath, QgsPropertyDefinition( "propertyRootPath", QgsPropertyDefinition::DataTypeString, QObject::tr( "Root path" ), QObject::tr( "string of variable length representing root path to attachment" ) ) },
+      { DocumentViewerContent, QgsPropertyDefinition( "documentViewerContent", QgsPropertyDefinition::DataTypeString, QObject::tr( "Document viewer content" ), QObject::tr( "string" ) + "<b>NoContent</b>|<b>Image</b>|<b>Web</b>" ) }
+    };
+  }
+  return properties;
+}
+
+QgsWidgetWrapper::QgsWidgetWrapper( QgsVectorLayer *vl, QWidget *editor, QWidget *parent )
+  : QObject( parent )
+  , mWidget( editor )
+  , mParent( parent )
+  , mLayer( vl )
+  , mInitialized( false )
 {
 }
 
-QWidget* QgsWidgetWrapper::widget()
+QWidget *QgsWidgetWrapper::widget()
 {
   if ( !mWidget )
     mWidget = createWidget( mParent );
 
   if ( !mInitialized )
   {
-    mWidget->setProperty( "EWV2Wrapper", QVariant::fromValue<QgsWidgetWrapper*>( this ) );
+    mWidget->setProperty( "EWV2Wrapper", QVariant::fromValue<QgsWidgetWrapper *>( this ) );
     initWidget( mWidget );
     mInitialized = true;
   }
@@ -42,17 +58,17 @@ QWidget* QgsWidgetWrapper::widget()
   return mWidget;
 }
 
-void QgsWidgetWrapper::setConfig( const QgsEditorWidgetConfig& config )
+void QgsWidgetWrapper::setConfig( const QVariantMap &config )
 {
   mConfig = config;
 }
 
-void QgsWidgetWrapper::setContext( const QgsAttributeEditorContext context )
+void QgsWidgetWrapper::setContext( const QgsAttributeEditorContext &context )
 {
   mContext = context;
 }
 
-QVariant QgsWidgetWrapper::config( QString key, QVariant defaultVal )
+QVariant QgsWidgetWrapper::config( const QString &key, const QVariant &defaultVal ) const
 {
   if ( mConfig.contains( key ) )
   {
@@ -61,27 +77,32 @@ QVariant QgsWidgetWrapper::config( QString key, QVariant defaultVal )
   return defaultVal;
 }
 
-const QgsEditorWidgetConfig QgsWidgetWrapper::config()
+QVariantMap QgsWidgetWrapper::config() const
 {
   return mConfig;
 }
 
-const QgsAttributeEditorContext& QgsWidgetWrapper::context()
+const QgsAttributeEditorContext &QgsWidgetWrapper::context() const
 {
   return mContext;
 }
 
-QgsVectorLayer* QgsWidgetWrapper::layer()
+QgsVectorLayer *QgsWidgetWrapper::layer() const
 {
   return mLayer;
 }
 
-QgsWidgetWrapper* QgsWidgetWrapper::fromWidget( QWidget* widget )
+QgsWidgetWrapper *QgsWidgetWrapper::fromWidget( QWidget *widget )
 {
-  return widget->property( "EWV2Wrapper" ).value<QgsWidgetWrapper*>();
+  return widget->property( "EWV2Wrapper" ).value<QgsWidgetWrapper *>();
 }
 
-void QgsWidgetWrapper::initWidget( QWidget* editor )
+void QgsWidgetWrapper::notifyAboutToSave()
+{
+  aboutToSave();
+}
+
+void QgsWidgetWrapper::initWidget( QWidget *editor )
 {
   Q_UNUSED( editor )
 }
@@ -89,4 +110,9 @@ void QgsWidgetWrapper::initWidget( QWidget* editor )
 void QgsWidgetWrapper::setEnabled( bool enabled )
 {
   Q_UNUSED( enabled );
+}
+
+void QgsWidgetWrapper::aboutToSave()
+{
+
 }

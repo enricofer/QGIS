@@ -1,3 +1,17 @@
+/***************************************************************************
+    qgsapplayertreeviewmenuprovider.h
+    ---------------------
+    begin                : May 2014
+    copyright            : (C) 2014 by Martin Dobias
+    email                : wonder dot sk at gmail dot com
+ ***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
 #ifndef QGSAPPLAYERTREEVIEWMENUPROVIDER_H
 #define QGSAPPLAYERTREEVIEWMENUPROVIDER_H
 
@@ -10,13 +24,15 @@ class QAction;
 
 struct LegendLayerAction
 {
-  LegendLayerAction( QAction* a, QString m, QString i, bool all )
-      : action( a ), menu( m ), id( i ), allLayers( all ) {}
-  QAction* action;
+  LegendLayerAction( QAction *a, const QString &m, bool all )
+    : action( a )
+    , menu( m )
+    , allLayers( all )
+  {}
+  QAction *action = nullptr;
   QString menu;
-  QString id;
   bool allLayers;
-  QList<QgsMapLayer*> layers;
+  QList<QgsMapLayer *> layers;
 };
 
 class QgsMapCanvas;
@@ -25,26 +41,35 @@ class QgsAppLayerTreeViewMenuProvider : public QObject, public QgsLayerTreeViewM
 {
     Q_OBJECT
   public:
-    QgsAppLayerTreeViewMenuProvider( QgsLayerTreeView* view, QgsMapCanvas* canvas );
+    QgsAppLayerTreeViewMenuProvider( QgsLayerTreeView *view, QgsMapCanvas *canvas );
 
-    QMenu* createContextMenu();
+    QMenu *createContextMenu() override;
 
-    void addLegendLayerAction( QAction* action, QString menu, QString id,
+    void addLegendLayerAction( QAction *action, const QString &menu,
                                QgsMapLayer::LayerType type, bool allLayers );
-    bool removeLegendLayerAction( QAction* action );
-    void addLegendLayerActionForLayer( QAction* action, QgsMapLayer* layer );
-    void removeLegendLayerActionsForLayer( QgsMapLayer* layer );
+    bool removeLegendLayerAction( QAction *action );
+    void addLegendLayerActionForLayer( QAction *action, QgsMapLayer *layer );
+    void removeLegendLayerActionsForLayer( QgsMapLayer *layer );
     QList< LegendLayerAction > legendLayerActions( QgsMapLayer::LayerType type ) const;
-
 
   protected:
 
-    void addCustomLayerActions( QMenu* menu, QgsMapLayer* layer );
+    void addCustomLayerActions( QMenu *menu, QgsMapLayer *layer );
 
-    QgsLayerTreeView* mView;
-    QgsMapCanvas* mCanvas;
+    QgsLayerTreeView *mView = nullptr;
+    QgsMapCanvas *mCanvas = nullptr;
 
     QMap< QgsMapLayer::LayerType, QList< LegendLayerAction > > mLegendLayerActionMap;
+
+  private slots:
+
+    void editVectorSymbol();
+    void setVectorSymbolColor( const QColor &color );
+    void editSymbolLegendNodeSymbol();
+    void setSymbolLegendNodeColor( const QColor &color );
+
+  private:
+    bool removeActionEnabled();
 };
 
 #endif // QGSAPPLAYERTREEVIEWMENUPROVIDER_H

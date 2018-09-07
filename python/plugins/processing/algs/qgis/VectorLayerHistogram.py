@@ -2,7 +2,7 @@
 
 """
 ***************************************************************************
-    EquivalentNumField.py
+    VectorLayerHistogram.py
     ---------------------
     Date                 : January 2013
     Copyright            : (C) 2013 by Victor Olaya
@@ -25,47 +25,65 @@ __copyright__ = '(C) 2013, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-import matplotlib.pyplot as plt
-import matplotlib.pylab as lab
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterTableField
-from processing.core.parameters import ParameterNumber
-from processing.core.outputs import OutputHTML
-from processing.tools import *
+import plotly as plt
+import plotly.graph_objs as go
+
+from qgis.core import (QgsProcessingException,
+                       QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterField,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterFileDestination)
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
+from processing.tools import vector
 
 
-class VectorLayerHistogram(GeoAlgorithm):
+class VectorLayerHistogram(QgisAlgorithm):
 
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
     FIELD = 'FIELD'
     BINS = 'BINS'
 
-    def processAlgorithm(self, progress):
-        uri = self.getParameterValue(self.INPUT)
-        layer = getObjectFromUri(uri)
-        fieldname = self.getParameterValue(self.FIELD)
-        output = self.getOutputValue(self.OUTPUT)
-        values = vector.getAttributeValues(layer, fieldname)
-        plt.close()
-        bins = self.getParameterValue(self.BINS)
-        plt.hist(values[fieldname], bins)
-        plotFilename = output + '.png'
-        lab.savefig(plotFilename)
-        f = open(output, 'w')
-        f.write('<img src="' + plotFilename + '"/>')
-        f.close()
+    def group(self):
+        return self.tr('Graphics')
 
-    def defineCharacteristics(self):
-        self.name = 'Vector layer histogram'
-        self.group = 'Graphics'
-        self.addParameter(ParameterVector(self.INPUT, 'Input layer',
-                          [ParameterVector.VECTOR_TYPE_ANY]))
-        self.addParameter(ParameterTableField(self.FIELD, 'Attribute',
-                          self.INPUT, ParameterTableField.DATA_TYPE_NUMBER))
-        self.addParameter(ParameterNumber(self.BINS, 'number of bins', 2,
-                          None, 10))
-        self.addOutput(OutputHTML(self.OUTPUT, 'Output'))
+    def groupId(self):
+        return 'graphics'
+
+    def __init__(self):
+        super().__init__()
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input layer')))
+        self.addParameter(QgsProcessingParameterField(self.FIELD,
+                                                      self.tr('Attribute'), parentLayerParameterName=self.INPUT,
+                                                      type=QgsProcessingParameterField.Numeric))
+        self.addParameter(QgsProcessingParameterNumber(self.BINS,
+                                                       self.tr('number of bins'), minValue=2, defaultValue=10))
+
+        self.addParameter(QgsProcessingParameterFileDestination(self.OUTPUT, self.tr('Histogram'), self.tr('HTML files (*.html)')))
+
+    def name(self):
+        return 'vectorlayerhistogram'
+
+    def displayName(self):
+        return self.tr('Vector layer histogram')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+
+        fieldname = self.parameterAsString(parameters, self.FIELD, context)
+        bins = self.parameterAsInt(parameters, self.BINS, context)
+
+        output = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
+
+        values = vector.values(source, fieldname)
+
+        data = [go.Histogram(x=values[fieldname],
+                             nbinsx=bins)]
+        plt.offline.plot(data, filename=output, auto_open=False)
+
+        return {self.OUTPUT: output}

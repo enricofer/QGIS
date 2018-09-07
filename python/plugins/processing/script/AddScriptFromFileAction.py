@@ -26,34 +26,43 @@ __copyright__ = '(C) 201, Victor Olaya'
 __revision__ = '$Format:%H$'
 
 import os
-from PyQt4 import QtGui
-from processing.script.ScriptAlgorithm import ScriptAlgorithm
+import shutil
+
+from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtWidgets import QFileDialog
+
+from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsSettings
+
 from processing.gui.ToolboxAction import ToolboxAction
-from processing.script.WrongScriptException import WrongScriptException
-from processing.script.ScriptUtils import ScriptUtils
+
+from processing.script import ScriptUtils
+
 
 class AddScriptFromFileAction(ToolboxAction):
 
     def __init__(self):
-        self.name = self.tr('Add script from file', 'AddScriptFromFileAction')
-        self.group = self.tr('Tools', 'AddScriptFromFileAction')
-
-    def getIcon(self):
-        return QtGui.QIcon(':/processing/images/script.png')
+        self.name = QCoreApplication.translate("AddScriptFromFileAction", "Add Script to Toolbox…")
+        self.group = self.tr("Tools")
 
     def execute(self):
-        filename = QtGui.QFileDialog.getOpenFileName(self.toolbox,
-           self.tr('Script files', 'AddScriptFromFileAction'), None,
-           self.tr('Script files (*.py *.PY)', 'AddScriptFromFileAction'))
-        if filename:
-            try:
-                script = ScriptAlgorithm(filename)
-            except WrongScriptException:
-                QtGui.QMessageBox.warning(self.toolbox,
-                    self.tr('Error reading script', 'AddScriptFromFileAction'),
-                    self.tr('The selected file does not contain a valid script', 'AddScriptFromFileAction'))
-                return
-            destFilename = os.path.join(ScriptUtils.scriptsFolder(), os.path.basename(filename))
-            with open(destFilename, 'w') as f:
-                f.write(script.script)
-            self.toolbox.updateProvider('script')
+        settings = QgsSettings()
+        lastDir = settings.value("processing/lastScriptsDir", "")
+        files, _ = QFileDialog.getOpenFileNames(self.toolbox,
+                                                self.tr("Add script(s)"),
+                                                lastDir,
+                                                self.tr("Processing scripts (*.py *.PY)"))
+        if files:
+            settings.setValue("processing/lastScriptsDir", os.path.dirname(files[0]))
+
+            valid = 0
+            for f in files:
+                try:
+                    shutil.copy(f, ScriptUtils.scriptsFolders()[0])
+                    valid += 1
+                except OSError as e:
+                    QgsMessageLog.logMessage(self.tr("Could not copy script '{}'\n{}").format(f, str(e)),
+                                             "Processing",
+                                             Qgis.Warning)
+
+            if valid > 0:
+                QgsApplication.processingRegistry().providerById("script").refreshAlgorithms()

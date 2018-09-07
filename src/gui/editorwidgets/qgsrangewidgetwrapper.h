@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -20,11 +20,19 @@
 
 #include <QSpinBox>
 #include <QDoubleSpinBox>
+#include "qgis_gui.h"
 
-#include "qgsdial.h"
-#include "qgsslider.h"
+SIP_NO_FILE
+
+class QAbstractSlider;
+class QSlider;
+class QDial;
+class QgsSlider;
+class QgsDial;
+class TestQgsRangeWidgetWrapper;
 
 /**
+ * \ingroup gui
  * Wraps a range widget.
  *
  * Options:
@@ -34,31 +42,42 @@
  * <li><b>Max</b> <i>The maximal allowed value</i></li>
  * <li><b>Step</b> <i>The step size when incrementing/decrementing the value</i></li>
  * </ul>
- *
+ * \note not available in Python bindings
  */
 
 class GUI_EXPORT QgsRangeWidgetWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsRangeWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent = 0 );
+    explicit QgsRangeWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
-    virtual QVariant value();
+    QVariant value() const override;
 
   protected:
-    virtual QWidget* createWidget( QWidget* parent );
-    virtual void initWidget( QWidget* editor );
+    QWidget *createWidget( QWidget *parent ) override;
+    void initWidget( QWidget *editor ) override;
+    bool valid() const override;
 
   public slots:
-    virtual void setValue( const QVariant& value );
+    void setValue( const QVariant &value ) override;
+
+  private slots:
+
+    // NOTE - cannot be named "valueChanged", otherwise implicit conversion to QVariant results in
+    // infinite recursion
+    void valueChangedVariant( const QVariant & );
 
   private:
-    QSpinBox* mIntSpinBox;
-    QDoubleSpinBox* mDoubleSpinBox;
-    QSlider* mSlider;
-    QDial* mDial;
+    QSpinBox *mIntSpinBox = nullptr;
+    QDoubleSpinBox *mDoubleSpinBox = nullptr;
+    QSlider *mSlider = nullptr;
+    QDial *mDial = nullptr;
+    QgsSlider *mQgsSlider = nullptr;
+    QgsDial *mQgsDial = nullptr;
+
+    friend class TestQgsRangeWidgetWrapper;
 };
 
 #endif // QGSRANGEWIDGETWRAPPER_H

@@ -24,158 +24,14 @@
 #include "qgslayertreemapcanvasbridge.h"
 
 #include "qgsmaplayer.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 
 
-class CustomLayerOrderModel : public QAbstractListModel
-{
-  public:
-    CustomLayerOrderModel( QgsLayerTreeMapCanvasBridge* bridge, QObject* parent = 0 )
-        : QAbstractListModel( parent ), mBridge( bridge )
-    {
-    }
-
-    int rowCount( const QModelIndex & ) const
-    {
-      return mOrder.count();
-    }
-
-    QVariant data( const QModelIndex &index, int role ) const
-    {
-      QString id = mOrder.at( index.row() );
-
-      if ( role == Qt::DisplayRole )
-      {
-        QgsMapLayer* layer = QgsMapLayerRegistry::instance()->mapLayer( id );
-        if ( layer )
-          return layer->name();
-      }
-
-      if ( role == Qt::UserRole + 1 )
-      {
-        QgsMapLayer* layer = QgsMapLayerRegistry::instance()->mapLayer( id );
-        if ( layer )
-          return layer->id();
-      }
-
-      if ( role == Qt::CheckStateRole )
-      {
-        QgsLayerTreeLayer* nodeLayer = mBridge->rootGroup()->findLayer( id );
-        if ( nodeLayer )
-          return nodeLayer->isVisible();
-      }
-
-      return QVariant();
-    }
-
-    bool setData( const QModelIndex &index, const QVariant &value, int role )
-    {
-      if ( role == Qt::CheckStateRole )
-      {
-        QString id = mOrder.at( index.row() );
-        QgsLayerTreeLayer* nodeLayer = mBridge->rootGroup()->findLayer( id );
-        if ( nodeLayer )
-        {
-          nodeLayer->setVisible(( Qt::CheckState )value.toInt() );
-          return true;
-        }
-      }
-      return false;
-    }
-
-    Qt::ItemFlags flags( const QModelIndex &index ) const
-    {
-      if ( !index.isValid() )
-        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled;
-      return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled | Qt::ItemIsUserCheckable;
-    }
-
-    Qt::DropActions supportedDropActions() const
-    {
-      return Qt::MoveAction;
-    }
-
-    QStringList mimeTypes() const
-    {
-      QStringList types;
-      types << "application/qgis.layerorderdata";
-      return types;
-    }
-
-    QMimeData* mimeData( const QModelIndexList& indexes ) const
-    {
-      QStringList lst;
-      foreach ( QModelIndex index, indexes )
-        lst << data( index, Qt::UserRole + 1 ).toString();
-
-      QMimeData* mimeData = new QMimeData();
-      mimeData->setData( "application/qgis.layerorderdata", lst.join( "\n" ).toUtf8() );
-      return mimeData;
-    }
-
-    bool dropMimeData( const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent )
-    {
-      Q_UNUSED( parent );
-      Q_UNUSED( column );
-
-      if ( action == Qt::IgnoreAction )
-        return true;
-
-      if ( !data->hasFormat( "application/qgis.layerorderdata" ) )
-        return false;
-
-      QByteArray encodedData = data->data( "application/qgis.layerorderdata" );
-      QStringList lst = QString::fromUtf8( encodedData ).split( "\n" );
-
-      if ( row < 0 )
-        row = mOrder.count();
-
-      beginInsertRows( QModelIndex(), row, row + lst.count() - 1 );
-      for ( int i = 0; i < lst.count(); ++i )
-        mOrder.insert( row + i, lst[i] );
-      endInsertRows();
-
-      return true;
-    }
-
-    bool removeRows( int row, int count, const QModelIndex& parent )
-    {
-      Q_UNUSED( parent );
-      if ( count <= 0 )
-        return false;
-
-      beginRemoveRows( QModelIndex(), row, row + count - 1 );
-      while ( --count >= 0 )
-        mOrder.removeAt( row );
-      endRemoveRows();
-      return true;
-    }
-
-    void refreshModel( const QStringList& order )
-    {
-      beginResetModel();
-      mOrder = order;
-      endResetModel();
-    }
-
-    QStringList order() const { return mOrder; }
-
-    void updateLayerVisibility( const QString& layerId )
-    {
-      int row = mOrder.indexOf( layerId );
-      if ( row != -1 )
-        emit dataChanged( index( row ), index( row ) );
-    }
-
-  protected:
-    QgsLayerTreeMapCanvasBridge* mBridge;
-    QStringList mOrder;
-};
 
 
-QgsCustomLayerOrderWidget::QgsCustomLayerOrderWidget( QgsLayerTreeMapCanvasBridge* bridge, QWidget* parent )
-    : QWidget( parent )
-    , mBridge( bridge )
+QgsCustomLayerOrderWidget::QgsCustomLayerOrderWidget( QgsLayerTreeMapCanvasBridge *bridge, QWidget *parent )
+  : QWidget( parent )
+  , mBridge( bridge )
 {
   mModel = new CustomLayerOrderModel( bridge, this );
 
@@ -183,46 +39,43 @@ QgsCustomLayerOrderWidget::QgsCustomLayerOrderWidget( QgsLayerTreeMapCanvasBridg
   mView->setDragEnabled( true );
   mView->setAcceptDrops( true );
   mView->setDropIndicatorShown( true );
-  mView->setDragDropMode( QAbstractItemView::InternalMove );
   mView->setSelectionMode( QAbstractItemView::ExtendedSelection );
+  mView->setDefaultDropAction( Qt::MoveAction );
 
   mView->setModel( mModel );
 
   mChkOverride = new QCheckBox( tr( "Control rendering order" ) );
-  bridgeHasCustomLayerOrderChanged( bridge->hasCustomLayerOrder() );
-  connect( mChkOverride, SIGNAL( toggled( bool ) ), bridge, SLOT( setHasCustomLayerOrder( bool ) ) );
+  bridgeHasCustomLayerOrderChanged( bridge->rootGroup()->hasCustomLayerOrder() );
+  connect( mChkOverride, &QAbstractButton::toggled, bridge->rootGroup(), &QgsLayerTree::setHasCustomLayerOrder );
 
-  connect( bridge, SIGNAL( hasCustomLayerOrderChanged( bool ) ), this, SLOT( bridgeHasCustomLayerOrderChanged( bool ) ) );
-  connect( bridge, SIGNAL( customLayerOrderChanged( QStringList ) ), this, SLOT( bridgeCustomLayerOrderChanged( QStringList ) ) );
+  connect( bridge->rootGroup(), &QgsLayerTree::hasCustomLayerOrderChanged, this, &QgsCustomLayerOrderWidget::bridgeHasCustomLayerOrderChanged );
+  connect( bridge->rootGroup(), &QgsLayerTree::customLayerOrderChanged, this, &QgsCustomLayerOrderWidget::bridgeCustomLayerOrderChanged );
 
-  connect( mModel, SIGNAL( rowsInserted( QModelIndex, int, int ) ), this, SLOT( modelUpdated() ) );
-  connect( mModel, SIGNAL( rowsRemoved( QModelIndex, int, int ) ), this, SLOT( modelUpdated() ) );
+  connect( mModel, &QAbstractItemModel::rowsInserted, this, &QgsCustomLayerOrderWidget::modelUpdated );
+  connect( mModel, &QAbstractItemModel::rowsRemoved, this, &QgsCustomLayerOrderWidget::modelUpdated );
 
-  connect( bridge->rootGroup(), SIGNAL( visibilityChanged( QgsLayerTreeNode*, Qt::CheckState ) ), this, SLOT( nodeVisibilityChanged( QgsLayerTreeNode*, Qt::CheckState ) ) );
+  connect( bridge->rootGroup(), &QgsLayerTreeNode::visibilityChanged, this, &QgsCustomLayerOrderWidget::nodeVisibilityChanged );
 
-  QVBoxLayout* l = new QVBoxLayout;
+  QVBoxLayout *l = new QVBoxLayout;
   l->setMargin( 0 );
   l->addWidget( mView );
   l->addWidget( mChkOverride );
   setLayout( l );
 }
 
-void QgsCustomLayerOrderWidget::bridgeHasCustomLayerOrderChanged( bool override )
+void QgsCustomLayerOrderWidget::bridgeHasCustomLayerOrderChanged( bool state )
 {
-  mChkOverride->setChecked( override );
-  mModel->refreshModel( mBridge->hasCustomLayerOrder() ? mBridge->customLayerOrder() : mBridge->defaultLayerOrder() );
-  mView->setEnabled( override );
+  mChkOverride->setChecked( state );
+  mView->setEnabled( state );
 }
 
-void QgsCustomLayerOrderWidget::bridgeCustomLayerOrderChanged( const QStringList& order )
+void QgsCustomLayerOrderWidget::bridgeCustomLayerOrderChanged()
 {
-  Q_UNUSED( order );
-  mModel->refreshModel( mBridge->hasCustomLayerOrder() ? mBridge->customLayerOrder() : mBridge->defaultLayerOrder() );
+  mModel->refreshModel( mBridge->rootGroup()->layerOrder() );
 }
 
-void QgsCustomLayerOrderWidget::nodeVisibilityChanged( QgsLayerTreeNode* node, Qt::CheckState state )
+void QgsCustomLayerOrderWidget::nodeVisibilityChanged( QgsLayerTreeNode *node )
 {
-  Q_UNUSED( state );
   if ( QgsLayerTree::isLayer( node ) )
   {
     mModel->updateLayerVisibility( QgsLayerTree::toLayer( node )->layerId() );
@@ -231,5 +84,159 @@ void QgsCustomLayerOrderWidget::nodeVisibilityChanged( QgsLayerTreeNode* node, Q
 
 void QgsCustomLayerOrderWidget::modelUpdated()
 {
-  mBridge->setCustomLayerOrder( mModel->order() );
+  mBridge->rootGroup()->setCustomLayerOrder( mModel->order() );
 }
+
+
+
+///@cond PRIVATE
+
+CustomLayerOrderModel::CustomLayerOrderModel( QgsLayerTreeMapCanvasBridge *bridge, QObject *parent )
+  : QAbstractListModel( parent )
+  , mBridge( bridge )
+{
+}
+
+int CustomLayerOrderModel::rowCount( const QModelIndex & ) const
+{
+  return mOrder.count();
+}
+
+QVariant CustomLayerOrderModel::data( const QModelIndex &index, int role ) const
+{
+  QString id = mOrder.at( index.row() );
+
+  if ( role == Qt::DisplayRole )
+  {
+    QgsMapLayer *layer = QgsProject::instance()->mapLayer( id );
+    if ( layer )
+      return layer->name();
+  }
+
+  if ( role == Qt::UserRole + 1 )
+  {
+    QgsMapLayer *layer = QgsProject::instance()->mapLayer( id );
+    if ( layer )
+      return layer->id();
+  }
+
+  if ( role == Qt::CheckStateRole )
+  {
+    QgsLayerTreeLayer *nodeLayer = mBridge->rootGroup()->findLayer( id );
+    if ( nodeLayer )
+      return nodeLayer->isVisible();
+  }
+
+  return QVariant();
+}
+
+bool CustomLayerOrderModel::setData( const QModelIndex &index, const QVariant &value, int role )
+{
+  if ( role == Qt::CheckStateRole )
+  {
+    QString id = mOrder.at( index.row() );
+    QgsLayerTreeLayer *nodeLayer = mBridge->rootGroup()->findLayer( id );
+    if ( nodeLayer )
+    {
+      nodeLayer->setItemVisibilityChecked( static_cast< Qt::CheckState >( value.toInt() ) == Qt::Checked );
+      return true;
+    }
+  }
+  return false;
+}
+
+Qt::ItemFlags CustomLayerOrderModel::flags( const QModelIndex &index ) const
+{
+  if ( !index.isValid() )
+    return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled;
+  return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled | Qt::ItemIsUserCheckable;
+}
+
+Qt::DropActions CustomLayerOrderModel::supportedDropActions() const
+{
+  return Qt::CopyAction | Qt::MoveAction;
+}
+
+QStringList CustomLayerOrderModel::mimeTypes() const
+{
+  QStringList types;
+  types << QStringLiteral( "application/qgis.layerorderdata" );
+  return types;
+}
+
+QMimeData *CustomLayerOrderModel::mimeData( const QModelIndexList &indexes ) const
+{
+  QStringList lst;
+  Q_FOREACH ( const QModelIndex &index, indexes )
+    lst << data( index, Qt::UserRole + 1 ).toString();
+
+  QMimeData *mimeData = new QMimeData();
+  mimeData->setData( QStringLiteral( "application/qgis.layerorderdata" ), lst.join( QStringLiteral( "\n" ) ).toUtf8() );
+  return mimeData;
+}
+
+bool CustomLayerOrderModel::dropMimeData( const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent )
+{
+  Q_UNUSED( parent );
+  Q_UNUSED( column );
+
+  if ( action == Qt::IgnoreAction )
+    return true;
+
+  if ( !data->hasFormat( QStringLiteral( "application/qgis.layerorderdata" ) ) )
+    return false;
+
+  QByteArray encodedData = data->data( QStringLiteral( "application/qgis.layerorderdata" ) );
+  QStringList lst = QString::fromUtf8( encodedData ).split( '\n' );
+
+  if ( row < 0 )
+    row = mOrder.count();
+
+  beginInsertRows( QModelIndex(), row, row + lst.count() - 1 );
+  for ( int i = 0; i < lst.count(); ++i )
+    mOrder.insert( row + i, lst[i] );
+  endInsertRows();
+
+  return true;
+}
+
+bool CustomLayerOrderModel::removeRows( int row, int count, const QModelIndex &parent )
+{
+  Q_UNUSED( parent );
+  if ( count <= 0 )
+    return false;
+
+  beginRemoveRows( QModelIndex(), row, row + count - 1 );
+  while ( --count >= 0 )
+    mOrder.removeAt( row );
+  endRemoveRows();
+  return true;
+}
+
+void CustomLayerOrderModel::refreshModel( const QList<QgsMapLayer *> &order )
+{
+  QStringList orderedIds;
+  Q_FOREACH ( QgsMapLayer *layer, order )
+  {
+    if ( layer )
+      orderedIds.append( layer->id() );
+  }
+
+  if ( orderedIds != mOrder )
+  {
+    beginResetModel();
+    mOrder = orderedIds;
+    endResetModel();
+  }
+}
+
+void CustomLayerOrderModel::updateLayerVisibility( const QString &layerId )
+{
+  int row = mOrder.indexOf( layerId );
+  if ( row != -1 )
+    emit dataChanged( index( row ), index( row ) );
+}
+
+
+
+///@endcond

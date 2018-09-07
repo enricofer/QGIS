@@ -25,80 +25,198 @@ __copyright__ = '(C) 2013, Alexander Bruy'
 
 __revision__ = '$Format:%H$'
 
+import os
+
+from qgis.PyQt.QtGui import QIcon
+
+from qgis.core import (QgsRasterFileWriter,
+                       QgsProcessingParameterDefinition,
+                       QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterField,
+                       QgsProcessingParameterRasterLayer,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterString,
+                       QgsProcessingParameterEnum,
+                       QgsProcessingParameterExtent,
+                       QgsProcessingParameterBoolean,
+                       QgsProcessingParameterRasterDestination)
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
-from processing.tools.system import *
-from processing.core.parameters import ParameterVector
-from processing.core.parameters import ParameterTableField
-from processing.core.parameters import ParameterSelection
-from processing.core.parameters import ParameterNumber
-from processing.core.parameters import ParameterBoolean
-from processing.core.outputs import OutputRaster
 from processing.algs.gdal.GdalUtils import GdalUtils
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class rasterize(GdalAlgorithm):
 
     INPUT = 'INPUT'
     FIELD = 'FIELD'
-    DIMENSIONS = 'DIMENSIONS'
+    BURN = 'BURN'
     WIDTH = 'WIDTH'
     HEIGHT = 'HEIGHT'
-    WRITEOVER = 'WRITEOVER'     
-    RTYPE = 'RTYPE'
+    UNITS = 'UNITS'
+    NODATA = 'NODATA'
+    EXTENT = 'EXTENT'
+    INIT = 'INIT'
+    INVERT = 'INVERT'
+    ALL_TOUCH = 'ALL_TOUCH'
+    OPTIONS = 'OPTIONS'
+    DATA_TYPE = 'DATA_TYPE'
     OUTPUT = 'OUTPUT'
-    
-    TYPE = ['Byte','Int16','UInt16','UInt32','Int32','Float32','Float64','CInt16','CInt32','CFloat32','CFloat64']
 
-    def commandLineName(self):
-        return "gdalogr:rasterize"
+    TYPES = ['Byte', 'Int16', 'UInt16', 'UInt32', 'Int32', 'Float32', 'Float64', 'CInt16', 'CInt32', 'CFloat32', 'CFloat64']
 
-    def defineCharacteristics(self):
-        self.name = 'Rasterize (vector to raster)'
-        self.group = '[GDAL] Conversion'
-        self.addParameter(ParameterVector(self.INPUT, 'Input layer'))
-        self.addParameter(ParameterTableField(self.FIELD, 'Attribute field',
-                          self.INPUT))
-        self.addParameter(ParameterBoolean(self.WRITEOVER,
-                          'Write values inside an existing raster layer(*)', False))
-        self.addParameter(ParameterSelection(self.DIMENSIONS,
-                          'Set output raster size (ignored if above option is checked)', ['Output size in pixels',
-                          'Output resolution in map units per pixel'], 1))
-        self.addParameter(ParameterNumber(self.WIDTH, 'Horizontal', 0.0,
-                          99999999.999999, 100.0))
-        self.addParameter(ParameterNumber(self.HEIGHT, 'Vertical', 0.0,
-                          99999999.999999, 100.0))
-	self.addParameter(ParameterSelection(self.RTYPE, 'Raster type',
-                          self.TYPE, 0))
+    def __init__(self):
+        super().__init__()
 
-        self.addOutput(OutputRaster(self.OUTPUT, 'Output layer: mandatory to choose an existing raster layer if the (*) option is selected'))
+    def initAlgorithm(self, config=None):
+        self.units = [self.tr("Pixels"),
+                      self.tr("Georeferenced units")]
 
-    def processAlgorithm(self, progress):
-        writeOver = self.getParameterValue(self.WRITEOVER)
-        
-        arguments = []
-        arguments.append('-a')
-        arguments.append(str(self.getParameterValue(self.FIELD)))
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input layer')))
+        self.addParameter(QgsProcessingParameterField(self.FIELD,
+                                                      self.tr('Field to use for a burn-in value'),
+                                                      None,
+                                                      self.INPUT,
+                                                      QgsProcessingParameterField.Numeric,
+                                                      optional=True))
+        self.addParameter(QgsProcessingParameterNumber(self.BURN,
+                                                       self.tr('A fixed value to burn'),
+                                                       type=QgsProcessingParameterNumber.Double,
+                                                       defaultValue=0.0,
+                                                       optional=True))
+        self.addParameter(QgsProcessingParameterEnum(self.UNITS,
+                                                     self.tr('Output raster size units'),
+                                                     self.units))
+        self.addParameter(QgsProcessingParameterNumber(self.WIDTH,
+                                                       self.tr('Width/Horizontal resolution'),
+                                                       type=QgsProcessingParameterNumber.Double,
+                                                       minValue=0.0,
+                                                       defaultValue=0.0))
+        self.addParameter(QgsProcessingParameterNumber(self.HEIGHT,
+                                                       self.tr('Height/Vertical resolution'),
+                                                       type=QgsProcessingParameterNumber.Double,
+                                                       minValue=0.0,
+                                                       defaultValue=0.0))
+        self.addParameter(QgsProcessingParameterExtent(self.EXTENT,
+                                                       self.tr('Output extent')))
+        self.addParameter(QgsProcessingParameterNumber(self.NODATA,
+                                                       self.tr('Assign a specified nodata value to output bands'),
+                                                       type=QgsProcessingParameterNumber.Double,
+                                                       defaultValue=0.0,
+                                                       optional=True))
 
-        if not writeOver:
-             arguments.append('-ot')
-             arguments.append(self.TYPE[self.getParameterValue(self.RTYPE)])  
-	     dimType = self.getParameterValue(self.DIMENSIONS)
-	     if dimType == 0:
-		# size in pixels
-		arguments.append('-ts')
-	     else:
-		    # resolution in map units per pixel
-		arguments.append('-tr')
-		arguments.append(str(self.getParameterValue(self.WIDTH)))
-		arguments.append(str(self.getParameterValue(self.HEIGHT)))
+        options_param = QgsProcessingParameterString(self.OPTIONS,
+                                                     self.tr('Additional creation options'),
+                                                     defaultValue='',
+                                                     optional=True)
+        options_param.setFlags(options_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        options_param.setMetadata({
+            'widget_wrapper': {
+                'class': 'processing.algs.gdal.ui.RasterOptionsWidget.RasterOptionsWidgetWrapper'}})
+        self.addParameter(options_param)
 
-        arguments.append('-l')
-        arguments.append(
-                os.path.basename(os.path.splitext(
-                        unicode(self.getParameterValue(self.INPUT)))[0]))
-        arguments.append(unicode(self.getParameterValue(self.INPUT)))
+        dataType_param = QgsProcessingParameterEnum(self.DATA_TYPE,
+                                                    self.tr('Output data type'),
+                                                    self.TYPES,
+                                                    allowMultiple=False,
+                                                    defaultValue=5)
+        dataType_param.setFlags(dataType_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        self.addParameter(dataType_param)
 
-        arguments.append(unicode(self.getOutputValue(self.OUTPUT)))
+        init_param = QgsProcessingParameterNumber(self.INIT,
+                                                  self.tr('Pre-initialize the output image with value'),
+                                                  type=QgsProcessingParameterNumber.Double,
+                                                  defaultValue=0.0,
+                                                  optional=True)
+        init_param.setFlags(init_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        self.addParameter(init_param)
 
-        GdalUtils.runGdal(['gdal_rasterize',
-                          GdalUtils.escapeAndJoin(arguments)], progress)
+        invert_param = QgsProcessingParameterBoolean(self.INVERT,
+                                                     self.tr('Invert rasterization'),
+                                                     defaultValue=False)
+        invert_param.setFlags(invert_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        self.addParameter(invert_param)
+
+        self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT,
+                                                                  self.tr('Rasterized')))
+
+    def name(self):
+        return 'rasterize'
+
+    def displayName(self):
+        return self.tr('Rasterize (vector to raster)')
+
+    def group(self):
+        return self.tr('Vector conversion')
+
+    def groupId(self):
+        return 'vectorconversion'
+
+    def icon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'rasterize.png'))
+
+    def commandName(self):
+        return 'gdal_rasterize'
+
+    def getConsoleCommands(self, parameters, context, feedback, executing=True):
+        ogrLayer, layerName = self.getOgrCompatibleSource(self.INPUT, parameters, context, feedback, executing)
+
+        arguments = ['-l']
+        arguments.append(layerName)
+
+        fieldName = self.parameterAsString(parameters, self.FIELD, context)
+        if fieldName:
+            arguments.append('-a')
+            arguments.append(fieldName)
+        else:
+            arguments.append('-burn')
+            arguments.append(self.parameterAsDouble(parameters, self.BURN, context))
+
+        units = self.parameterAsEnum(parameters, self.UNITS, context)
+        if units == 0:
+            arguments.append('-ts')
+        else:
+            arguments.append('-tr')
+        arguments.append(self.parameterAsDouble(parameters, self.WIDTH, context))
+        arguments.append(self.parameterAsDouble(parameters, self.HEIGHT, context))
+
+        initValue = self.parameterAsDouble(parameters, self.INIT, context)
+        if initValue:
+            arguments.append('-init')
+            arguments.append(initValue)
+
+        if self.parameterAsBool(parameters, self.INVERT, context):
+            arguments.append('-i')
+
+        if self.parameterAsBool(parameters, self.ALL_TOUCH, context):
+            arguments.append('-at')
+
+        if self.NODATA in parameters and parameters[self.NODATA] is not None:
+            nodata = self.parameterAsDouble(parameters, self.NODATA, context)
+            arguments.append('-a_nodata')
+            arguments.append(nodata)
+
+        extent = self.parameterAsExtent(parameters, self.EXTENT, context)
+        if not extent.isNull():
+            arguments.append('-te')
+            arguments.append(extent.xMinimum())
+            arguments.append(extent.yMinimum())
+            arguments.append(extent.xMaximum())
+            arguments.append(extent.yMaximum())
+
+        arguments.append('-ot')
+        arguments.append(self.TYPES[self.parameterAsEnum(parameters, self.DATA_TYPE, context)])
+
+        out = self.parameterAsOutputLayer(parameters, self.OUTPUT, context)
+        arguments.append('-of')
+        arguments.append(QgsRasterFileWriter.driverForExtension(os.path.splitext(out)[1]))
+        options = self.parameterAsString(parameters, self.OPTIONS, context)
+
+        if options:
+            arguments.extend(GdalUtils.parseCreationOptions(options))
+
+        arguments.append(ogrLayer)
+        arguments.append(out)
+
+        return [self.commandName(), GdalUtils.escapeAndJoin(arguments)]

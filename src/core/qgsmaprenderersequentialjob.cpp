@@ -19,32 +19,29 @@
 #include "qgsmaprenderercustompainterjob.h"
 #include "qgspallabeling.h"
 
+QgsMapRendererSequentialJob::QgsMapRendererSequentialJob( const QgsMapSettings &settings )
+  : QgsMapRendererQImageJob( settings )
 
-QgsMapRendererSequentialJob::QgsMapRendererSequentialJob( const QgsMapSettings& settings )
-    : QgsMapRendererQImageJob( settings )
-    , mInternalJob( 0 )
-    , mPainter( 0 )
-    , mLabelingResults( 0 )
 {
-  QgsDebugMsg( "SEQUENTIAL construct" );
+  QgsDebugMsgLevel( "SEQUENTIAL construct", 5 );
 
   mImage = QImage( mSettings.outputSize(), mSettings.outputImageFormat() );
+  mImage.setDotsPerMeterX( 1000 * settings.outputDpi() / 25.4 );
+  mImage.setDotsPerMeterY( 1000 * settings.outputDpi() / 25.4 );
+  mImage.fill( Qt::transparent );
 }
 
 QgsMapRendererSequentialJob::~QgsMapRendererSequentialJob()
 {
-  QgsDebugMsg( "SEQUENTIAL destruct" );
+  QgsDebugMsgLevel( "SEQUENTIAL destruct", 5 );
   if ( isActive() )
   {
     // still running!
-    QgsDebugMsg( "SEQUENTIAL destruct -- still running! (cancelling)" );
+    QgsDebugMsgLevel( "SEQUENTIAL destruct -- still running! (canceling)", 5 );
     cancel();
   }
 
-  Q_ASSERT( mInternalJob == 0 && mPainter == 0 );
-
-  delete mLabelingResults;
-  mLabelingResults = 0;
+  Q_ASSERT( !mInternalJob && !mPainter );
 }
 
 
@@ -53,20 +50,22 @@ void QgsMapRendererSequentialJob::start()
   if ( isActive() )
     return; // do nothing if we are already running
 
+  mLabelingResults.reset();
+
   mRenderingStart.start();
 
   mErrors.clear();
 
-  QgsDebugMsg( "SEQUENTIAL START" );
+  QgsDebugMsgLevel( "SEQUENTIAL START", 5 );
 
-  Q_ASSERT( mInternalJob == 0  && mPainter == 0 );
+  Q_ASSERT( !mInternalJob && !mPainter );
 
   mPainter = new QPainter( &mImage );
 
   mInternalJob = new QgsMapRendererCustomPainterJob( mSettings, mPainter );
   mInternalJob->setCache( mCache );
 
-  connect( mInternalJob, SIGNAL( finished() ), SLOT( internalFinished() ) );
+  connect( mInternalJob, &QgsMapRendererJob::finished, this, &QgsMapRendererSequentialJob::internalFinished );
 
   mInternalJob->start();
 }
@@ -77,10 +76,19 @@ void QgsMapRendererSequentialJob::cancel()
   if ( !isActive() )
     return;
 
-  QgsDebugMsg( "sequential - cancel internal" );
+  QgsDebugMsgLevel( "sequential - cancel internal", 5 );
   mInternalJob->cancel();
 
-  Q_ASSERT( mInternalJob == 0 && mPainter == 0 );
+  Q_ASSERT( !mInternalJob && !mPainter );
+}
+
+void QgsMapRendererSequentialJob::cancelWithoutBlocking()
+{
+  if ( !isActive() )
+    return;
+
+  QgsDebugMsgLevel( "sequential - cancel internal", 5 );
+  mInternalJob->cancelWithoutBlocking();
 }
 
 void QgsMapRendererSequentialJob::waitForFinished()
@@ -93,14 +101,17 @@ void QgsMapRendererSequentialJob::waitForFinished()
 
 bool QgsMapRendererSequentialJob::isActive() const
 {
-  return mInternalJob != 0;
+  return nullptr != mInternalJob;
 }
 
-QgsLabelingResults* QgsMapRendererSequentialJob::takeLabelingResults()
+bool QgsMapRendererSequentialJob::usedCachedLabels() const
 {
-  QgsLabelingResults* tmp = mLabelingResults;
-  mLabelingResults = 0;
-  return tmp;
+  return mUsedCachedLabels;
+}
+
+QgsLabelingResults *QgsMapRendererSequentialJob::takeLabelingResults()
+{
+  return mLabelingResults.release();
 }
 
 
@@ -108,7 +119,7 @@ QImage QgsMapRendererSequentialJob::renderedImage()
 {
   if ( isActive() && mCache )
     // this will allow immediate display of cached layers and at the same time updates of the layer being rendered
-    return composeImage( mSettings, mInternalJob->jobs() );
+    return composeImage( mSettings, mInternalJob->jobs(), LabelRenderJob() );
   else
     return mImage;
 }
@@ -116,23 +127,23 @@ QImage QgsMapRendererSequentialJob::renderedImage()
 
 void QgsMapRendererSequentialJob::internalFinished()
 {
-  QgsDebugMsg( "SEQUENTIAL finished" );
+  QgsDebugMsgLevel( "SEQUENTIAL finished", 5 );
 
   mPainter->end();
   delete mPainter;
-  mPainter = 0;
+  mPainter = nullptr;
 
-  mLabelingResults = mInternalJob->takeLabelingResults();
+  mLabelingResults.reset( mInternalJob->takeLabelingResults() );
+  mUsedCachedLabels = mInternalJob->usedCachedLabels();
 
   mErrors = mInternalJob->errors();
 
   // now we are in a slot called from mInternalJob - do not delete it immediately
   // so the class is still valid when the execution returns to the class
   mInternalJob->deleteLater();
-  mInternalJob = 0;
+  mInternalJob = nullptr;
 
   mRenderingTime = mRenderingStart.elapsed();
 
   emit finished();
 }
-

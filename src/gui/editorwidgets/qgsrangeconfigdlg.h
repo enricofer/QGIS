@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -18,15 +18,24 @@
 
 #include "ui_qgsrangeconfigdlgbase.h"
 #include "qgseditorconfigwidget.h"
+#include "qgis_gui.h"
+
+SIP_NO_FILE
+
+/**
+ * \ingroup gui
+ * \class QgsRangeConfigDlg
+ * \note not available in Python bindings
+ */
 
 class GUI_EXPORT QgsRangeConfigDlg : public QgsEditorConfigWidget, private Ui::QgsRangeConfigDlgBase
 {
     Q_OBJECT
 
   public:
-    explicit QgsRangeConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget* parent );
-    virtual QgsEditorWidgetConfig config();
-    virtual void setConfig( const QgsEditorWidgetConfig& config );
+    explicit QgsRangeConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent );
+    QVariantMap config() override;
+    void setConfig( const QVariantMap &config ) override;
 
   protected slots:
     void rangeWidgetChanged( int index );

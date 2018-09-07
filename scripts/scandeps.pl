@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 ###########################################################################
 #    scandeps.pl
 #    ---------------------
@@ -60,15 +60,41 @@ for my $dist (@dists) {
 		last if /^\S/;
 		$deps .= $_;
 	}
+
+	while(<F>) {
+		chop;
+		last if /^Package: python-qgis/;
+	}
+
+	while(<F>) {
+		chop;
+		last if /^Depends:/;
+	}
+
+	s/^Depends:\s*//;
+	$deps .= ",$_";
+
+	while(<F>) {
+		chop;
+		last if /^\S/;
+		$deps .= $_;
+	}
+
 	close F;
+
 	system("git checkout debian/control" )==0 or die "git checkout failed: $!";
 
+	$deps .= ",cmake-curses-gui,ccache,expect,qt5-default,libyaml-tiny-perl,python-autopep8";
+
 	my @deps;
+	my %deps;
 	foreach my $p (split /,/, $deps) {
 		$p =~ s/^\s+//;
 		$p =~ s/\s+.*$//;
+		next if $p =~ /\$|qgis/;
 		next if $p =~ /^(debhelper|subversion|python-central)$/;
-		push @deps, $p;
+		push @deps, $p if not exists $deps{$p};
+		$deps{$p} = 1;
 	}
 
 	my $dep="";
@@ -82,7 +108,7 @@ for my $dist (@dists) {
 		}
 	}
 
-	push @dep, $dep;
+	push @dep, $dep if $dep ne "";
 
 	print O "| $dist | ``apt-get install" . join( " ", @dep ) . "`` |\n";
 }
@@ -102,3 +128,5 @@ close I;
 
 rename "doc/linux.t2t", "doc/linux.t2t.orig";
 rename "doc/linux.t2t.new", "doc/linux.t2t";
+my $time = time;
+utime $time, $time, "doc/INSTALL.t2t";

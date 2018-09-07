@@ -27,17 +27,20 @@
 #include "evisimagedisplaywidget.h"
 
 #include "qgsapplication.h"
+#include "qgsscrollarea.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QScrollBar>
 #include <QUrl>
+
 /**
 * Constructor
-* @param parent - Pointer the to parent QWidget for modality
-* @param fl - Windown flags
+* \param parent - Pointer the to parent QWidget for modality
+* \param fl - Windown flags
 */
-eVisImageDisplayWidget::eVisImageDisplayWidget( QWidget* parent, Qt::WindowFlags fl ) : QWidget( parent, fl )
+eVisImageDisplayWidget::eVisImageDisplayWidget( QWidget *parent, Qt::WindowFlags fl )
+  : QWidget( parent, fl )
 {
   //Setup zoom buttons
   pbtnZoomIn = new QPushButton();
@@ -46,7 +49,7 @@ eVisImageDisplayWidget::eVisImageDisplayWidget( QWidget* parent, Qt::WindowFlags
   pbtnZoomIn->setEnabled( false );
   pbtnZoomOut->setEnabled( false );
   pbtnZoomFull->setEnabled( false );
-  QString myThemePath = QgsApplication::activeThemePath();
+  QString myThemePath = QgsApplication::defaultThemePath();
   pbtnZoomIn->setToolTip( tr( "Zoom in" ) );
   pbtnZoomIn->setWhatsThis( tr( "Zoom in to see more detail." ) );
   pbtnZoomOut->setToolTip( tr( "Zoom out" ) );
@@ -56,13 +59,13 @@ eVisImageDisplayWidget::eVisImageDisplayWidget( QWidget* parent, Qt::WindowFlags
   pbtnZoomIn->setIcon( QIcon( QPixmap( myThemePath + "/mActionZoomIn.svg" ) ) );
   pbtnZoomOut->setIcon( QIcon( QPixmap( myThemePath + "/mActionZoomOut.svg" ) ) );
   pbtnZoomFull->setIcon( QIcon( QPixmap( myThemePath + "/mActionZoomFullExtent.svg" ) ) );
-  connect( pbtnZoomIn, SIGNAL( clicked() ), this, SLOT( on_pbtnZoomIn_clicked() ) );
-  connect( pbtnZoomOut, SIGNAL( clicked() ), this, SLOT( on_pbtnZoomOut_clicked() ) );
-  connect( pbtnZoomFull, SIGNAL( clicked() ), this, SLOT( on_pbtnZoomFull_clicked() ) );
+  connect( pbtnZoomIn, &QAbstractButton::clicked, this, &eVisImageDisplayWidget::pbtnZoomIn_clicked );
+  connect( pbtnZoomOut, &QAbstractButton::clicked, this, &eVisImageDisplayWidget::pbtnZoomOut_clicked );
+  connect( pbtnZoomFull, &QAbstractButton::clicked, this, &eVisImageDisplayWidget::pbtnZoomFull_clicked );
 
   //Setup zoom button layout
-  QWidget* myButtonBar = new QWidget();
-  QHBoxLayout* myButtonBarLayout = new QHBoxLayout();
+  QWidget *myButtonBar = new QWidget();
+  QHBoxLayout *myButtonBarLayout = new QHBoxLayout();
   myButtonBarLayout->addStretch();
   myButtonBarLayout->addWidget( pbtnZoomIn );
   myButtonBarLayout->addWidget( pbtnZoomOut );
@@ -70,9 +73,9 @@ eVisImageDisplayWidget::eVisImageDisplayWidget( QWidget* parent, Qt::WindowFlags
   myButtonBar->setLayout( myButtonBarLayout );
 
   //setup display area
-  mDisplayArea = new QScrollArea();
+  mDisplayArea = new QgsScrollArea();
 
-  QVBoxLayout* myLayout = new QVBoxLayout;
+  QVBoxLayout *myLayout = new QVBoxLayout;
   myLayout->addWidget( myButtonBar );
   myLayout->addWidget( mDisplayArea );
   setLayout( myLayout );
@@ -91,9 +94,7 @@ eVisImageDisplayWidget::eVisImageDisplayWidget( QWidget* parent, Qt::WindowFlags
 
   //setup http connection
   mHttpBuffer = new QBuffer();
-  mHttpConnection = new QHttp();
   mHttpBuffer->open( QBuffer::ReadWrite );
-  connect( mHttpConnection, SIGNAL( requestFinished( int, bool ) ), this, SLOT( displayUrlImage( int, bool ) ) );
 
   //initialize remaining variables
   mScaleByHeight = false;
@@ -108,7 +109,6 @@ eVisImageDisplayWidget::~eVisImageDisplayWidget()
   delete mImageLabel;
   delete mImage;
   delete mHttpBuffer;
-  delete mHttpConnection;
   delete pbtnZoomIn;
   delete pbtnZoomOut;
   delete pbtnZoomFull;
@@ -124,11 +124,11 @@ void eVisImageDisplayWidget::resizeEvent( QResizeEvent *event )
 
 /**
 * Public method called to display an image loaded locally from disk
-* @param path - The path and filename of the image to load from disk
+* \param path - The path and filename of the image to load from disk
 */
-void eVisImageDisplayWidget::displayImage( QString path )
+void eVisImageDisplayWidget::displayImage( const QString &path )
 {
-  mImageLoaded = mImage->load( path, 0, Qt::AutoColor );
+  mImageLoaded = mImage->load( path, nullptr, Qt::AutoColor );
   setToolTip( path );
 
   mCurrentZoomStep = 0;
@@ -159,13 +159,13 @@ void eVisImageDisplayWidget::displayImage()
     //TODO: See about migrating these nasty scaling routines to use a QMatrix
     if ( mScaleByWidth )
     {
-      mySize.setWidth( static_cast<int>( mImage->width() *( mScaleToFit + ( mScaleFactor * mCurrentZoomStep ) ) ) );
-      mySize.setHeight( static_cast<int>(( double )mySize.width() * mImageSizeRatio ) );
+      mySize.setWidth( static_cast<int>( mImage->width() * ( mScaleToFit + ( mScaleFactor * mCurrentZoomStep ) ) ) );
+      mySize.setHeight( static_cast<int>( ( double )mySize.width() * mImageSizeRatio ) );
     }
     else
     {
-      mySize.setHeight( static_cast<int>( mImage->height() *( mScaleToFit + ( mScaleFactor * mCurrentZoomStep ) ) ) );
-      mySize.setWidth( static_cast<int>(( double )mySize.height() * mImageSizeRatio ) );
+      mySize.setHeight( static_cast<int>( mImage->height() * ( mScaleToFit + ( mScaleFactor * mCurrentZoomStep ) ) ) );
+      mySize.setWidth( static_cast<int>( ( double )mySize.height() * mImageSizeRatio ) );
     }
   }
   else
@@ -181,13 +181,11 @@ void eVisImageDisplayWidget::displayImage()
 
 /**
 * Public method called to display an image loaded from a url
-* @param url - The url from which to load an image
+* \param url - The url from which to load an image
 */
-void eVisImageDisplayWidget::displayUrlImage( QString url )
+void eVisImageDisplayWidget::displayUrlImage( const QString &url )
 {
-  QUrl myUrl( url );
-  mHttpConnection->setHost( myUrl.host() );
-  mCurrentHttpImageRequestId = mHttpConnection->get( myUrl.path().replace( "\\", "/" ), mHttpBuffer );
+  Q_UNUSED( url );
 }
 
 /**
@@ -223,10 +221,11 @@ void eVisImageDisplayWidget::setScalers()
  * Public and Private Slots
  *
  */
+
 /**
 * Slot called when a http request is complete
-* @param requestId - The id of the http request
-* @param error - Boolean denoting success of http request
+* \param requestId - The id of the http request
+* \param error - Boolean denoting success of http request
 */
 void eVisImageDisplayWidget::displayUrlImage( int requestId, bool error )
 {
@@ -259,7 +258,7 @@ void eVisImageDisplayWidget::displayUrlImage( int requestId, bool error )
 /**
 * Slot called when the pbtnZoomIn button is pressed
 */
-void eVisImageDisplayWidget::on_pbtnZoomIn_clicked()
+void eVisImageDisplayWidget::pbtnZoomIn_clicked()
 {
   if ( mCurrentZoomStep < ZOOM_STEPS )
   {
@@ -278,7 +277,7 @@ void eVisImageDisplayWidget::on_pbtnZoomIn_clicked()
 /**
 * Slot called when the pbtnZoomOut button is pressed
 */
-void eVisImageDisplayWidget::on_pbtnZoomOut_clicked()
+void eVisImageDisplayWidget::pbtnZoomOut_clicked()
 {
   if ( mCurrentZoomStep > 0 )
   {
@@ -297,7 +296,7 @@ void eVisImageDisplayWidget::on_pbtnZoomOut_clicked()
 /**
 * Slot called when the pbtnZoomFull button is pressed
 */
-void eVisImageDisplayWidget::on_pbtnZoomFull_clicked()
+void eVisImageDisplayWidget::pbtnZoomFull_clicked()
 {
   pbtnZoomOut->setEnabled( false );
   pbtnZoomFull->setEnabled( false );

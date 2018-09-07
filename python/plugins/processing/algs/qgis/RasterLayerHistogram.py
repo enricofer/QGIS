@@ -25,57 +25,68 @@ __copyright__ = '(C) 2013, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-import matplotlib.pyplot as plt
-import matplotlib.pylab as lab
-from PyQt4.QtCore import *
-from qgis.core import *
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterNumber
-from processing.core.parameters import ParameterRaster
-from processing.core.outputs import OutputTable
-from processing.core.outputs import OutputHTML
-from processing.tools import dataobjects
+import plotly as plt
+import plotly.graph_objs as go
+
+from qgis.core import (QgsProcessingParameterRasterLayer,
+                       QgsProcessingParameterBand,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterFileDestination)
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
 from processing.tools import raster
 
 
-class RasterLayerHistogram(GeoAlgorithm):
+class RasterLayerHistogram(QgisAlgorithm):
 
     INPUT = 'INPUT'
-    PLOT = 'PLOT'
-    TABLE = 'TABLE'
     BINS = 'BINS'
+    OUTPUT = 'OUTPUT'
+    BAND = 'BAND'
 
-    def processAlgorithm(self, progress):
-        uri = self.getParameterValue(self.INPUT)
-        layer = dataobjects.getObjectFromUri(uri)
-        outputplot = self.getOutputValue(self.PLOT)
-        outputtable = self.getOutputFromName(self.TABLE)
-        values = raster.scanraster(layer, progress)
-        nbins = self.getParameterValue(self.BINS)
+    def group(self):
+        return self.tr('Graphics')
+
+    def groupId(self):
+        return 'graphics'
+
+    def __init__(self):
+        super().__init__()
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterRasterLayer(self.INPUT,
+                                                            self.tr('Input layer')))
+        self.addParameter(QgsProcessingParameterBand(self.BAND,
+                                                     self.tr('Band number'),
+                                                     1,
+                                                     self.INPUT))
+        self.addParameter(QgsProcessingParameterNumber(self.BINS,
+                                                       self.tr('number of bins'), minValue=2, defaultValue=10))
+
+        self.addParameter(QgsProcessingParameterFileDestination(self.OUTPUT, self.tr('Histogram'), self.tr('HTML files (*.html)')))
+
+    def name(self):
+        return 'rasterlayerhistogram'
+
+    def displayName(self):
+        return self.tr('Raster layer histogram')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        band = self.parameterAsInt(parameters, self.BAND, context)
+        nbins = self.parameterAsInt(parameters, self.BINS, context)
+
+        output = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
 
         # ALERT: this is potentially blocking if the layer is too big
-        plt.close()
+        values = raster.scanraster(layer, feedback, band)
+
         valueslist = []
         for v in values:
             if v is not None:
                 valueslist.append(v)
-        (n, bins, values) = plt.hist(valueslist, nbins)
-        fields = [QgsField('CENTER_VALUE', QVariant.Double),
-                  QgsField('NUM_ELEM', QVariant.Double)]
-        writer = outputtable.getTableWriter(fields)
-        for i in xrange(len(values)):
-            writer.addRecord([str(bins[i]) + '-' + str(bins[i + 1]), n[i]])
-        plotFilename = outputplot + '.png'
-        lab.savefig(plotFilename)
-        f = open(outputplot, 'w')
-        f.write('<img src="' + plotFilename + '"/>')
-        f.close()
 
-    def defineCharacteristics(self):
-        self.name = 'Raster layer histogram'
-        self.group = 'Graphics'
-        self.addParameter(ParameterRaster(self.INPUT, 'Input layer'))
-        self.addParameter(ParameterNumber(self.BINS, 'Number of bins', 2,
-                          None, 10))
-        self.addOutput(OutputHTML(self.PLOT, 'Output plot'))
-        self.addOutput(OutputTable(self.TABLE, 'Output table'))
+        data = [go.Histogram(x=valueslist,
+                             nbinsx=nbins)]
+        plt.offline.plot(data, filename=output, auto_open=False)
+
+        return {self.OUTPUT: output}

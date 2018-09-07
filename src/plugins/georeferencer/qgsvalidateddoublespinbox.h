@@ -21,10 +21,12 @@
 
 class QgsValidatedDoubleSpinBox : public QDoubleSpinBox
 {
+    Q_OBJECT
+
   public:
     QgsValidatedDoubleSpinBox( QWidget *widget ) : QDoubleSpinBox( widget )  { }
 
-    QValidator::State validate( QString& input, int& pos ) const
+    QValidator::State validate( QString &input, int &pos ) const override
     {
       QValidator::State state = QDoubleSpinBox::validate( input, pos );
       if ( state != QValidator::Acceptable )
@@ -42,7 +44,7 @@ class QgsValidatedDoubleSpinBox : public QDoubleSpinBox
       return QValidator::Acceptable;
     }
 
-    StepEnabled stepEnabled() const
+    StepEnabled stepEnabled() const override
     {
       StepEnabled mayStep = StepNone;
 

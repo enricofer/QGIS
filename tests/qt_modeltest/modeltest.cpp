@@ -132,24 +132,24 @@ void ModelTest::nonDestructiveBasicTest()
   fetchingMore = false;
   Qt::ItemFlags flags = model->flags( QModelIndex() );
   Q_ASSERT( flags == Qt::ItemIsDropEnabled || flags == 0 );
-  model->hasChildren( QModelIndex() );
-  model->hasIndex( 0, 0 );
-  model->headerData( 0, Qt::Horizontal );
-  model->index( 0, 0 );
-  model->itemData( QModelIndex() );
+  ( void )model->hasChildren( QModelIndex() );
+  ( void )model->hasIndex( 0, 0 );
+  ( void )model->headerData( 0, Qt::Horizontal );
+  ( void )model->index( 0, 0 );
+  ( void )model->itemData( QModelIndex() );
   QVariant cache;
-  model->match( QModelIndex(), -1, cache );
-  model->mimeTypes();
+  ( void )model->match( QModelIndex(), -1, cache );
+  ( void )model->mimeTypes();
   Q_ASSERT( model->parent( QModelIndex() ) == QModelIndex() );
   Q_ASSERT( model->rowCount() >= 0 );
   QVariant variant;
-  model->setData( QModelIndex(), variant, -1 );
-  model->setHeaderData( -1, Qt::Horizontal, QVariant() );
-  model->setHeaderData( 999999, Qt::Horizontal, QVariant() );
+  ( void )model->setData( QModelIndex(), variant, -1 );
+  ( void )model->setHeaderData( -1, Qt::Horizontal, QVariant() );
+  ( void )model->setHeaderData( 999999, Qt::Horizontal, QVariant() );
   QMap<int, QVariant> roles;
-  model->sibling( 0, 0, QModelIndex() );
-  model->span( QModelIndex() );
-  model->supportedDropActions();
+  ( void )model->sibling( 0, 0, QModelIndex() );
+  ( void )model->span( QModelIndex() );
+  ( void )model->supportedDropActions();
 }
 
 /*!
@@ -260,7 +260,7 @@ void ModelTest::index()
 void ModelTest::parent()
 {
 //     qDebug() << "p";
-  // Make sure the model wont crash and will return an invalid QModelIndex
+  // Make sure the model won't crash and will return an invalid QModelIndex
   // when asked for the parent of an invalid index.
   Q_ASSERT( model->parent( QModelIndex() ) == QModelIndex() );
 
@@ -376,7 +376,7 @@ void ModelTest::checkChildren( const QModelIndex &parent, int currentDepth )
       Q_ASSERT( index.row() == r );
       Q_ASSERT( index.column() == c );
       // While you can technically return a QVariant usually this is a sign
-      // of an bug in data()  Disable if this really is ok in your model.
+      // of an bug in data()  Disable if this really is OK in your model.
 //            Q_ASSERT ( model->data ( index, Qt::DisplayRole ).isValid() );
 
       // If the next test fails here is some somewhat useful debug you play with.
@@ -384,7 +384,7 @@ void ModelTest::checkChildren( const QModelIndex &parent, int currentDepth )
       if ( model->parent( index ) != parent )
       {
         qDebug() << r << c << currentDepth << model->data( index ).toString()
-        << model->data( parent ).toString();
+                 << model->data( parent ).toString();
         qDebug() << index << parent << model->parent( index );
 //                 And a view that you can even use to show the model.
 //                 QTreeView view;
@@ -497,7 +497,7 @@ void ModelTest::data()
  */
 void ModelTest::rowsAboutToBeInserted( const QModelIndex &parent, int start, int end )
 {
-//     Q_UNUSED(end);
+  Q_UNUSED( end );
 //    qDebug() << "rowsAboutToBeInserted" << "start=" << start << "end=" << end << "parent=" << model->data ( parent ).toString()
 //    << "current count of parent=" << model->rowCount ( parent ); // << "display of last=" << model->data( model->index(start-1, 0, parent) );
 //     qDebug() << model->index(start-1, 0, parent) << model->data( model->index(start-1, 0, parent) );
@@ -514,7 +514,7 @@ void ModelTest::rowsAboutToBeInserted( const QModelIndex &parent, int start, int
 
     \sa rowsAboutToBeInserted()
  */
-void ModelTest::rowsInserted( const QModelIndex & parent, int start, int end )
+void ModelTest::rowsInserted( const QModelIndex &parent, int start, int end )
 {
   Changing c = insert.pop();
   Q_ASSERT( c.parent == parent );
@@ -578,7 +578,7 @@ void ModelTest::rowsAboutToBeRemoved( const QModelIndex &parent, int start, int 
 
     \sa rowsAboutToBeRemoved()
  */
-void ModelTest::rowsRemoved( const QModelIndex & parent, int start, int end )
+void ModelTest::rowsRemoved( const QModelIndex &parent, int start, int end )
 {
   qDebug() << "rr" << parent << start << end;
   Changing c = remove.pop();

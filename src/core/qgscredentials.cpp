@@ -18,42 +18,34 @@
 
 #include <QTextStream>
 
-QgsCredentials *QgsCredentials::smInstance = 0;
+QgsCredentials *QgsCredentials::sInstance = nullptr;
 
-void QgsCredentials::setInstance( QgsCredentials *theInstance )
+void QgsCredentials::setInstance( QgsCredentials *instance )
 {
-  if ( smInstance )
+  if ( sInstance )
   {
     QgsDebugMsg( "already registered an instance of QgsCredentials" );
   }
 
-  smInstance = theInstance;
+  sInstance = instance;
 }
 
 QgsCredentials *QgsCredentials::instance()
 {
-  if ( smInstance )
-    return smInstance;
+  if ( sInstance )
+    return sInstance;
 
-  return new QgsCredentialsConsole();
+  return new QgsCredentialsNone();
 }
 
-QgsCredentials::QgsCredentials()
-{
-}
-
-QgsCredentials::~QgsCredentials()
-{
-}
-
-bool QgsCredentials::get( QString realm, QString &username, QString &password, QString message )
+bool QgsCredentials::get( const QString &realm, QString &username, QString &password, const QString &message )
 {
   if ( mCredentialCache.contains( realm ) )
   {
     QPair<QString, QString> credentials = mCredentialCache.take( realm );
     username = credentials.first;
     password = credentials.second;
-    QgsDebugMsg( QString( "retrieved realm:%1 username:%2 password:%3" ).arg( realm ).arg( username ).arg( password ) );
+    QgsDebugMsg( QString( "retrieved realm:%1 username:%2 password:%3" ).arg( realm, username, password ) );
 
     if ( !password.isNull() )
       return true;
@@ -61,7 +53,7 @@ bool QgsCredentials::get( QString realm, QString &username, QString &password, Q
 
   if ( request( realm, username, password, message ) )
   {
-    QgsDebugMsg( QString( "requested realm:%1 username:%2 password:%3" ).arg( realm ).arg( username ).arg( password ) );
+    QgsDebugMsg( QString( "requested realm:%1 username:%2 password:%3" ).arg( realm, username, password ) );
     return true;
   }
   else
@@ -71,10 +63,20 @@ bool QgsCredentials::get( QString realm, QString &username, QString &password, Q
   }
 }
 
-void QgsCredentials::put( QString realm, QString username, QString password )
+void QgsCredentials::put( const QString &realm, const QString &username, const QString &password )
 {
-  QgsDebugMsg( QString( "inserting realm:%1 username:%2 password:%3" ).arg( realm ).arg( username ).arg( password ) );
+  QgsDebugMsg( QString( "inserting realm:%1 username:%2 password:%3" ).arg( realm, username, password ) );
   mCredentialCache.insert( realm, QPair<QString, QString>( username, password ) );
+}
+
+bool QgsCredentials::getMasterPassword( QString &password, bool stored )
+{
+  if ( requestMasterPassword( password, stored ) )
+  {
+    QgsDebugMsg( "requested master password" );
+    return true;
+  }
+  return false;
 }
 
 void QgsCredentials::lock()
@@ -89,6 +91,30 @@ void QgsCredentials::unlock()
 
 
 ////////////////////////////////
+// QgsCredentialsNone
+
+QgsCredentialsNone::QgsCredentialsNone()
+{
+  setInstance( this );
+}
+
+bool QgsCredentialsNone::request( const QString &realm, QString &username, QString &password, const QString &message )
+{
+  Q_UNUSED( realm );
+  Q_UNUSED( username );
+  Q_UNUSED( password );
+  Q_UNUSED( message );
+  return false;
+}
+
+bool QgsCredentialsNone::requestMasterPassword( QString &password, bool stored )
+{
+  Q_UNUSED( password );
+  Q_UNUSED( stored );
+  return false;
+}
+
+////////////////////////////////
 // QgsCredentialsConsole
 
 QgsCredentialsConsole::QgsCredentialsConsole()
@@ -96,7 +122,7 @@ QgsCredentialsConsole::QgsCredentialsConsole()
   setInstance( this );
 }
 
-bool QgsCredentialsConsole::request( QString realm, QString &username, QString &password, QString message )
+bool QgsCredentialsConsole::request( const QString &realm, QString &username, QString &password, const QString &message )
 {
   QTextStream in( stdin, QIODevice::ReadOnly );
   QTextStream out( stdout, QIODevice::WriteOnly );
@@ -107,6 +133,21 @@ bool QgsCredentialsConsole::request( QString realm, QString &username, QString &
   out << "username: ";
   in >> username;
   out << "password: ";
+  in >> password;
+
+  return true;
+}
+
+bool QgsCredentialsConsole::requestMasterPassword( QString &password, bool stored )
+{
+  Q_UNUSED( stored );
+
+  QTextStream in( stdin, QIODevice::ReadOnly );
+  QTextStream out( stdout, QIODevice::WriteOnly );
+
+  QString msg( stored ? "Master password for authentication configs: " : "Set master password for authentication configs: " );
+
+  out << msg;
   in >> password;
 
   return true;

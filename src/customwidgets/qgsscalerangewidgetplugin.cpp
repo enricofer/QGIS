@@ -19,8 +19,8 @@
 
 
 QgsScaleRangeWidgetPlugin::QgsScaleRangeWidgetPlugin( QObject *parent )
-    : QObject( parent )
-    , mInitialized( false )
+  : QObject( parent )
+  , mInitialized( false )
 {
 }
 
@@ -42,7 +42,7 @@ QString QgsScaleRangeWidgetPlugin::includeFile() const
 
 QIcon QgsScaleRangeWidgetPlugin::icon() const
 {
-  return QIcon();
+  return QIcon( ":/images/icons/qgis-icon-60x60.png" );
 }
 
 bool QgsScaleRangeWidgetPlugin::isContainer() const

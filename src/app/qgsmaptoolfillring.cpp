@@ -16,27 +16,22 @@
 
 #include "qgsmaptoolfillring.h"
 #include "qgsgeometry.h"
+#include "qgsfeatureiterator.h"
 #include "qgsmapcanvas.h"
 #include "qgsvectorlayer.h"
 #include "qgsattributedialog.h"
-#include <qgsapplication.h>
+#include "qgisapp.h"
+#include "qgsvectorlayerutils.h"
 
 #include <QMouseEvent>
-
 #include <limits>
 
-QgsMapToolFillRing::QgsMapToolFillRing( QgsMapCanvas* canvas )
-    : QgsMapToolCapture( canvas, QgsMapToolCapture::CapturePolygon )
+QgsMapToolFillRing::QgsMapToolFillRing( QgsMapCanvas *canvas )
+  : QgsMapToolCapture( canvas, QgisApp::instance()->cadDockWidget(), QgsMapToolCapture::CapturePolygon )
 {
-  mToolName = tr( "Fill ring" );
 }
 
-QgsMapToolFillRing::~QgsMapToolFillRing()
-{
-
-}
-
-void QgsMapToolFillRing::canvasReleaseEvent( QMouseEvent * e )
+void QgsMapToolFillRing::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
 {
   //check if we operate on a vector layer
   QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( mCanvas->currentLayer() );
@@ -53,138 +48,187 @@ void QgsMapToolFillRing::canvasReleaseEvent( QMouseEvent * e )
     return;
   }
 
-  //add point to list and to rubber band
-  if ( e->button() == Qt::LeftButton )
+  if ( e->button() == Qt::LeftButton && QApplication::keyboardModifiers() == Qt::ShiftModifier && !isCapturing() )
   {
-    int error = addVertex( e->pos() );
+    // left button with shift fills an existing ring
+  }
+  else if ( e->button() == Qt::LeftButton )
+  {
+    // add point to list and to rubber band
+
+    int error = addVertex( e->mapPoint() );
     if ( error == 1 )
     {
-      //current layer is not a vector layer
+      // current layer is not a vector layer
       return;
     }
     else if ( error == 2 )
     {
-      //problem with coordinate transformation
-      emit messageEmitted( tr( "Cannot transform the point to the layers coordinate system" ), QgsMessageBar::WARNING );
+      // problem with coordinate transformation
+      emit messageEmitted( tr( "Cannot transform the point to the layers coordinate system" ), Qgis::Warning );
       return;
     }
 
     startCapturing();
+    return;
   }
-  else if ( e->button() == Qt::RightButton )
+  else if ( e->button() != Qt::RightButton || !isCapturing() )
   {
-    if ( !isCapturing() )
-      return;
+    return;
+  }
 
+  QgsGeometry g;
+  QgsFeatureId fid;
+
+  if ( isCapturing() )
+  {
     deleteTempRubberBand();
 
     closePolygon();
 
     vlayer->beginEditCommand( tr( "Ring added and filled" ) );
-    int addRingReturnCode = vlayer->addRing( points() );
-    if ( addRingReturnCode != 0 )
+
+    QVector< QgsPointXY > pointList = points();
+
+    QgsGeometry::OperationResult addRingReturnCode = vlayer->addRing( pointList, &fid );
+
+    // AP: this is all dead code:
+    //todo: open message box to communicate errors
+    if ( addRingReturnCode != QgsGeometry::OperationResult::Success )
     {
       QString errorMessage;
-      //todo: open message box to communicate errors
-      if ( addRingReturnCode == 1 )
+      if ( addRingReturnCode == QgsGeometry::OperationResult::InvalidInputGeometryType )
       {
-        errorMessage = tr( "a problem with geometry type occured" );
+        errorMessage = tr( "a problem with geometry type occurred" );
       }
-      else if ( addRingReturnCode == 2 )
+      else if ( addRingReturnCode == QgsGeometry::OperationResult::AddRingNotClosed )
       {
         errorMessage = tr( "the inserted Ring is not closed" );
       }
-      else if ( addRingReturnCode == 3 )
+      else if ( addRingReturnCode ==  QgsGeometry::OperationResult::AddRingNotValid )
       {
         errorMessage = tr( "the inserted Ring is not a valid geometry" );
       }
-      else if ( addRingReturnCode == 4 )
+      else if ( addRingReturnCode == QgsGeometry::OperationResult::AddRingCrossesExistingRings )
       {
         errorMessage = tr( "the inserted Ring crosses existing rings" );
       }
-      else if ( addRingReturnCode == 5 )
+      else if ( addRingReturnCode == QgsGeometry::OperationResult::AddRingNotInExistingFeature )
       {
         errorMessage = tr( "the inserted Ring is not contained in a feature" );
       }
       else
       {
-        errorMessage = tr( "an unknown error occured" );
+        errorMessage = tr( "an unknown error occurred" );
       }
-      emit messageEmitted( tr( "could not add ring since %1." ).arg( errorMessage ), QgsMessageBar::CRITICAL );
+      emit messageEmitted( tr( "could not add ring since %1." ).arg( errorMessage ), Qgis::Critical );
       vlayer->destroyEditCommand();
+
+      return;
+    }
+
+    g = QgsGeometry::fromPolygonXY( QgsPolygonXY() << pointList );
+  }
+  else
+  {
+    vlayer->beginEditCommand( tr( "Ring filled" ) );
+
+    g = ringUnderPoint( e->mapPoint(), fid );
+
+    if ( fid == -1 )
+    {
+      emit messageEmitted( tr( "No ring found to fill." ), Qgis::Critical );
+      vlayer->destroyEditCommand();
+      return;
+    }
+  }
+
+  QgsExpressionContext context = vlayer->createExpressionContext();
+
+  QgsFeatureIterator fit = vlayer->getFeatures( QgsFeatureRequest().setFilterFid( fid ) );
+
+  QgsFeature f;
+  if ( fit.nextFeature( f ) )
+  {
+    //create QgsFeature with wkb representation
+    QgsFeature ft = QgsVectorLayerUtils::createFeature( vlayer, g, f.attributes().toMap(), &context );
+
+    bool res = false;
+    if ( QApplication::keyboardModifiers() == Qt::ControlModifier )
+    {
+      res = vlayer->addFeature( ft );
     }
     else
     {
-      // find parent feature and get it attributes
-      double xMin, xMax, yMin, yMax;
-      QgsRectangle bBox;
+      QgsAttributeDialog *dialog = new QgsAttributeDialog( vlayer, &ft, false, nullptr, true );
+      dialog->setMode( QgsAttributeForm::AddFeatureMode );
+      res = dialog->exec(); // will also add the feature
+    }
 
-      xMin = std::numeric_limits<double>::max();
-      xMax = -std::numeric_limits<double>::max();
-      yMin = std::numeric_limits<double>::max();
-      yMax = -std::numeric_limits<double>::max();
+    if ( res )
+    {
+      vlayer->endEditCommand();
+    }
+    else
+    {
+      vlayer->destroyEditCommand();
+    }
+  }
 
-      for ( QList<QgsPoint>::const_iterator it = points().constBegin(); it != points().constEnd(); ++it )
+  if ( isCapturing() )
+    stopCapturing();
+}
+
+// TODO refactor - shamelessly copied from QgsMapToolDeleteRing::ringUnderPoint
+QgsGeometry QgsMapToolFillRing::ringUnderPoint( const QgsPointXY &p, QgsFeatureId &fid )
+{
+  //check if we operate on a vector layer
+  QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( mCanvas->currentLayer() );
+
+  //There is no clean way to find if we are inside the ring of a feature,
+  //so we iterate over all the features visible in the canvas
+  //If several rings are found at this position, the smallest one is chosen,
+  //in order to be able to delete a ring inside another ring
+  double area = std::numeric_limits<double>::max();
+
+  QgsGeometry ringGeom;
+  QgsFeatureIterator fit = vlayer->getFeatures( QgsFeatureRequest().setFilterRect( toLayerCoordinates( vlayer, mCanvas->extent() ) ) );
+
+  QgsFeature f;
+  while ( fit.nextFeature( f ) )
+  {
+    QgsGeometry g = f.geometry();
+    if ( g.isNull() || QgsWkbTypes::geometryType( g.wkbType() ) != QgsWkbTypes::PolygonGeometry )
+      continue;
+
+    QgsMultiPolygonXY pol;
+    if ( !QgsWkbTypes::isMultiType( g.wkbType() ) )
+    {
+      pol = QgsMultiPolygonXY() << g.asPolygon();
+    }
+    else
+    {
+      pol = g.asMultiPolygon();
+    }
+
+    for ( int i = 0; i < pol.size() ; ++i )
+    {
+      //for each part
+      if ( pol[i].size() > 1 )
       {
-        if ( it->x() < xMin )
+        for ( int j = 1; j < pol[i].size(); ++j )
         {
-          xMin = it->x();
+          QgsPolygonXY tempPol = QgsPolygonXY() << pol[i][j];
+          QgsGeometry tempGeom = QgsGeometry::fromPolygonXY( tempPol );
+          if ( tempGeom.area() < area && tempGeom.contains( &p ) )
+          {
+            fid = f.id();
+            area = tempGeom.area();
+            ringGeom = tempGeom;
+          }
         }
-        if ( it->x() > xMax )
-        {
-          xMax = it->x();
-        }
-        if ( it->y() < yMin )
-        {
-          yMin = it->y();
-        }
-        if ( it->y() > yMax )
-        {
-          yMax = it->y();
-        }
-      }
-      bBox.setXMinimum( xMin );
-      bBox.setYMinimum( yMin );
-      bBox.setXMaximum( xMax );
-      bBox.setYMaximum( yMax );
-
-      QgsFeatureIterator fit = vlayer->getFeatures( QgsFeatureRequest().setFilterRect( bBox ).setFlags( QgsFeatureRequest::ExactIntersect ) );
-
-      QgsFeature f;
-      bool res = false;
-      while ( fit.nextFeature( f ) )
-      {
-        //create QgsFeature with wkb representation
-        QgsFeature* ft = new QgsFeature( vlayer->pendingFields(), 0 );
-
-        QgsGeometry *g;
-        g = QgsGeometry::fromPolygon( QgsPolygon() << points().toVector() );
-        ft->setGeometry( g );
-        ft->setAttributes( f.attributes() );
-
-        if ( QgsApplication::keyboardModifiers() == Qt::ControlModifier )
-        {
-          res = vlayer->addFeature( *ft );
-        }
-        else
-        {
-          QgsAttributeDialog *dialog = new QgsAttributeDialog( vlayer, ft, false, NULL, true );
-          dialog->setIsAddDialog( true );
-          res = dialog->exec(); // will also add the feature
-        }
-
-        if ( res )
-        {
-          vlayer->endEditCommand();
-        }
-        else
-        {
-          delete ft;
-          vlayer->destroyEditCommand();
-        }
-        res = false;
       }
     }
-    stopCapturing();
   }
+  return ringGeom;
 }

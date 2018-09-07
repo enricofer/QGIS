@@ -1,4 +1,19 @@
 #!/bin/sh
+###########################################################################
+#    spawn_fcgi_debian.sh
+#    ---------------------
+#    Date                 : February 2014
+#    Copyright            : (C) 2014 by Larry Shaffer
+#    Email                : larrys at dakotacarto dot com
+###########################################################################
+#                                                                         #
+#   This program is free software; you can redistribute it and/or modify  #
+#   it under the terms of the GNU General Public License as published by  #
+#   the Free Software Foundation; either version 2 of the License, or     #
+#   (at your option) any later version.                                   #
+#                                                                         #
+###########################################################################
+
 #culled from lighttpd init script
 
 
@@ -7,7 +22,7 @@ DAEMON=$2
 NAME=spawn-fcgi
 DESC="$NAME"
 TEMPDIR=$5
-FCGI=qgis_mapserv
+#FCGI=qgis_mapserv
 PIDFILE=$TEMPDIR/var/$NAME.pid
 FCGISOCKET=$3
 FCGIBIN=$4

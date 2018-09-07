@@ -25,87 +25,104 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+import os
+import warnings
+
+from qgis.gui import QgsGui
+
+from qgis.PyQt import uic
+from qgis.PyQt.QtWidgets import QDialog, QPushButton, QAbstractItemView, QDialogButtonBox
+from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem
+
+pluginPath = os.path.split(os.path.dirname(__file__))[0]
+
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    WIDGET, BASE = uic.loadUiType(
+        os.path.join(pluginPath, 'ui', 'DlgFixedTable.ui'))
 
 
-class FixedTableDialog(QtGui.QDialog):
+class FixedTableDialog(BASE, WIDGET):
 
     def __init__(self, param, table):
-        QtGui.QDialog.__init__(self)
-        self.setModal(True)
+        """
+        Constructor for FixedTableDialog
+        :param param: linked processing parameter
+        :param table: initial table contents - squashed to 1-dimensional!
+        """
+        super().__init__(None)
+
+        self.setupUi(self)
+
+        QgsGui.instance().enableAutoGeometryRestore(self)
+
+        self.tblView.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tblView.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
         self.param = param
-        self.rettable = table
-        self.setupUi()
         self.rettable = None
 
-    def setupUi(self):
-        self.resize(600, 350)
-        self.setWindowTitle(self.tr('Fixed Table'))
-        self.horizontalLayout = QtGui.QHBoxLayout()
-        self.horizontalLayout.setSpacing(2)
-        self.horizontalLayout.setMargin(0)
-        self.buttonBox = QtGui.QDialogButtonBox()
-        self.buttonBox.setOrientation(QtCore.Qt.Vertical)
-        self.buttonBox.setStandardButtons(QtGui.QDialogButtonBox.Cancel
-                | QtGui.QDialogButtonBox.Ok)
-        self.table = QtGui.QTableWidget()
-        self.table.setColumnCount(len(self.param.cols))
-        for i in range(len(self.param.cols)):
-            self.table.setColumnWidth(i, 380 / len(self.param.cols))
-            self.table.setHorizontalHeaderItem(i,
-                    QtGui.QTableWidgetItem(self.param.cols[i]))
-        self.table.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
-        self.table.setRowCount(len(self.rettable))
-        for i in range(len(self.rettable)):
-            self.table.setRowHeight(i, 22)
-        self.table.verticalHeader().setVisible(False)
-        self.addRowButton = QtGui.QPushButton()
-        self.addRowButton.setText(self.tr('Add row'))
-        self.addRowButton.setEnabled(not self.param.fixedNumOfRows)
-        self.removeRowButton = QtGui.QPushButton()
-        self.removeRowButton.setText(self.tr('Remove row'))
-        self.removeRowButton.setEnabled(not self.param.fixedNumOfRows)
-        self.buttonBox.addButton(self.addRowButton,
-                                 QtGui.QDialogButtonBox.ActionRole)
-        self.buttonBox.addButton(self.removeRowButton,
-                                 QtGui.QDialogButtonBox.ActionRole)
-        self.setTableContent()
-        self.horizontalLayout.addWidget(self.table)
-        self.horizontalLayout.addWidget(self.buttonBox)
-        self.setLayout(self.horizontalLayout)
-        self.buttonBox.accepted.connect(self.okPressed)
-        self.buttonBox.rejected.connect(self.cancelPressed)
-        self.addRowButton.clicked.connect(self.addRow)
-        self.removeRowButton.clicked.connect(self.removeRow)
-        QtCore.QMetaObject.connectSlotsByName(self)
+        # Additional buttons
+        self.btnAdd = QPushButton(self.tr('Add row'))
+        self.buttonBox.addButton(self.btnAdd,
+                                 QDialogButtonBox.ActionRole)
+        self.btnRemove = QPushButton(self.tr('Remove row(s)'))
+        self.buttonBox.addButton(self.btnRemove,
+                                 QDialogButtonBox.ActionRole)
+        self.btnRemoveAll = QPushButton(self.tr('Remove all'))
+        self.buttonBox.addButton(self.btnRemoveAll,
+                                 QDialogButtonBox.ActionRole)
 
-    def setTableContent(self):
-        for i in range(len(self.rettable)):
-            for j in range(len(self.rettable[0])):
-                self.table.setItem(i, j,
-                                   QtGui.QTableWidgetItem(self.rettable[i][j]))
+        self.btnAdd.clicked.connect(self.addRow)
+        self.btnRemove.clicked.connect(lambda: self.removeRows())
+        self.btnRemoveAll.clicked.connect(lambda: self.removeRows(True))
 
-    def okPressed(self):
+        if self.param.hasFixedNumberRows():
+            self.btnAdd.setEnabled(False)
+            self.btnRemove.setEnabled(False)
+            self.btnRemoveAll.setEnabled(False)
+
+        self.populateTable(table)
+
+    def populateTable(self, table):
+        cols = len(self.param.headers())
+        rows = len(table) // cols
+        model = QStandardItemModel(rows, cols)
+
+        # Set headers
+        model.setHorizontalHeaderLabels(self.param.headers())
+
+        # Populate table
+        for row in range(rows):
+            for col in range(cols):
+                item = QStandardItem(str(table[row * cols + col]))
+                model.setItem(row, col, item)
+        self.tblView.setModel(model)
+
+    def accept(self):
+        cols = self.tblView.model().columnCount()
+        rows = self.tblView.model().rowCount()
+        # Table MUST BE 1-dimensional to match core QgsProcessingParameterMatrix expectations
         self.rettable = []
-        for i in range(self.table.rowCount()):
-            self.rettable.append(list())
-            for j in range(self.table.columnCount()):
-                self.rettable[i].append(unicode(self.table.item(i, j).text()))
-        self.close()
+        for row in range(rows):
+            for col in range(cols):
+                self.rettable.append(str(self.tblView.model().item(row, col).text()))
+        QDialog.accept(self)
 
-    def cancelPressed(self):
-        self.rettable = None
-        self.close()
+    def reject(self):
+        QDialog.reject(self)
 
-    def removeRow(self):
-        if self.table.rowCount() > 1:
-            self.table.setRowCount(self.table.rowCount() - 1)
+    def removeRows(self, removeAll=False):
+        if removeAll:
+            self.tblView.model().clear()
+            self.tblView.model().setHorizontalHeaderLabels(self.param.headers())
+        else:
+            indexes = sorted(self.tblView.selectionModel().selectedRows())
+            self.tblView.setUpdatesEnabled(False)
+            for i in reversed(indexes):
+                self.tblView.model().removeRows(i.row(), 1)
+            self.tblView.setUpdatesEnabled(True)
 
     def addRow(self):
-        self.table.setRowCount(self.table.rowCount() + 1)
-        self.table.setRowHeight(self.table.rowCount() - 1, 22)
-        for i in range(self.table.columnCount()):
-            self.table.setItem(self.table.rowCount() - 1, i,
-                               QtGui.QTableWidgetItem('0'))
+        items = [QStandardItem('0') for i in range(self.tblView.model().columnCount())]
+        self.tblView.model().appendRow(items)

@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -19,20 +19,44 @@
 #include "ui_qgsvaluemapconfigdlgbase.h"
 
 #include "qgseditorconfigwidget.h"
+#include "qgis_gui.h"
+
+class QComboBox;
+
+SIP_NO_FILE
+
+/**
+ * \ingroup gui
+ * \class QgsValueMapConfigDlg
+ * \note not available in Python bindings
+ */
 
 class GUI_EXPORT QgsValueMapConfigDlg : public QgsEditorConfigWidget, private Ui::QgsValueMapWidget
 {
     Q_OBJECT
 
   public:
-    explicit QgsValueMapConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget* parent );
-    virtual QgsEditorWidgetConfig config();
-    virtual void setConfig( const QgsEditorWidgetConfig& config );
+    explicit QgsValueMapConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent );
+    QVariantMap config() override;
+    void setConfig( const QVariantMap &config ) override;
 
     void updateMap( const QMap<QString, QVariant> &map, bool insertNull );
 
+    /**
+     * Populates a \a comboBox with the appropriate entries based on a value map \a configuration.
+     *
+     * If \a skipNull is true, then NULL entries will not be added.
+     *
+     * \since QGIS 3.0
+     */
+    static void populateComboBox( QComboBox *comboBox, const QVariantMap &configuration, bool skipNull );
+
+  private:
+    void setRow( int row, const QString &value, const QString &description );
+
   private slots:
     void vCellChanged( int row, int column );
+    void addNullButtonPushed();
     void removeSelectedButtonPushed();
     void loadFromLayerButtonPushed();
     void loadFromCSVButtonPushed();

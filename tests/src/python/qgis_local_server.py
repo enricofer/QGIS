@@ -19,22 +19,26 @@ import shutil
 import platform
 import subprocess
 import time
-import inspect
-import urllib
-import urllib2
+import urllib.request
+import urllib.parse
+import urllib.error
+import urllib.request
+import urllib.error
+import urllib.parse
 import tempfile
 
 from utilities import (
     unitTestDataPath,
     getExecutablePath,
-    openInBrowserTab
+    openInBrowserTab,
+    getTempfilePath
 )
 
 # allow import error to be raised if qgis is not on sys.path
 try:
     # noinspection PyUnresolvedReferences
     from qgis.core import QgsRectangle, QgsCoordinateReferenceSystem
-except ImportError, e:
+except ImportError as e:
     raise ImportError(str(e) + '\n\nPlace path to pyqgis modules on sys.path,'
                                ' or assign to PYTHONPATH')
 
@@ -263,8 +267,8 @@ class QgisLocalServer(object):
 
         servers = [
             ('spawn-fcgi', 'lighttpd')
-            #('fcgiwrap', 'nginx'),
-            #('uwsgi', 'nginx'),
+            # ('fcgiwrap', 'nginx'),
+            # ('uwsgi', 'nginx'),
         ]
 
         chkd = ''
@@ -358,7 +362,7 @@ class QgisLocalServer(object):
                     shutil.copy2(path, self._web_dir)
                 elif os.path.isdir(path):
                     shutil.copytree(path, self._web_dir)
-            except Exception, err:
+            except Exception as err:
                 raise ServerProcessError('Failed to copy to web directory:',
                                          item,
                                          str(err))
@@ -371,7 +375,7 @@ class QgisLocalServer(object):
                     os.unlink(path)
                 else:
                     shutil.rmtree(path)
-            except Exception, err:
+            except Exception as err:
                 raise ServerProcessError('Failed to clear web directory', err)
 
     def temp_dir(self):
@@ -420,13 +424,13 @@ class QgisLocalServer(object):
 
         url = self._fcgi_url + '?' + self.process_params(params)
 
-        res = urllib.urlopen(url)
-        xml = res.read()
+        res = urllib.request.urlopen(url)
+        xml = res.read().decode('utf-8')
         if browser:
-            tmp = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
-            tmp.write(xml)
-            url = tmp.name
-            tmp.close()
+            tmp_name = getTempfilePath('html')
+            with open(tmp_name, 'wt') as temp_html:
+                temp_html.write(xml)
+            url = tmp_name
             openInBrowserTab(url)
             return False, ''
 
@@ -444,7 +448,7 @@ class QgisLocalServer(object):
         params = self._params_to_upper(params)
         try:
             proj = params['MAP']
-        except KeyError, err:
+        except KeyError as err:
             raise KeyError(str(err) + '\nMAP not found in parameters dict')
 
         if not os.path.exists(proj):
@@ -483,41 +487,40 @@ class QgisLocalServer(object):
         while time.time() - start_time < 20:
             resp = None
             try:
-                tmp_png = urllib2.urlopen(url)
-            except urllib2.HTTPError as resp:
+                tmp_png = urllib.request.urlopen(url)
+            except urllib.error.HTTPError as resp:
                 if resp.code == 503 or resp.code == 500:
                     time.sleep(1)
                 else:
                     raise ServerProcessError(
                         'Web/FCGI Process Request HTTPError',
-                        'Cound not connect to process: ' + str(resp.code),
+                        'Could not connect to process: ' + str(resp.code),
                         resp.message
                     )
-            except urllib2.URLError as resp:
+            except urllib.error.URLError as resp:
                 raise ServerProcessError(
                     'Web/FCGI Process Request URLError',
-                    'Cound not connect to process: ' + str(resp.code),
+                    'Could not connect to process',
                     resp.reason
                 )
             else:
                 delta = time.time() - start_time
-                print 'Seconds elapsed for server GetMap: ' + str(delta)
+                print(('Seconds elapsed for server GetMap: ' + str(delta)))
                 break
 
         if resp is not None:
             raise ServerProcessError(
                 'Web/FCGI Process Request Error',
-                'Cound not connect to process: ' + str(resp.code)
+                'Could not connect to process: ' + str(resp.code)
             )
 
-        if (tmp_png is not None
-                and tmp_png.info().getmaintype() == 'image'
-                and tmp_png.info().getheader('Content-Type') == 'image/png'):
+        if (tmp_png is not None and
+                tmp_png.info().getmaintype() == 'image' and
+                tmp_png.info().getheader('Content-Type') == 'image/png'):
 
-            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-            filepath = tmp.name
-            tmp.write(tmp_png.read())
-            tmp.close()
+            filepath = getTempfilePath('png')
+            with open(filepath, 'wb') as temp_image:
+                temp_image.write(tmp_png.read())
             success = True
         else:
             raise ServerProcessError(
@@ -533,11 +536,11 @@ class QgisLocalServer(object):
         # convert all convenience objects to compatible strings
         self._convert_instances(params)
         # encode params
-        return urllib.urlencode(params, True)
+        return urllib.parse.urlencode(params, True)
 
     @staticmethod
     def _params_to_upper(params):
-        return dict((k.upper(), v) for k, v in params.items())
+        return dict((k.upper(), v) for k, v in list(params.items()))
 
     @staticmethod
     def _convert_instances(params):
@@ -565,10 +568,10 @@ class QgisLocalServer(object):
         self._web_dir = os.path.join(self._temp_dir, 'www', 'htdocs')
         cgi_bin = os.path.join(self._temp_dir, 'cgi-bin')
 
-        os.makedirs(cgi_bin, mode=0755)
-        os.makedirs(os.path.join(self._temp_dir, 'log'), mode=0755)
-        os.makedirs(os.path.join(self._temp_dir, 'var', 'run'), mode=0755)
-        os.makedirs(self._web_dir, mode=0755)
+        os.makedirs(cgi_bin, mode=0o755)
+        os.makedirs(os.path.join(self._temp_dir, 'log'), mode=0o755)
+        os.makedirs(os.path.join(self._temp_dir, 'var', 'run'), mode=0o755)
+        os.makedirs(self._web_dir, mode=0o755)
 
         # symlink or copy in components
         shutil.copy2(os.path.join(self._conf_dir, 'index.html'), self._web_dir)
@@ -720,16 +723,16 @@ def getLocalServer():
             while time.time() - start_time < 30:
                 time.sleep(1)
                 try:
-                    res = urllib2.urlopen(srv.web_url())
+                    res = urllib.request.urlopen(srv.web_url())
                     if res.getcode() == 200:
                         break
-                except urllib2.URLError:
+                except urllib.error.URLError:
                     pass
             msg = 'Web server basic access to root index.html failed'
             # print repr(res)
-            assert (res is not None
-                    and res.getcode() == 200
-                    and 'Web Server Working' in res.read()), msg
+            assert (res is not None and
+                    res.getcode() == 200 and
+                    'Web Server Working' in res.read().decode('utf-8')), msg
 
             # verify basic wms service
             params = {
@@ -757,7 +760,7 @@ def getLocalServer():
             assert not os.path.exists(srv.temp_dir()), msg
 
             MAPSERV = srv
-        except AssertionError, err:
+        except AssertionError as err:
             srv.shutdown()
             raise AssertionError(err)
 
@@ -777,7 +780,7 @@ if __name__ == '__main__':
 
     fcgi = os.path.realpath(args.fcgi)
     if not os.path.isabs(fcgi) or not os.path.exists(fcgi):
-        print 'qgis_mapserv.fcgi not resolved to existing absolute path.'
+        print('qgis_mapserv.fcgi not resolved to existing absolute path.')
         sys.exit(1)
 
     local_srv = QgisLocalServer(fcgi)

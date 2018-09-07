@@ -6,63 +6,39 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>368</width>
-    <height>293</height>
+    <width>327</width>
+    <height>161</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QFormLayout" name="formLayout">
-   <property name="fieldGrowthPolicy">
-    <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
-   </property>
-   <property name="labelAlignment">
-    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-   </property>
-   <property name="horizontalSpacing">
-    <number>28</number>
-   </property>
-   <property name="leftMargin">
-    <number>1</number>
-   </property>
-   <property name="topMargin">
-    <number>1</number>
-   </property>
-   <property name="rightMargin">
-    <number>1</number>
-   </property>
-   <property name="bottomMargin">
-    <number>1</number>
-   </property>
+  <layout class="QGridLayout" name="gridLayout" columnstretch="0,1,0,0">
    <item row="0" column="0">
-    <widget class="QLabel" name="mAngleLabel">
+    <widget class="QLabel" name="mRotationLabel">
      <property name="text">
-      <string>Angle</string>
+      <string>Rotation</string>
      </property>
     </widget>
    </item>
-   <item row="0" column="1">
-    <widget class="QDoubleSpinBox" name="mAngleSpinBox">
-     <property name="maximum">
-      <double>360.000000000000000</double>
-     </property>
-     <property name="singleStep">
-      <double>0.500000000000000</double>
+   <item row="0" column="3">
+    <widget class="QgsPropertyOverrideButton" name="mAngleDDBtn">
+     <property name="text">
+      <string>…</string>
      </property>
     </widget>
    </item>
    <item row="1" column="0">
     <widget class="QLabel" name="mDistanceLabel">
      <property name="text">
-      <string>Distance</string>
+      <string>Spacing</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="1">
+   <item row="1" column="2">
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QDoubleSpinBox" name="mDistanceSpinBox">
+      <widget class="QgsDoubleSpinBox" name="mDistanceSpinBox">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
          <horstretch>1</horstretch>
@@ -78,10 +54,23 @@
        <property name="singleStep">
         <double>0.200000000000000</double>
        </property>
+       <property name="showClearButton" stdset="0">
+        <bool>false</bool>
+       </property>
       </widget>
      </item>
      <item>
-      <widget class="QgsUnitSelectionWidget" name="mDistanceUnitWidget" native="true"/>
+      <widget class="QgsUnitSelectionWidget" name="mDistanceUnitWidget" native="true">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>
@@ -92,10 +81,10 @@
      </property>
     </widget>
    </item>
-   <item row="2" column="1">
+   <item row="2" column="2">
     <layout class="QHBoxLayout" name="horizontalLayout_4">
      <item>
-      <widget class="QDoubleSpinBox" name="mOffsetSpinBox">
+      <widget class="QgsDoubleSpinBox" name="mOffsetSpinBox">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
          <horstretch>1</horstretch>
@@ -106,7 +95,7 @@
         <number>6</number>
        </property>
        <property name="minimum">
-        <double>-99.000000000000000</double>
+        <double>-999999999.000000000000000</double>
        </property>
        <property name="maximum">
         <double>999999999.000000000000000</double>
@@ -114,29 +103,75 @@
        <property name="singleStep">
         <double>0.200000000000000</double>
        </property>
+       <property name="showClearButton" stdset="0">
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
      <item>
-      <widget class="QgsUnitSelectionWidget" name="mOffsetUnitWidget" native="true"/>
+      <widget class="QgsUnitSelectionWidget" name="mOffsetUnitWidget" native="true">
+       <property name="focusPolicy">
+        <enum>Qt::StrongFocus</enum>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>
-   <item row="3" column="0" colspan="2">
-    <widget class="QPushButton" name="mDataDefinedPropertiesButton">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
+   <item row="1" column="3">
+    <widget class="QgsPropertyOverrideButton" name="mDistanceDDBtn">
      <property name="text">
-      <string>Data defined properties...</string>
+      <string>…</string>
      </property>
     </widget>
+   </item>
+   <item row="0" column="2">
+    <widget class="QgsDoubleSpinBox" name="mAngleSpinBox">
+     <property name="wrapping">
+      <bool>true</bool>
+     </property>
+     <property name="suffix">
+      <string> °</string>
+     </property>
+     <property name="minimum">
+      <double>-360.000000000000000</double>
+     </property>
+     <property name="maximum">
+      <double>360.000000000000000</double>
+     </property>
+     <property name="singleStep">
+      <double>0.500000000000000</double>
+     </property>
+     <property name="showClearButton" stdset="0">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="2">
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
    </item>
   </layout>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>QgsDoubleSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>qgsdoublespinbox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsPropertyOverrideButton</class>
+   <extends>QToolButton</extends>
+   <header>qgspropertyoverridebutton.h</header>
+  </customwidget>
   <customwidget>
    <class>QgsUnitSelectionWidget</class>
    <extends>QWidget</extends>
@@ -144,6 +179,15 @@
    <container>1</container>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>mAngleSpinBox</tabstop>
+  <tabstop>mAngleDDBtn</tabstop>
+  <tabstop>mDistanceSpinBox</tabstop>
+  <tabstop>mDistanceUnitWidget</tabstop>
+  <tabstop>mDistanceDDBtn</tabstop>
+  <tabstop>mOffsetSpinBox</tabstop>
+  <tabstop>mOffsetUnitWidget</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

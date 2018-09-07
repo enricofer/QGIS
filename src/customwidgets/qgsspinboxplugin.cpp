@@ -19,8 +19,8 @@
 
 
 QgsSpinBoxPlugin::QgsSpinBoxPlugin( QObject *parent )
-    : QObject( parent )
-    , mInitialized( false )
+  : QObject( parent )
+  , mInitialized( false )
 {
 }
 
@@ -42,7 +42,7 @@ QString QgsSpinBoxPlugin::includeFile() const
 
 QIcon QgsSpinBoxPlugin::icon() const
 {
-  return QIcon();
+  return QIcon( ":/images/icons/qgis-icon-60x60.png" );
 }
 
 bool QgsSpinBoxPlugin::isContainer() const

@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -17,30 +17,35 @@
 
 #include <QWidget>
 
-QgsHiddenWidgetWrapper::QgsHiddenWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
-    :  QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+QgsHiddenWidgetWrapper::QgsHiddenWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent )
+  : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
 {
 }
 
 
-QVariant QgsHiddenWidgetWrapper::value()
+QVariant QgsHiddenWidgetWrapper::value() const
 {
   return mValue;
 }
 
-QWidget* QgsHiddenWidgetWrapper::createWidget( QWidget* parent )
+QWidget *QgsHiddenWidgetWrapper::createWidget( QWidget *parent )
 {
-  QWidget* wdg = new QWidget( parent );
+  QWidget *wdg = new QWidget( parent );
   wdg->setVisible( false );
   return wdg;
 }
 
-void QgsHiddenWidgetWrapper::initWidget( QWidget* editor )
+void QgsHiddenWidgetWrapper::initWidget( QWidget *editor )
 {
   editor->setVisible( false );
 }
 
-void QgsHiddenWidgetWrapper::setValue( const QVariant& value )
+bool QgsHiddenWidgetWrapper::valid() const
+{
+  return true;
+}
+
+void QgsHiddenWidgetWrapper::setValue( const QVariant &value )
 {
   mValue = value;
 }

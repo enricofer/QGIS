@@ -13,8 +13,7 @@
 #
 # GDAL_INCLUDE_DIR      = where to find headers 
 
-
-INCLUDE (@CMAKE_SOURCE_DIR@/cmake/MacPlistMacros.cmake)
+INCLUDE (${CMAKE_SOURCE_DIR}/cmake/MacPlistMacros.cmake)
 
 IF(WIN32)
 
@@ -59,9 +58,13 @@ ELSE(WIN32)
           ENDIF (NOT GDAL_VERSION)
           STRING(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\1" GDAL_VERSION_MAJOR "${GDAL_VERSION}")
           STRING(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\2" GDAL_VERSION_MINOR "${GDAL_VERSION}")
-          IF (GDAL_VERSION_MAJOR LESS 1 OR (GDAL_VERSION EQUAL 1 AND GDAL_VERSION_MINOR LESS 4))
-            MESSAGE (FATAL_ERROR "GDAL version is too old (${GDAL_VERSION}). Use 1.4.0 or higher.")
-          ENDIF (GDAL_VERSION_MAJOR LESS 1 OR (GDAL_VERSION EQUAL 1 AND GDAL_VERSION_MINOR LESS 4))
+          IF (GDAL_VERSION_MAJOR LESS 2)
+            MESSAGE (FATAL_ERROR "GDAL version is too old (${GDAL_VERSION}). Use 2.1 or higher.")
+          ENDIF (GDAL_VERSION_MAJOR LESS 2)
+          IF ( (GDAL_VERSION_MAJOR EQUAL 2) AND (GDAL_VERSION_MINOR LESS 1) )
+            MESSAGE (FATAL_ERROR "GDAL version is too old (${GDAL_VERSION}). Use 2.1 or higher.")
+          ENDIF( (GDAL_VERSION_MAJOR EQUAL 2) AND (GDAL_VERSION_MINOR LESS 1) )
+
         ENDIF (GDAL_LIBRARY)
         SET (CMAKE_FIND_FRAMEWORK ${CMAKE_FIND_FRAMEWORK_save} CACHE STRING "" FORCE)
       ENDIF ()
@@ -98,10 +101,13 @@ ELSE(WIN32)
   
         # check for gdal version
         # version 1.2.5 is known NOT to be supported (missing CPL_STDCALL macro)
-        # According to INSTALL, 1.4.0+ is required
-        IF (GDAL_VERSION_MAJOR LESS 1 OR (GDAL_VERSION_MAJOR EQUAL 1 AND GDAL_VERSION_MINOR LESS 4))
-          MESSAGE (FATAL_ERROR "GDAL version is too old (${GDAL_VERSION}). Use 1.4.0 or higher.")
-        ENDIF (GDAL_VERSION_MAJOR LESS 1 OR (GDAL_VERSION_MAJOR EQUAL 1 AND GDAL_VERSION_MINOR LESS 4))
+        # According to INSTALL, 2.1+ is required
+        IF (GDAL_VERSION_MAJOR LESS 2)
+          MESSAGE (FATAL_ERROR "GDAL version is too old (${GDAL_VERSION}). Use 2.1 or higher.")
+        ENDIF (GDAL_VERSION_MAJOR LESS 2)
+        IF ( (GDAL_VERSION_MAJOR EQUAL 2) AND (GDAL_VERSION_MINOR LESS 1) )
+          MESSAGE (FATAL_ERROR "GDAL version is too old (${GDAL_VERSION}). Use 2.1 or higher.")
+        ENDIF( (GDAL_VERSION_MAJOR EQUAL 2) AND (GDAL_VERSION_MINOR LESS 1) )
 
         # set INCLUDE_DIR to prefix+include
         EXEC_PROGRAM(${GDAL_CONFIG}
@@ -158,7 +164,7 @@ ELSE(WIN32)
             SET(GDAL_LIBRARY ${GDAL_LINK_DIRECTORIES}/lib${GDAL_LIB_NAME}.dylib CACHE STRING INTERNAL FORCE)
           ENDIF (NOT GDAL_LIBRARY)
         ELSE (APPLE)
-          SET(GDAL_LIBRARY ${GDAL_LINK_DIRECTORIES}/lib${GDAL_LIB_NAME}.so CACHE STRING INTERNAL)
+          FIND_LIBRARY(GDAL_LIBRARY NAMES ${GDAL_LIB_NAME} PATHS ${GDAL_LINK_DIRECTORIES}/lib)
         ENDIF (APPLE)
       
       ELSE(GDAL_CONFIG)

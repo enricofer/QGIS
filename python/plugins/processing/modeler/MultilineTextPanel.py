@@ -25,27 +25,27 @@ __copyright__ = '(C) 2013, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-from PyQt4 import QtGui
+from qgis.PyQt.QtWidgets import QComboBox, QPlainTextEdit, QSizePolicy, QVBoxLayout, QWidget
 
 
-class MultilineTextPanel(QtGui.QWidget):
+class MultilineTextPanel(QWidget):
 
     USE_TEXT = 0
 
     def __init__(self, options, parent=None):
         super(MultilineTextPanel, self).__init__(parent)
         self.options = options
-        self.verticalLayout = QtGui.QVBoxLayout(self)
+        self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(2)
         self.verticalLayout.setMargin(0)
-        self.combo = QtGui.QComboBox()
+        self.combo = QComboBox()
         self.combo.addItem(self.tr('[Use text below]'))
         for option in options:
             self.combo.addItem(option[0], option[1])
-        self.combo.setSizePolicy(QtGui.QSizePolicy.Expanding,
-                                 QtGui.QSizePolicy.Expanding)
+        self.combo.setSizePolicy(QSizePolicy.Expanding,
+                                 QSizePolicy.Expanding)
         self.verticalLayout.addWidget(self.combo)
-        self.textBox = QtGui.QPlainTextEdit()
+        self.textBox = QPlainTextEdit()
         self.verticalLayout.addWidget(self.textBox)
         self.setLayout(self.verticalLayout)
 
@@ -57,9 +57,9 @@ class MultilineTextPanel(QtGui.QWidget):
 
     def getValue(self):
         if self.combo.currentIndex() == 0:
-            return unicode(self.textBox.toPlainText())
+            return str(self.textBox.toPlainText())
         else:
-            return self.combo.itemData(self.combo.currentIndex())
+            return self.combo.currentData()
 
     def setValue(self, value):
         items = [self.combo.itemData(i) for i in range(1, self.combo.count())]

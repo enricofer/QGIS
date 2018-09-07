@@ -29,21 +29,29 @@ import os
 import time
 import sys
 import uuid
+import math
 
-from PyQt4.QtCore import *
-
-from qgis.core import *
+from qgis.PyQt.QtCore import QDir
+from qgis.core import (QgsApplication,
+                       QgsProcessingUtils)
 
 numExported = 1
 
 
 def userFolder():
-    userDir = QFileInfo(QgsApplication.qgisUserDbFilePath()).path() \
-        + '/processing'
+    userDir = os.path.join(QgsApplication.qgisSettingsDirPath(), 'processing')
     if not QDir(userDir).exists():
         QDir().mkpath(userDir)
 
-    return unicode(QDir.toNativeSeparators(userDir))
+    return str(QDir.toNativeSeparators(userDir))
+
+
+def defaultOutputFolder():
+    folder = os.path.join(userFolder(), 'outputs')
+    if not QDir(folder).exists():
+        QDir().mkpath(folder)
+
+    return str(QDir.toNativeSeparators(folder))
 
 
 def isWindows():
@@ -54,43 +62,15 @@ def isMac():
     return sys.platform == 'darwin'
 
 
-def tempFolder():
-    tempDir = os.path.join(unicode(QDir.tempPath()), 'processing')
-    if not QDir(tempDir).exists():
-        QDir().mkpath(tempDir)
-
-    return unicode(os.path.abspath(tempDir))
-
-
-def setTempOutput(out, alg):
-    if hasattr(out, 'directory'):
-        out.value = getTempDirInTempFolder()
-    else:
-        ext = out.getDefaultFileExtension(alg)
-        out.value = getTempFilenameInTempFolder(out.name + '.' + ext)
-
-
-def getTempFilename(ext = None):
-    path = tempFolder()
+def getTempFilename(ext=None):
+    tmpPath = QgsProcessingUtils.tempFolder()
+    t = time.time()
+    m = math.floor(t)
+    uid = '{:8x}{:05x}'.format(m, int((t - m) * 1000000))
     if ext is None:
-        filename = path + os.sep + str(time.time()) \
-            + str(getNumExportedLayers())
+        filename = os.path.join(tmpPath, '{}{}'.format(uid, getNumExportedLayers()))
     else:
-        filename = path + os.sep + str(time.time()) \
-            + str(getNumExportedLayers()) + '.' + ext
-    return filename
-
-
-def getTempFilenameInTempFolder(basename):
-    """Returns a temporary filename for a given file, putting it into
-    a temp folder but not changing its basename.
-    """
-
-    path = tempFolder()
-    path = os.path.join(path, str(uuid.uuid4()).replace('-', ''))
-    mkdir(path)
-    basename = removeInvalidChars(basename)
-    filename = os.path.join(path, basename)
+        filename = os.path.join(tmpPath, '{}{}.{}'.format(uid, getNumExportedLayers(), ext))
     return filename
 
 
@@ -98,8 +78,8 @@ def getTempDirInTempFolder():
     """Returns a temporary directory, putting it into a temp folder.
     """
 
-    path = tempFolder()
-    path = os.path.join(path, str(uuid.uuid4()).replace('-', ''))
+    path = QgsProcessingUtils.tempFolder()
+    path = os.path.join(path, uuid.uuid4().hex)
     mkdir(path)
     return path
 
@@ -127,3 +107,23 @@ def mkdir(newdir):
             mkdir(head)
         if tail:
             os.mkdir(newdir)
+
+
+def tempHelpFolder():
+    tmp = os.path.join(str(QDir.tempPath()), 'processing_help')
+    if not QDir(tmp).exists():
+        QDir().mkpath(tmp)
+
+    return str(os.path.abspath(tmp))
+
+
+def escapeAndJoin(strList):
+    joined = ''
+    for s in strList:
+        if s[0] != '-' and ' ' in s:
+            escaped = '"' + s.replace('\\', '\\\\').replace('"', '\\"') \
+                + '"'
+        else:
+            escaped = s
+        joined += escaped + ' '
+    return joined.strip()

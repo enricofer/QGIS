@@ -25,61 +25,105 @@ __copyright__ = '(C) 2012, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
+import os
 
+from qgis.PyQt.QtGui import QIcon
+
+from qgis.core import (QgsRasterFileWriter,
+                       QgsProcessingException,
+                       QgsProcessingParameterRasterLayer,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterBoolean,
+                       QgsProcessingParameterRasterDestination)
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
-
-from processing.core.parameters import ParameterRaster
-from processing.core.parameters import ParameterSelection
-from processing.core.parameters import ParameterNumber
-from processing.core.outputs import OutputRaster
-
-from processing.tools.system import *
-
+from processing.tools.system import isWindows
 from processing.algs.gdal.GdalUtils import GdalUtils
+
+pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
 
 class sieve(GdalAlgorithm):
 
     INPUT = 'INPUT'
     THRESHOLD = 'THRESHOLD'
-    CONNECTIONS = 'CONNECTIONS'
+    EIGHT_CONNECTEDNESS = 'EIGHT_CONNECTEDNESS'
+    NO_MASK = 'NO_MASK'
+    MASK_LAYER = 'MASK_LAYER'
     OUTPUT = 'OUTPUT'
 
-    PIXEL_CONNECTIONS = ['4', '8']
+    def __init__(self):
+        super().__init__()
 
-    def defineCharacteristics(self):
-        self.name = 'Sieve'
-        self.group = '[GDAL] Analysis'
-        self.addParameter(ParameterRaster(self.INPUT, 'Input layer', False))
-        self.addParameter(ParameterNumber(self.THRESHOLD, 'Threshold', 0,
-                          9999, 2))
-        self.addParameter(ParameterSelection(self.CONNECTIONS,
-                          'Pixel connection', self.PIXEL_CONNECTIONS, 0))
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterRasterLayer(self.INPUT, self.tr('Input layer')))
+        self.addParameter(QgsProcessingParameterNumber(self.THRESHOLD,
+                                                       self.tr('Threshold'),
+                                                       type=QgsProcessingParameterNumber.Integer,
+                                                       minValue=0,
+                                                       defaultValue=10))
+        self.addParameter(QgsProcessingParameterBoolean(self.EIGHT_CONNECTEDNESS,
+                                                        self.tr('Use 8-connectedness'),
+                                                        defaultValue=False))
+        self.addParameter(QgsProcessingParameterBoolean(self.NO_MASK,
+                                                        self.tr('Do not use the default validity mask for the input band'),
+                                                        defaultValue=False))
+        self.addParameter(QgsProcessingParameterRasterLayer(self.MASK_LAYER,
+                                                            self.tr('Validity mask'),
+                                                            optional=True))
 
-        self.addOutput(OutputRaster(self.OUTPUT, 'Output layer'))
+        self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT, self.tr('Sieved')))
 
-    def processAlgorithm(self, progress):
-        output = self.getOutputValue(self.OUTPUT)
+    def name(self):
+        return 'sieve'
 
+    def displayName(self):
+        return self.tr('Sieve')
+
+    def group(self):
+        return self.tr('Raster analysis')
+
+    def groupId(self):
+        return 'rasteranalysis'
+
+    def icon(self):
+        return QIcon(os.path.join(pluginPath, 'images', 'gdaltools', 'sieve.png'))
+
+    def commandName(self):
+        return 'gdal_sieve'
+
+    def getConsoleCommands(self, parameters, context, feedback, executing=True):
         arguments = []
         arguments.append('-st')
-        arguments.append(str(self.getParameterValue(self.THRESHOLD)))
+        arguments.append(str(self.parameterAsInt(parameters, self.THRESHOLD, context)))
 
-        arguments.append('-' +
-                self.PIXEL_CONNECTIONS[self.getParameterValue(
-                        self.CONNECTIONS)])
+        if self.parameterAsBool(parameters, self.EIGHT_CONNECTEDNESS, context):
+            arguments.append('-8')
+        else:
+            arguments.append('-4')
 
+        if self.parameterAsBool(parameters, self.NO_MASK, context):
+            arguments.append('-nomask')
+
+        mask = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if mask:
+            arguments.append('-mask {}'.format(mask.source()))
+
+        out = self.parameterAsOutputLayer(parameters, self.OUTPUT, context)
         arguments.append('-of')
-        arguments.append(GdalUtils.getFormatShortNameFromFilename(output))
+        arguments.append(QgsRasterFileWriter.driverForExtension(os.path.splitext(out)[1]))
 
-        arguments.append(self.getParameterValue(self.INPUT))
-        arguments.append(output)
+        raster = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if raster is None:
+            raise QgsProcessingException(self.invalidRasterError(parameters, self.INPUT))
+
+        arguments.append(raster.source())
+        arguments.append(out)
 
         commands = []
         if isWindows():
-            commands = ['cmd.exe', '/C ', 'gdal_sieve.bat',
+            commands = ['cmd.exe', '/C ', self.commandName() + '.bat',
                         GdalUtils.escapeAndJoin(arguments)]
         else:
-            commands = ['gdal_sieve.py', GdalUtils.escapeAndJoin(arguments)]
+            commands = [self.commandName() + '.py', GdalUtils.escapeAndJoin(arguments)]
 
-        GdalUtils.runGdal(commands, progress)
+        return commands

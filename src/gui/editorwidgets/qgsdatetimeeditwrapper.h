@@ -19,10 +19,14 @@
 #include <QDateTimeEdit>
 
 #include "qgseditorwidgetwrapper.h"
-#include "qgsdatetimeedit.h"
-#include "qgsdatetimeeditfactory.h"
+#include "qgis_gui.h"
+
+SIP_NO_FILE
+
+class QgsDateTimeEdit;
 
 /**
+ * \ingroup gui
  * Wraps a date time widget. Users will be able to choose date and time from an appropriate dialog.
  *
  * Options:
@@ -32,32 +36,34 @@
  * <li><b>allow_null</b> <i>If True, will allow NULL values. Requires QgsDateTimeEdit as widget (Be aware if you work with .ui files).</i></li>
  * <li><b>field_format</b> <i>The format used to save the date/time.</i></li>
  * </ul>
- *
+ * \note not available in Python bindings
  */
 
 class GUI_EXPORT QgsDateTimeEditWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsDateTimeEditWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent = 0 );
+    explicit QgsDateTimeEditWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent = nullptr );
 
   private slots:
     void dateTimeChanged( const QDateTime &dateTime );
 
   private:
-    QDateTimeEdit* mQDateTimeEdit;
-    QgsDateTimeEdit* mQgsDateTimeEdit;
+    QDateTimeEdit *mQDateTimeEdit = nullptr;
+    QgsDateTimeEdit *mQgsDateTimeEdit = nullptr;
 
 
     // QgsEditorWidgetWrapper interface
   public:
-    QVariant value();
-    QWidget *createWidget( QWidget *parent );
-    void initWidget( QWidget *editor );
+    QVariant value() const override;
+    QWidget *createWidget( QWidget *parent ) override;
+    void initWidget( QWidget *editor ) override;
+    bool valid() const override;
+    void showIndeterminateState() override;
 
   public slots:
-    void setValue( const QVariant &value );
-    void setEnabled( bool enabled );
+    void setValue( const QVariant &value ) override;
+    void setEnabled( bool enabled ) override;
 };
 
 #endif // QGSDATETIMEEDITWRAPPER_H

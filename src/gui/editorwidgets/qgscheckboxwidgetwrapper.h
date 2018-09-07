@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -20,8 +20,12 @@
 
 #include <QCheckBox>
 #include <QGroupBox>
+#include "qgis_gui.h"
+
+SIP_NO_FILE
 
 /**
+ * \ingroup gui
  * Wraps a checkbox widget. This will offer a checkbox to represent boolean values.
  *
  * Options:
@@ -30,28 +34,32 @@
  * <li><b>UncheckedState</b> <i>The value used to represent "False" in the data.</i></li>
  * </ul>
  *
+ * \note not available in Python bindings
  */
 
 class GUI_EXPORT QgsCheckboxWidgetWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-    explicit QgsCheckboxWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor = 0, QWidget* parent = 0 );
+    explicit QgsCheckboxWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor = nullptr, QWidget *parent = nullptr );
 
     // QgsEditorWidgetWrapper interface
   public:
-    QVariant value();
+    QVariant value() const override;
+
+    void showIndeterminateState() override;
 
   protected:
-    QWidget* createWidget( QWidget* parent );
-    void initWidget( QWidget* editor );
+    QWidget *createWidget( QWidget *parent ) override;
+    void initWidget( QWidget *editor ) override;
+    bool valid() const override;
 
   public slots:
-    void setValue( const QVariant& value );
+    void setValue( const QVariant &value ) override;
 
   private:
-    QCheckBox* mCheckBox;
-    QGroupBox* mGroupBox;
+    QCheckBox *mCheckBox = nullptr;
+    QGroupBox *mGroupBox = nullptr;
 };
 
 #endif // QGSCHECKBOXWIDGETWRAPPER_H

@@ -19,8 +19,8 @@
 
 
 QgsFieldComboBoxPlugin::QgsFieldComboBoxPlugin( QObject *parent )
-    : QObject( parent )
-    , mInitialized( false )
+  : QObject( parent )
+  , mInitialized( false )
 {
 }
 
@@ -42,7 +42,7 @@ QString QgsFieldComboBoxPlugin::includeFile() const
 
 QIcon QgsFieldComboBoxPlugin::icon() const
 {
-  return QIcon();
+  return QIcon( ":/images/icons/qgis-icon-60x60.png" );
 }
 
 bool QgsFieldComboBoxPlugin::isContainer() const
@@ -76,7 +76,7 @@ QString QgsFieldComboBoxPlugin::toolTip() const
 
 QString QgsFieldComboBoxPlugin::whatsThis() const
 {
-  return tr( "A combo box to list the field of a layer." );
+  return tr( "A combo box to list the fields of a layer." );
 }
 
 QString QgsFieldComboBoxPlugin::domXml() const

@@ -25,61 +25,78 @@ __copyright__ = '(C) 2013, Victor Olaya'
 
 __revision__ = '$Format:%H$'
 
-import matplotlib.pyplot as plt
-import matplotlib.pylab as lab
-import numpy as np
-from PyQt4.QtCore import *
-from qgis.core import *
+import plotly as plt
+import plotly.graph_objs as go
 
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterTable
-from processing.core.parameters import ParameterTableField
-from processing.core.outputs import OutputHTML
-from processing.tools import *
+from qgis.core import (QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterField,
+                       QgsProcessingUtils,
+                       QgsProcessingException,
+                       QgsProcessingParameterFileDestination)
+from processing.algs.qgis.QgisAlgorithm import QgisAlgorithm
+
+from processing.tools import vector
 
 
-class MeanAndStdDevPlot(GeoAlgorithm):
+class MeanAndStdDevPlot(QgisAlgorithm):
 
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
     NAME_FIELD = 'NAME_FIELD'
-    MEAN_FIELD = 'MEAN_FIELD'
-    STDDEV_FIELD = 'STDDEV_FIELD'
+    VALUE_FIELD = 'VALUE_FIELD'
 
-    def processAlgorithm(self, progress):
-        uri = self.getParameterValue(self.INPUT)
-        layer = dataobjects.getObjectFromUri(uri)
-        namefieldname = self.getParameterValue(self.NAME_FIELD)
-        meanfieldname = self.getParameterValue(self.MEAN_FIELD)
-        stddevfieldname = self.getParameterValue(self.STDDEV_FIELD)
-        output = self.getOutputValue(self.OUTPUT)
-        values = vector.getAttributeValues(layer, namefieldname,
-                meanfieldname, stddevfieldname)
-        plt.close()
+    def group(self):
+        return self.tr('Graphics')
 
-        ind = np.arange(len(values[namefieldname]))
-        width = 0.8
-        plt.bar(ind, values[meanfieldname], width, color='r',
-                yerr=values[stddevfieldname],
-                error_kw=dict(ecolor='yellow'),
-               )
+    def groupId(self):
+        return 'graphics'
 
-        plt.xticks(ind, values[namefieldname], rotation=45)
-        plotFilename = output + '.png'
-        lab.savefig(plotFilename)
-        f = open(output, 'w')
-        f.write('<img src="' + plotFilename + '"/>')
-        f.close()
+    def __init__(self):
+        super().__init__()
 
-    def defineCharacteristics(self):
-        self.name = 'Mean and standard deviation plot'
-        self.group = 'Graphics'
-        self.addParameter(ParameterTable(self.INPUT, 'Input table'))
-        self.addParameter(ParameterTableField(self.NAME_FIELD,
-                          'Category name field', self.INPUT,
-                          ParameterTableField.DATA_TYPE_ANY))
-        self.addParameter(ParameterTableField(self.MEAN_FIELD, 'Mean field',
-                          self.INPUT))
-        self.addParameter(ParameterTableField(self.STDDEV_FIELD, 'StdDev field'
-                          , self.INPUT))
-        self.addOutput(OutputHTML(self.OUTPUT, 'Output'))
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,
+                                                              self.tr('Input table')))
+        self.addParameter(QgsProcessingParameterField(self.NAME_FIELD,
+                                                      self.tr('Category name field'), parentLayerParameterName=self.INPUT,
+                                                      type=QgsProcessingParameterField.Any))
+        self.addParameter(QgsProcessingParameterField(self.VALUE_FIELD,
+                                                      self.tr('Value field'), parentLayerParameterName=self.INPUT))
+
+        self.addParameter(QgsProcessingParameterFileDestination(self.OUTPUT, self.tr('Plot'), self.tr('HTML files (*.html)')))
+
+    def name(self):
+        return 'meanandstandarddeviationplot'
+
+    def displayName(self):
+        return self.tr('Mean and standard deviation plot')
+
+    def processAlgorithm(self, parameters, context, feedback):
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT))
+
+        namefieldname = self.parameterAsString(parameters, self.NAME_FIELD, context)
+        valuefieldname = self.parameterAsString(parameters, self.VALUE_FIELD, context)
+
+        output = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
+
+        values = vector.values(source, namefieldname, valuefieldname)
+
+        d = {}
+        for i in range(len(values[namefieldname])):
+            v = values[namefieldname][i]
+            if v not in d:
+                d[v] = [values[valuefieldname][i]]
+            else:
+                d[v].append(values[valuefieldname][i])
+
+        data = []
+        for k, v in d.items():
+            data.append(go.Box(y=list(v),
+                               boxmean='sd',
+                               name=k
+                               ))
+        plt.offline.plot(data, filename=output, auto_open=False)
+
+        return {self.OUTPUT: output}

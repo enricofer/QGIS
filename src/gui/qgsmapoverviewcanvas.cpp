@@ -18,7 +18,7 @@
 
 #include "qgsmapcanvas.h"
 #include "qgsmaplayer.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 #include "qgsmapoverviewcanvas.h"
 #include "qgsmaprenderersequentialjob.h"
 #include "qgsmaptopixel.h"
@@ -28,65 +28,27 @@
 #include <QResizeEvent>
 #include <QMouseEvent>
 #include "qgslogger.h"
-#include <limits.h>
+#include <limits>
 
-//! widget that serves as rectangle showing current extent in overview
-class QgsPanningWidget : public QWidget
+
+QgsMapOverviewCanvas::QgsMapOverviewCanvas( QWidget *parent, QgsMapCanvas *mapCanvas )
+  : QWidget( parent )
+  , mMapCanvas( mapCanvas )
+
 {
-  public:
-    QgsPanningWidget( QWidget* parent )
-        : QWidget( parent )
-    {
-      setObjectName( "panningWidget" );
-      setMinimumSize( 5, 5 );
-      setAttribute( Qt::WA_NoSystemBackground );
-    }
-
-    void resizeEvent( QResizeEvent* r )
-    {
-      QSize s = r->size();
-      QRegion reg( 0, 0, s.width(), s.height() );
-      QRegion reg2( 2, 2, s.width() - 4, s.height() - 4 );
-      QRegion reg3 = reg.subtracted( reg2 );
-      setMask( reg3 );
-    }
-
-
-    void paintEvent( QPaintEvent* pe )
-    {
-      Q_UNUSED( pe );
-
-      QRect r( QPoint( 0, 0 ), size() );
-      QPainter p;
-      p.begin( this );
-      p.setPen( Qt::red );
-      p.setBrush( Qt::red );
-      p.drawRect( r );
-      p.end();
-    }
-
-};
-
-
-
-QgsMapOverviewCanvas::QgsMapOverviewCanvas( QWidget * parent, QgsMapCanvas* mapCanvas )
-    : QWidget( parent )
-    , mMapCanvas( mapCanvas )
-    , mJob( 0 )
-{
-  setObjectName( "theOverviewCanvas" );
+  setAutoFillBackground( true );
+  setObjectName( QStringLiteral( "theOverviewCanvas" ) );
   mPanningWidget = new QgsPanningWidget( this );
 
+  mSettings.setTransformContext( mMapCanvas->mapSettings().transformContext() );
   mSettings.setFlag( QgsMapSettings::DrawLabeling, false );
 
-  connect( mMapCanvas, SIGNAL( extentsChanged() ), this, SLOT( drawExtentRect() ) );
+  connect( mMapCanvas, &QgsMapCanvas::extentsChanged, this, &QgsMapOverviewCanvas::drawExtentRect );
+  connect( mMapCanvas, &QgsMapCanvas::destinationCrsChanged, this, &QgsMapOverviewCanvas::destinationCrsChanged );
+  connect( mMapCanvas, &QgsMapCanvas::transformContextChanged, this, &QgsMapOverviewCanvas::transformContextChanged );
 }
 
-QgsMapOverviewCanvas::~QgsMapOverviewCanvas()
-{
-}
-
-void QgsMapOverviewCanvas::resizeEvent( QResizeEvent* e )
+void QgsMapOverviewCanvas::resizeEvent( QResizeEvent *e )
 {
   mPixmap = QPixmap();
 
@@ -99,7 +61,13 @@ void QgsMapOverviewCanvas::resizeEvent( QResizeEvent* e )
   QWidget::resizeEvent( e );
 }
 
-void QgsMapOverviewCanvas::paintEvent( QPaintEvent* pe )
+void QgsMapOverviewCanvas::showEvent( QShowEvent *e )
+{
+  refresh();
+  QWidget::showEvent( e );
+}
+
+void QgsMapOverviewCanvas::paintEvent( QPaintEvent *pe )
 {
   if ( !mPixmap.isNull() )
   {
@@ -113,7 +81,7 @@ void QgsMapOverviewCanvas::drawExtentRect()
 {
   if ( !mMapCanvas ) return;
 
-  const QgsRectangle& extent = mMapCanvas->extent();
+  const QgsRectangle &extent = mMapCanvas->extent();
 
   // show only when valid extent is set
   if ( extent.isEmpty() || mSettings.visibleExtent().isEmpty() )
@@ -122,75 +90,19 @@ void QgsMapOverviewCanvas::drawExtentRect()
     return;
   }
 
-  const QgsMapToPixel& cXf = mSettings.mapToPixel();
-  QgsPoint ll( extent.xMinimum(), extent.yMinimum() );
-  QgsPoint ur( extent.xMaximum(), extent.yMaximum() );
-
-  // transform the points before drawing
-  cXf.transform( &ll );
-  cXf.transform( &ur );
-
-#if 0
-  // test whether panning widget should be drawn
-  bool show = false;
-  if ( ur.x() >= 0 && ur.x() < width() )
-    show = true;
-  if ( ll.x() >= 0 && ll.x() < width() )
-    show = true;
-  if ( ur.y() >= 0 && ur.y() < height() )
-    show = true;
-  if ( ll.y() >= 0 && ll.y() < height() )
-    show = true;
-  if ( !show )
-  {
-    QgsDebugMsg( "panning: extent out of overview area" );
-    mPanningWidget->hide();
-    return;
-  }
-#endif
-
-  // round values
-  int x1 = static_cast<int>( ur.x() + 0.5 ), x2 = static_cast<int>( ll.x() + 0.5 );
-  int y1 = static_cast<int>( ur.y() + 0.5 ), y2 = static_cast<int>( ll.y() + 0.5 );
-
-  if ( x1 > x2 )
-    std::swap( x1, x2 );
-  if ( y1 > y2 )
-    std::swap( y1, y2 );
-
-#ifdef Q_WS_MAC
-  // setGeometry (Qt 4.2) is causing Mac window corruption (decorations
-  // are drawn at odd locations) if both coords are at limit. This may
-  // have something to do with Qt calculating dimensions as x2 - x1 + 1.
-  // (INT_MAX - INT_MIN + 1 is UINT_MAX + 1)
-  if ( x1 == INT_MIN && x2 == INT_MAX )
-    x1 += 1;  // x2 -= 1 works too
-  if ( y1 == INT_MIN && y2 == INT_MAX )
-    y1 += 1;
-#endif
-
-  QRect r( x1, y1, x2 - x1 + 1, y2 - y1 + 1 );
-
-  // allow for 5 pixel minimum widget size
-  if ( r.width() < 5 && x1 > INT_MIN + 2 ) // make sure no underflow occurs (2 is largest adjustment)
-  {
-    r.setX( r.x() - (( 5 - r.width() ) / 2 ) );  // adjust x  by 1/2 the difference of calculated and min. width
-    r.setWidth( 5 );
-  }
-  if ( r.height() < 5 && y1 > INT_MIN + 2 )
-  {
-    r.setY( r.y() - (( 5 - r.height() ) / 2 ) );  // adjust y
-    r.setHeight( 5 );
-  }
-
-  QgsDebugMsg( QString( "panning: extent to widget: [%1,%2] [%3x%4]" ).arg( x1 ).arg( y1 ).arg( r.width() ).arg( r.height() ) );
-
-  mPanningWidget->setGeometry( r );
+  const QPolygonF &vPoly = mMapCanvas->mapSettings().visiblePolygon();
+  const QgsMapToPixel &cXf = mSettings.mapToPixel();
+  QVector< QPoint > pts;
+  pts.push_back( cXf.transform( QgsPointXY( vPoly[0] ) ).toQPointF().toPoint() );
+  pts.push_back( cXf.transform( QgsPointXY( vPoly[1] ) ).toQPointF().toPoint() );
+  pts.push_back( cXf.transform( QgsPointXY( vPoly[2] ) ).toQPointF().toPoint() );
+  pts.push_back( cXf.transform( QgsPointXY( vPoly[3] ) ).toQPointF().toPoint() );
+  mPanningWidget->setPolygon( QPolygon( pts ) );
   mPanningWidget->show(); // show if hidden
 }
 
 
-void QgsMapOverviewCanvas::mousePressEvent( QMouseEvent * e )
+void QgsMapOverviewCanvas::mousePressEvent( QMouseEvent *e )
 {
 //  if (mPanningWidget->isHidden())
 //    return;
@@ -211,7 +123,7 @@ void QgsMapOverviewCanvas::mousePressEvent( QMouseEvent * e )
 }
 
 
-void QgsMapOverviewCanvas::mouseReleaseEvent( QMouseEvent * e )
+void QgsMapOverviewCanvas::mouseReleaseEvent( QMouseEvent *e )
 {
 //  if (mPanningWidget->isHidden())
 //    return;
@@ -219,36 +131,27 @@ void QgsMapOverviewCanvas::mouseReleaseEvent( QMouseEvent * e )
   if ( e->button() == Qt::LeftButton )
   {
     // set new extent
-    const QgsMapToPixel& cXf = mSettings.mapToPixel();
+    const QgsMapToPixel &cXf = mSettings.mapToPixel();
     QRect rect = mPanningWidget->geometry();
 
-    QgsPoint center = cXf.toMapCoordinates( rect.center() );
-    QgsRectangle oldExtent = mMapCanvas->extent();
-    QgsRectangle ext;
-    ext.setXMinimum( center.x() - oldExtent.width() / 2 );
-    ext.setXMaximum( center.x() + oldExtent.width() / 2 );
-    ext.setYMinimum( center.y() - oldExtent.height() / 2 );
-    ext.setYMaximum( center.y() + oldExtent.height() / 2 );
-
-    QgsDebugMsg( QString( "panning: new position: [%1,%2] [%3x%4]" ).arg( rect.left() ).arg( rect.top() ).arg( rect.width() ).arg( rect.height() ) );
-
-    mMapCanvas->setExtent( ext );
+    QgsPointXY center = cXf.toMapCoordinates( rect.center() );
+    mMapCanvas->setCenter( center );
     mMapCanvas->refresh();
   }
 }
 
 
-void QgsMapOverviewCanvas::mouseMoveEvent( QMouseEvent * e )
+void QgsMapOverviewCanvas::mouseMoveEvent( QMouseEvent *e )
 {
   // move with panning widget if tracking cursor
-  if (( e->buttons() & Qt::LeftButton ) == Qt::LeftButton )
+  if ( ( e->buttons() & Qt::LeftButton ) == Qt::LeftButton )
   {
     updatePanningWidget( e->pos() );
   }
 }
 
 
-void QgsMapOverviewCanvas::updatePanningWidget( const QPoint& pos )
+void QgsMapOverviewCanvas::updatePanningWidget( QPoint pos )
 {
 //  if (mPanningWidget->isHidden())
 //    return;
@@ -257,6 +160,9 @@ void QgsMapOverviewCanvas::updatePanningWidget( const QPoint& pos )
 
 void QgsMapOverviewCanvas::refresh()
 {
+  if ( !isVisible() )
+    return;
+
   updateFullExtent();
 
   if ( !mSettings.hasValidSettings() )
@@ -268,7 +174,7 @@ void QgsMapOverviewCanvas::refresh()
 
   if ( mJob )
   {
-    QgsDebugMsg( "oveview - cancelling old" );
+    QgsDebugMsg( "oveview - canceling old" );
     mJob->cancel();
     QgsDebugMsg( "oveview - deleting old" );
     delete mJob; // get rid of previous job (if any)
@@ -278,7 +184,7 @@ void QgsMapOverviewCanvas::refresh()
 
   // TODO: setup overview mode
   mJob = new QgsMapRendererSequentialJob( mSettings );
-  connect( mJob, SIGNAL( finished() ), this, SLOT( mapRenderingFinished() ) );
+  connect( mJob, &QgsMapRendererJob::finished, this, &QgsMapOverviewCanvas::mapRenderingFinished );
   mJob->start();
 
   setBackgroundColor( mMapCanvas->mapSettings().backgroundColor() );
@@ -296,19 +202,20 @@ void QgsMapOverviewCanvas::mapRenderingFinished()
   mPixmap = QPixmap::fromImage( mJob->renderedImage() );
 
   delete mJob;
-  mJob = 0;
+  mJob = nullptr;
 
   // schedule repaint
   update();
 }
 
-void QgsMapOverviewCanvas::layerRepaintRequested()
+void QgsMapOverviewCanvas::layerRepaintRequested( bool deferred )
 {
-  refresh();
+  if ( !deferred )
+    refresh();
 }
 
 
-void QgsMapOverviewCanvas::setBackgroundColor( const QColor& color )
+void QgsMapOverviewCanvas::setBackgroundColor( const QColor &color )
 {
   mSettings.setBackgroundColor( color );
 
@@ -318,25 +225,23 @@ void QgsMapOverviewCanvas::setBackgroundColor( const QColor& color )
   setPalette( palette );
 }
 
-void QgsMapOverviewCanvas::setLayerSet( const QStringList& layerSet )
+void QgsMapOverviewCanvas::setLayers( const QList<QgsMapLayer *> &layers )
 {
-  QgsDebugMsg( "layerSet: " + layerSet.join( ", " ) );
-
-  foreach ( const QString& layerID, mSettings.layers() )
+  Q_FOREACH ( QgsMapLayer *ml, mSettings.layers() )
   {
-    if ( QgsMapLayer* ml = QgsMapLayerRegistry::instance()->mapLayer( layerID ) )
-      disconnect( ml, SIGNAL( repaintRequested() ), this, SLOT( layerRepaintRequested() ) );
+    disconnect( ml, &QgsMapLayer::repaintRequested, this, &QgsMapOverviewCanvas::layerRepaintRequested );
   }
 
-  mSettings.setLayers( layerSet );
+  mSettings.setLayers( layers );
 
-  foreach ( const QString& layerID, mSettings.layers() )
+  Q_FOREACH ( QgsMapLayer *ml, mSettings.layers() )
   {
-    if ( QgsMapLayer* ml = QgsMapLayerRegistry::instance()->mapLayer( layerID ) )
-      connect( ml, SIGNAL( repaintRequested() ), this, SLOT( layerRepaintRequested() ) );
+    connect( ml, &QgsMapLayer::repaintRequested, this, &QgsMapOverviewCanvas::layerRepaintRequested );
   }
 
   updateFullExtent();
+
+  refresh();
 }
 
 void QgsMapOverviewCanvas::updateFullExtent()
@@ -354,17 +259,63 @@ void QgsMapOverviewCanvas::updateFullExtent()
   drawExtentRect();
 }
 
-void QgsMapOverviewCanvas::hasCrsTransformEnabled( bool flag )
-{
-  mSettings.setCrsTransformEnabled( flag );
-}
-
-void QgsMapOverviewCanvas::destinationSrsChanged()
+void QgsMapOverviewCanvas::destinationCrsChanged()
 {
   mSettings.setDestinationCrs( mMapCanvas->mapSettings().destinationCrs() );
 }
 
-QStringList QgsMapOverviewCanvas::layerSet() const
+void QgsMapOverviewCanvas::transformContextChanged()
+{
+  mSettings.setTransformContext( mMapCanvas->mapSettings().transformContext() );
+}
+
+QList<QgsMapLayer *> QgsMapOverviewCanvas::layers() const
 {
   return mSettings.layers();
 }
+
+
+/// @cond PRIVATE
+
+QgsPanningWidget::QgsPanningWidget( QWidget *parent )
+  : QWidget( parent )
+{
+  setObjectName( QStringLiteral( "panningWidget" ) );
+  setMinimumSize( 5, 5 );
+  setAttribute( Qt::WA_NoSystemBackground );
+}
+
+void QgsPanningWidget::setPolygon( const QPolygon &p )
+{
+  if ( p == mPoly ) return;
+  mPoly = p;
+
+  //ensure polygon is closed
+  if ( mPoly.at( 0 ) != mPoly.at( mPoly.length() - 1 ) )
+    mPoly.append( mPoly.at( 0 ) );
+
+  setGeometry( p.boundingRect() );
+  update();
+}
+
+void QgsPanningWidget::paintEvent( QPaintEvent *pe )
+{
+  Q_UNUSED( pe );
+
+  QPainter p;
+  p.begin( this );
+  p.setPen( Qt::red );
+  QPolygonF t = mPoly.translated( -mPoly.boundingRect().left(), -mPoly.boundingRect().top() );
+
+  // drawPolygon causes issues on windows - corners of path may be missing resulting in triangles being drawn
+  // instead of rectangles! (Same cause as #13343)
+  QPainterPath path;
+  path.addPolygon( t );
+  p.drawPath( path );
+
+  p.end();
+}
+
+
+
+///@endcond

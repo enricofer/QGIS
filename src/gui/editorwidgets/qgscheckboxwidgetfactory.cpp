@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -14,44 +14,40 @@
  ***************************************************************************/
 
 #include "qgscheckboxwidgetfactory.h"
-
+#include "qgscheckboxsearchwidgetwrapper.h"
 #include "qgscheckboxwidgetwrapper.h"
 #include "qgscheckboxconfigdlg.h"
 
-QgsCheckboxWidgetFactory::QgsCheckboxWidgetFactory( const QString& name ) :
-    QgsEditorWidgetFactory( name )
+QgsCheckboxWidgetFactory::QgsCheckboxWidgetFactory( const QString &name )
+  : QgsEditorWidgetFactory( name )
 {
 }
 
-QgsEditorWidgetWrapper* QgsCheckboxWidgetFactory::create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent ) const
+QgsEditorWidgetWrapper *QgsCheckboxWidgetFactory::create( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent ) const
 {
   return new QgsCheckboxWidgetWrapper( vl, fieldIdx, editor, parent );
 }
 
-QgsEditorConfigWidget* QgsCheckboxWidgetFactory::configWidget( QgsVectorLayer* vl, int fieldIdx, QWidget* parent ) const
+QgsSearchWidgetWrapper *QgsCheckboxWidgetFactory::createSearchWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
+{
+  return new QgsCheckboxSearchWidgetWrapper( vl, fieldIdx, parent );
+}
+
+QgsEditorConfigWidget *QgsCheckboxWidgetFactory::configWidget( QgsVectorLayer *vl, int fieldIdx, QWidget *parent ) const
 {
   return new QgsCheckBoxConfigDlg( vl, fieldIdx, parent );
 }
 
-QgsEditorWidgetConfig QgsCheckboxWidgetFactory::readConfig( const QDomElement& configElement, QgsVectorLayer* layer, int fieldIdx )
+QHash<const char *, int> QgsCheckboxWidgetFactory::supportedWidgetTypes()
 {
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  QgsEditorWidgetConfig cfg;
-
-  cfg.insert( "CheckedState", configElement.attribute( "CheckedState" ) );
-  cfg.insert( "UncheckedState", configElement.attribute( "UncheckedState" ) );
-
-  return cfg;
+  QHash<const char *, int> map = QHash<const char *, int>();
+  map.insert( QCheckBox::staticMetaObject.className(), 10 );
+  map.insert( QGroupBox::staticMetaObject.className(), 10 );
+  return map;
 }
 
-void QgsCheckboxWidgetFactory::writeConfig( const QgsEditorWidgetConfig& config, QDomElement& configElement, QDomDocument& doc, const QgsVectorLayer* layer, int fieldIdx )
+unsigned int QgsCheckboxWidgetFactory::fieldScore( const QgsVectorLayer *vl, int fieldIdx ) const
 {
-  Q_UNUSED( doc )
-  Q_UNUSED( layer )
-  Q_UNUSED( fieldIdx )
-
-  configElement.setAttribute( "CheckedState", config.value( "CheckedState", "1" ).toString() );
-  configElement.setAttribute( "UncheckedState", config.value( "UncheckedState", "0" ).toString() );
+  const QVariant::Type type = vl->fields().field( fieldIdx ).type();
+  return type == QVariant::Bool ? 20 : 5;
 }

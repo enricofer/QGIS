@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 5.1.2014
     Copyright            : (C) 2014 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -14,48 +14,69 @@
  ***************************************************************************/
 
 #include "qgsvaluemapwidgetwrapper.h"
+#include "qgsvaluemapconfigdlg.h"
+#include "qgsvaluemapfieldformatter.h"
 
-QgsValueMapWidgetWrapper::QgsValueMapWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
-    :  QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+#include <QSettings>
+
+QgsValueMapWidgetWrapper::QgsValueMapWidgetWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent )
+  : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+
 {
 }
 
 
-QVariant QgsValueMapWidgetWrapper::value()
+QVariant QgsValueMapWidgetWrapper::value() const
 {
   QVariant v;
 
   if ( mComboBox )
-    v = mComboBox->itemData( mComboBox->currentIndex() );
+    v = mComboBox->currentData();
+
+  if ( v == QgsValueMapFieldFormatter::NULL_VALUE )
+    v = QVariant( field().type() );
 
   return v;
 }
 
-QWidget* QgsValueMapWidgetWrapper::createWidget( QWidget* parent )
+void QgsValueMapWidgetWrapper::showIndeterminateState()
+{
+  if ( mComboBox )
+  {
+    whileBlocking( mComboBox )->setCurrentIndex( -1 );
+  }
+}
+
+QWidget *QgsValueMapWidgetWrapper::createWidget( QWidget *parent )
 {
   return new QComboBox( parent );
 }
 
-void QgsValueMapWidgetWrapper::initWidget( QWidget* editor )
+void QgsValueMapWidgetWrapper::initWidget( QWidget *editor )
 {
-  mComboBox = qobject_cast<QComboBox*>( editor );
+  mComboBox = qobject_cast<QComboBox *>( editor );
 
   if ( mComboBox )
   {
-    const QgsEditorWidgetConfig cfg = config();
-    QgsEditorWidgetConfig::ConstIterator it = cfg.constBegin();
-
-    while ( it != cfg.constEnd() )
-    {
-      mComboBox->addItem( it.key(), it.value() );
-      ++it;
-    }
-    connect( mComboBox, SIGNAL( currentIndexChanged( int ) ), this, SLOT( valueChanged() ) );
+    QgsValueMapConfigDlg::populateComboBox( mComboBox, config(), false );
+    connect( mComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ),
+             this, static_cast<void ( QgsEditorWidgetWrapper::* )()>( &QgsEditorWidgetWrapper::emitValueChanged ) );
   }
 }
 
-void QgsValueMapWidgetWrapper::setValue( const QVariant& value )
+bool QgsValueMapWidgetWrapper::valid() const
 {
+  return mComboBox;
+}
+
+void QgsValueMapWidgetWrapper::setValue( const QVariant &value )
+{
+  QString v;
+  if ( value.isNull() )
+    v = QgsValueMapFieldFormatter::NULL_VALUE;
+  else
+    v = value.toString();
+
   if ( mComboBox )
-    mComboBox->setCurrentIndex( mComboBox->findData( value ) );
+    mComboBox->setCurrentIndex( mComboBox->findData( v ) );
 }

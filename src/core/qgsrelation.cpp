@@ -3,7 +3,7 @@
      --------------------------------------
     Date                 : 29.4.2013
     Copyright            : (C) 2013 Matthias Kuhn
-    Email                : matthias dot kuhn at gmx dot ch
+    Email                : matthias at opengis dot ch
  ***************************************************************************
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -16,39 +16,53 @@
 #include "qgsrelation.h"
 
 #include "qgsapplication.h"
+#include "qgsfeatureiterator.h"
 #include "qgslogger.h"
-#include "qgsmaplayerregistry.h"
+#include "qgsproject.h"
 #include "qgsvectorlayer.h"
+#include "qgsrelation_p.h"
 
 QgsRelation::QgsRelation()
-    : mReferencingLayer( NULL )
-    , mReferencedLayer( NULL )
-    , mValid( false )
+  : d( new QgsRelationPrivate() )
 {
 }
 
-QgsRelation QgsRelation::createFromXML( const QDomNode &node )
+QgsRelation::~QgsRelation() = default;
+
+QgsRelation::QgsRelation( const QgsRelation &other )
+  : d( other.d )
+{
+}
+
+QgsRelation &QgsRelation::operator=( const QgsRelation &other )
+{
+  d = other.d;
+  return *this;
+}
+
+QgsRelation QgsRelation::createFromXml( const QDomNode &node, QgsReadWriteContext &context )
 {
   QDomElement elem = node.toElement();
 
-  if ( elem.tagName() != "relation" )
+  if ( elem.tagName() != QLatin1String( "relation" ) )
   {
     QgsLogger::warning( QApplication::translate( "QgsRelation", "Cannot create relation. Unexpected tag '%1'" ).arg( elem.tagName() ) );
   }
 
   QgsRelation relation;
 
-  QString referencingLayerId = elem.attribute( "referencingLayer" );
-  QString referencedLayerId = elem.attribute( "referencedLayer" );
-  QString id = elem.attribute( "id" );
-  QString name = elem.attribute( "name" );
+  QString referencingLayerId = elem.attribute( QStringLiteral( "referencingLayer" ) );
+  QString referencedLayerId = elem.attribute( QStringLiteral( "referencedLayer" ) );
+  QString id = elem.attribute( QStringLiteral( "id" ) );
+  QString name = context.projectTranslator()->translate( QStringLiteral( "project:relations" ), elem.attribute( QStringLiteral( "name" ) ) );
+  QString strength = elem.attribute( QStringLiteral( "strength" ) );
 
-  const QMap<QString, QgsMapLayer*>& mapLayers = QgsMapLayerRegistry::instance()->mapLayers();
+  const QMap<QString, QgsMapLayer *> &mapLayers = QgsProject::instance()->mapLayers();
 
-  QgsMapLayer* referencingLayer = mapLayers[referencingLayerId];
-  QgsMapLayer* referencedLayer = mapLayers[referencedLayerId];;
+  QgsMapLayer *referencingLayer = mapLayers[referencingLayerId];
+  QgsMapLayer *referencedLayer = mapLayers[referencedLayerId];
 
-  if ( NULL == referencingLayer )
+  if ( !referencingLayer )
   {
     QgsLogger::warning( QApplication::translate( "QgsRelation", "Relation defined for layer '%1' which does not exist." ).arg( referencingLayerId ) );
   }
@@ -57,7 +71,7 @@ QgsRelation QgsRelation::createFromXML( const QDomNode &node )
     QgsLogger::warning( QApplication::translate( "QgsRelation", "Relation defined for layer '%1' which is not of type VectorLayer." ).arg( referencingLayerId ) );
   }
 
-  if ( NULL == referencedLayer )
+  if ( !referencedLayer )
   {
     QgsLogger::warning( QApplication::translate( "QgsRelation", "Relation defined for layer '%1' which does not exist." ).arg( referencedLayerId ) );
   }
@@ -66,20 +80,28 @@ QgsRelation QgsRelation::createFromXML( const QDomNode &node )
     QgsLogger::warning( QApplication::translate( "QgsRelation", "Relation defined for layer '%1' which is not of type VectorLayer." ).arg( referencedLayerId ) );
   }
 
-  relation.mReferencingLayerId = referencingLayerId;
-  relation.mReferencingLayer = qobject_cast<QgsVectorLayer*>( referencingLayer );
-  relation.mReferencedLayerId = referencedLayerId;
-  relation.mReferencedLayer = qobject_cast<QgsVectorLayer*>( referencedLayer );
-  relation.mRelationId = id;
-  relation.mRelationName = name;
+  relation.d->mReferencingLayerId = referencingLayerId;
+  relation.d->mReferencingLayer = qobject_cast<QgsVectorLayer *>( referencingLayer );
+  relation.d->mReferencedLayerId = referencedLayerId;
+  relation.d->mReferencedLayer = qobject_cast<QgsVectorLayer *>( referencedLayer );
+  relation.d->mRelationId = id;
+  relation.d->mRelationName = name;
+  if ( strength == QLatin1String( "Composition" ) )
+  {
+    relation.d->mRelationStrength = RelationStrength::Composition;
+  }
+  else
+  {
+    relation.d->mRelationStrength = RelationStrength::Association;
+  }
 
-  QDomNodeList references = elem.elementsByTagName( "fieldRef" );
+  QDomNodeList references = elem.elementsByTagName( QStringLiteral( "fieldRef" ) );
   for ( int i = 0; i < references.size(); ++i )
   {
     QDomElement refEl = references.at( i ).toElement();
 
-    QString referencingField = refEl.attribute( "referencingField" );
-    QString referencedField = refEl.attribute( "referencedField" );
+    QString referencingField = refEl.attribute( QStringLiteral( "referencingField" ) );
+    QString referencedField = refEl.attribute( QStringLiteral( "referencedField" ) );
 
     relation.addFieldPair( referencingField, referencedField );
   }
@@ -89,170 +111,298 @@ QgsRelation QgsRelation::createFromXML( const QDomNode &node )
   return relation;
 }
 
-void QgsRelation::writeXML( QDomNode &node, QDomDocument &doc ) const
+void QgsRelation::writeXml( QDomNode &node, QDomDocument &doc ) const
 {
-  QDomElement elem = doc.createElement( "relation" );
-  elem.setAttribute( "id", mRelationId );
-  elem.setAttribute( "name", mRelationName );
-  elem.setAttribute( "referencingLayer", mReferencingLayerId );
-  elem.setAttribute( "referencedLayer", mReferencedLayerId );
-
-  foreach ( FieldPair fields, mFieldPairs )
+  QDomElement elem = doc.createElement( QStringLiteral( "relation" ) );
+  elem.setAttribute( QStringLiteral( "id" ), d->mRelationId );
+  elem.setAttribute( QStringLiteral( "name" ), d->mRelationName );
+  elem.setAttribute( QStringLiteral( "referencingLayer" ), d->mReferencingLayerId );
+  elem.setAttribute( QStringLiteral( "referencedLayer" ), d->mReferencedLayerId );
+  if ( d->mRelationStrength == RelationStrength::Composition )
   {
-    QDomElement referenceElem = doc.createElement( "fieldRef" );
-    referenceElem.setAttribute( "referencingField", fields.first );
-    referenceElem.setAttribute( "referencedField", fields.second );
+    elem.setAttribute( QStringLiteral( "strength" ), QStringLiteral( "Composition" ) );
+  }
+  else
+  {
+    elem.setAttribute( QStringLiteral( "strength" ), QStringLiteral( "Association" ) );
+  }
+
+  for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
+  {
+    QDomElement referenceElem = doc.createElement( QStringLiteral( "fieldRef" ) );
+    referenceElem.setAttribute( QStringLiteral( "referencingField" ), pair.first );
+    referenceElem.setAttribute( QStringLiteral( "referencedField" ), pair.second );
     elem.appendChild( referenceElem );
   }
 
   node.appendChild( elem );
 }
 
-void QgsRelation::setRelationId( QString id )
+void QgsRelation::setId( const QString &id )
 {
-  mRelationId = id;
-}
-
-void QgsRelation::setRelationName( QString name )
-{
-  mRelationName = name;
-}
-
-void QgsRelation::setReferencingLayer( QString id )
-{
-  mReferencingLayerId = id;
+  d.detach();
+  d->mRelationId = id;
 
   updateRelationStatus();
 }
 
-void QgsRelation::setReferencedLayer( QString id )
+void QgsRelation::setName( const QString &name )
 {
-  mReferencedLayerId = id;
+  d.detach();
+  d->mRelationName = name;
+}
+
+
+void QgsRelation::setStrength( RelationStrength strength )
+{
+  d.detach();
+  d->mRelationStrength = strength;
+}
+
+void QgsRelation::setReferencingLayer( const QString &id )
+{
+  d.detach();
+  d->mReferencingLayerId = id;
 
   updateRelationStatus();
 }
 
-void QgsRelation::addFieldPair( QString referencingField, QString referencedField )
+void QgsRelation::setReferencedLayer( const QString &id )
 {
-  mFieldPairs << FieldPair( referencingField, referencedField );
+  d.detach();
+  d->mReferencedLayerId = id;
+
   updateRelationStatus();
 }
 
-void QgsRelation::addFieldPair( QgsRelation::FieldPair fieldPair )
+void QgsRelation::addFieldPair( const QString &referencingField, const QString &referencedField )
 {
-  mFieldPairs << fieldPair;
+  d.detach();
+  d->mFieldPairs << FieldPair( referencingField, referencedField );
   updateRelationStatus();
 }
 
-QgsFeatureIterator QgsRelation::getRelatedFeatures( const QgsFeature& feature ) const
+void QgsRelation::addFieldPair( const FieldPair &fieldPair )
+{
+  d.detach();
+  d->mFieldPairs << fieldPair;
+  updateRelationStatus();
+}
+
+QgsFeatureIterator QgsRelation::getRelatedFeatures( const QgsFeature &feature ) const
 {
   return referencingLayer()->getFeatures( getRelatedFeaturesRequest( feature ) );
 }
 
-QgsFeatureRequest QgsRelation::getRelatedFeaturesRequest( const QgsFeature& feature ) const
+QgsFeatureRequest QgsRelation::getRelatedFeaturesRequest( const QgsFeature &feature ) const
+{
+  QString filter = getRelatedFeaturesFilter( feature );
+  QgsDebugMsg( QString( "Filter conditions: '%1'" ).arg( filter ) );
+
+  QgsFeatureRequest myRequest;
+  myRequest.setFilterExpression( filter );
+  return myRequest;
+}
+
+QString QgsRelation::getRelatedFeaturesFilter( const QgsFeature &feature ) const
 {
   QStringList conditions;
 
-  foreach ( const QgsRelation::FieldPair& fieldPair, mFieldPairs )
+  for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
   {
-    int referencingIdx = referencingLayer()->pendingFields().indexFromName( fieldPair.referencingField() );
-    QgsField referencingField = referencingLayer()->pendingFields().at( referencingIdx );
+    QVariant val( feature.attribute( pair.referencedField() ) );
+    conditions << QgsExpression::createFieldEqualityExpression( pair.referencingField(), val );
+  }
 
-    switch ( referencingField.type() )
-    {
-      case QVariant::String:
-        // Use quotes
-        conditions << QString( "\"%1\" = '%2'" ).arg( fieldPair.referencingField(), feature.attribute( fieldPair.referencedField() ).toString() );
-        break;
+  return conditions.join( QStringLiteral( " AND " ) );
+}
 
-      default:
-        // No quotes
-        conditions << QString( "\"%1\" = %2" ).arg( fieldPair.referencingField(), feature.attribute( fieldPair.referencedField() ).toString() );
-        break;
-    }
+QgsFeatureRequest QgsRelation::getReferencedFeatureRequest( const QgsAttributes &attributes ) const
+{
+  QStringList conditions;
+
+  for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
+  {
+    int referencingIdx = referencingLayer()->fields().indexFromName( pair.referencingField() );
+    conditions << QgsExpression::createFieldEqualityExpression( pair.referencedField(), attributes.at( referencingIdx ) );
   }
 
   QgsFeatureRequest myRequest;
 
   QgsDebugMsg( QString( "Filter conditions: '%1'" ).arg( conditions.join( " AND " ) ) );
 
-  myRequest.setFilterExpression( conditions.join( " AND " ) );
+  myRequest.setFilterExpression( conditions.join( QStringLiteral( " AND " ) ) );
 
   return myRequest;
 }
 
-const QString QgsRelation::name() const
+QgsFeatureRequest QgsRelation::getReferencedFeatureRequest( const QgsFeature &feature ) const
 {
-  return mRelationName;
+  return getReferencedFeatureRequest( feature.attributes() );
 }
 
-const QString& QgsRelation::id() const
+QgsFeature QgsRelation::getReferencedFeature( const QgsFeature &feature ) const
 {
-  return mRelationId;
+  QgsFeatureRequest request = getReferencedFeatureRequest( feature );
+
+  QgsFeature f;
+  d->mReferencedLayer->getFeatures( request ).nextFeature( f );
+  return f;
+}
+
+QString QgsRelation::name() const
+{
+  return d->mRelationName;
+}
+
+QgsRelation::RelationStrength QgsRelation::strength() const
+{
+  return d->mRelationStrength;
+}
+
+QString QgsRelation::id() const
+{
+  return d->mRelationId;
+}
+
+void QgsRelation::generateId()
+{
+  d->mRelationId = QStringLiteral( "%1_%2_%3_%4" )
+                   .arg( referencingLayerId(),
+                         d->mFieldPairs.at( 0 ).referencingField(),
+                         referencedLayerId(),
+                         d->mFieldPairs.at( 0 ).referencedField() );
+  updateRelationStatus();
 }
 
 QString QgsRelation::referencingLayerId() const
 {
-  return mReferencingLayerId;
+  return d->mReferencingLayerId;
 }
 
-QgsVectorLayer* QgsRelation::referencingLayer() const
+QgsVectorLayer *QgsRelation::referencingLayer() const
 {
-  return mReferencingLayer;
+  return d->mReferencingLayer;
 }
 
 QString QgsRelation::referencedLayerId() const
 {
-  return mReferencedLayerId;
+  return d->mReferencedLayerId;
 }
 
-QgsVectorLayer* QgsRelation::referencedLayer() const
+QgsVectorLayer *QgsRelation::referencedLayer() const
 {
-  return mReferencedLayer;
+  return d->mReferencedLayer;
 }
 
 QList<QgsRelation::FieldPair> QgsRelation::fieldPairs() const
 {
-  return mFieldPairs;
+  return d->mFieldPairs;
+}
+
+QgsAttributeList QgsRelation::referencedFields() const
+{
+  QgsAttributeList attrs;
+
+  for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
+  {
+    attrs << d->mReferencedLayer->fields().lookupField( pair.second );
+  }
+  return attrs;
+}
+
+QgsAttributeList QgsRelation::referencingFields() const
+{
+  QgsAttributeList attrs;
+
+  for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
+  {
+    attrs << d->mReferencingLayer->fields().lookupField( pair.first );
+  }
+  return attrs;
+
 }
 
 bool QgsRelation::isValid() const
 {
-  return mValid;
+  return d->mValid && !d->mReferencingLayer.isNull() && !d->mReferencedLayer.isNull();
+}
+
+bool QgsRelation::hasEqualDefinition( const QgsRelation &other ) const
+{
+  return d->mReferencedLayerId == other.d->mReferencedLayerId && d->mReferencingLayerId == other.d->mReferencingLayerId && d->mFieldPairs == other.d->mFieldPairs;
+}
+
+QString QgsRelation::resolveReferencedField( const QString &referencingField ) const
+{
+  for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
+  {
+    if ( pair.first == referencingField )
+      return pair.second;
+  }
+  return QString();
+}
+
+QString QgsRelation::resolveReferencingField( const QString &referencedField ) const
+{
+  for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
+  {
+    if ( pair.second == referencedField )
+      return pair.first;
+  }
+  return QString();
 }
 
 void QgsRelation::updateRelationStatus()
 {
-  const QMap<QString, QgsMapLayer*>& mapLayers = QgsMapLayerRegistry::instance()->mapLayers();
+  const QMap<QString, QgsMapLayer *> &mapLayers = QgsProject::instance()->mapLayers();
 
-  mReferencingLayer = qobject_cast<QgsVectorLayer*>( mapLayers[mReferencingLayerId] );
-  mReferencedLayer = qobject_cast<QgsVectorLayer*>( mapLayers[mReferencedLayerId] );
+  d->mReferencingLayer = qobject_cast<QgsVectorLayer *>( mapLayers[d->mReferencingLayerId] );
+  d->mReferencedLayer = qobject_cast<QgsVectorLayer *>( mapLayers[d->mReferencedLayerId] );
 
-  mValid = true;
+  d->mValid = true;
 
-  if ( !mReferencedLayer || !mReferencingLayer )
+  if ( d->mRelationId.isEmpty() )
   {
-    mValid = false;
+    QgsDebugMsg( "Invalid relation: no ID" );
+    d->mValid = false;
   }
   else
   {
-    if ( mFieldPairs.count() < 1 )
+    if ( !d->mReferencedLayer )
     {
-      mValid = false;
+      QgsDebugMsgLevel( QStringLiteral( "Invalid relation: referenced layer does not exist. ID: %1" ).arg( d->mReferencedLayerId ), 4 );
+      d->mValid = false;
     }
-
-    Q_FOREACH ( const FieldPair& fieldPair, mFieldPairs )
+    else if ( !d->mReferencingLayer )
     {
-      if ( -1 == mReferencingLayer->fieldNameIndex( fieldPair.first )
-           || -1 == mReferencedLayer->fieldNameIndex( fieldPair.second ) )
+      QgsDebugMsgLevel( QStringLiteral( "Invalid relation: referencing layer does not exist. ID: %2" ).arg( d->mReferencingLayerId ), 4 );
+      d->mValid = false;
+    }
+    else
+    {
+      if ( d->mFieldPairs.count() < 1 )
       {
-        mValid = false;
+        QgsDebugMsgLevel( "Invalid relation: no pair of field is specified.", 4 );
+        d->mValid = false;
+      }
+
+      for ( const FieldPair &pair : qgis::as_const( d->mFieldPairs ) )
+      {
+        if ( -1 == d->mReferencingLayer->fields().lookupField( pair.first ) )
+        {
+          QgsDebugMsg( QStringLiteral( "Invalid relation: field %1 does not exist in referencing layer %2" ).arg( pair.first, d->mReferencingLayer->name() ) );
+          d->mValid = false;
+          break;
+        }
+        else if ( -1 == d->mReferencedLayer->fields().lookupField( pair.second ) )
+        {
+          QgsDebugMsg( QStringLiteral( "Invalid relation: field %1 does not exist in referencedg layer %2" ).arg( pair.second, d->mReferencedLayer->name() ) );
+          d->mValid = false;
+          break;
+        }
       }
     }
+
   }
-}
-
-void QgsRelation::runChecks()
-{
-
 }
