@@ -86,6 +86,16 @@ class QgsGeometryCheckFactoryT : public QgsGeometryCheckFactory
       return T::factoryFlags();
     }
 
+    bool isCompatible( QgsVectorLayer *layer ) const override
+    {
+      return static_cast<T>( 0 ).isCompatible( layer );
+    }
+
+    QgsGeometryCheck::Flags flags() const override
+    {
+      return static_cast<T>( 0 ).flags();
+    }
+
 };
 
 
