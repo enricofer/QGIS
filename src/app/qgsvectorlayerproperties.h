@@ -249,6 +249,8 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
 
     QgsVectorLayer3DRendererWidget *mVector3DWidget = nullptr;
 
+    QHash<QCheckBox *, QString> mGeometryCheckFactoriesGroupBoxes;
+
   private slots:
     void openPanel( QgsPanelWidget *panel );
 };
