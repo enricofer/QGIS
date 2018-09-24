@@ -19,7 +19,7 @@
 #include "qgsfeaturepool.h"
 #include "qgsgeometrycheckerror.h"
 
-void QgsGeometryAngleCheck::collectErrors( const QMap<QString, QgsFeaturePool *> &featurePools, const QgsGeometryCheckContext *context, QList<QgsGeometryCheckError *> &errors, QStringList &messages, QgsFeedback *feedback, const LayerFeatureIds &ids ) const
+void QgsGeometryAngleCheck::collectErrors( const QMap<QString, QgsFeaturePool *> &featurePools, QList<QgsGeometryCheckError *> &errors, QStringList &messages, QgsFeedback *feedback, const LayerFeatureIds &ids ) const
 {
   Q_UNUSED( messages )
   QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
@@ -58,7 +58,7 @@ void QgsGeometryAngleCheck::collectErrors( const QMap<QString, QgsFeaturePool *>
           double angle = std::acos( v21 * v23 ) / M_PI * 180.0;
           if ( angle < mMinAngle )
           {
-            errors.append( new QgsGeometryCheckError( this, context, layerFeature, p2, QgsVertexId( iPart, iRing, iVert ), angle ) );
+            errors.append( new QgsGeometryCheckError( this, layerFeature, p2, QgsVertexId( iPart, iRing, iVert ), angle ) );
           }
         }
       }
