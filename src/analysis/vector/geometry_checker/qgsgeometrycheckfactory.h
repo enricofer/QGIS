@@ -88,12 +88,12 @@ class QgsGeometryCheckFactoryT : public QgsGeometryCheckFactory
 
     bool isCompatible( QgsVectorLayer *layer ) const override
     {
-      return static_cast<T>( 0 ).isCompatible( layer );
+      return static_cast<T *>( 0 )->isCompatible( layer );
     }
 
     QgsGeometryCheck::Flags flags() const override
     {
-      return static_cast<T>( 0 ).flags();
+      return static_cast<T *>( 0 )->flags();
     }
 
 };
