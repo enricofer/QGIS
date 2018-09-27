@@ -404,6 +404,7 @@ QgsVectorLayerProperties::QgsVectorLayerProperties(
   {
     mRemoveDuplicateNodesCheckbox->setEnabled( true );
     mGeometryPrecisionLineEdit->setEnabled( true );
+    mGeometryPrecisionLineEdit->setValidator( new QDoubleValidator( mGeometryPrecisionLineEdit ) );
 
     mRemoveDuplicateNodesCheckbox->setChecked( mLayer->geometryOptions()->removeDuplicateNodes() );
     mGeometryPrecisionLineEdit->setText( QString::number( mLayer->geometryOptions()->geometryPrecision() ) );
