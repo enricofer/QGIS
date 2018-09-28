@@ -50,7 +50,6 @@ class QgsGeometryCheckFactoryT : QgsGeometryCheckFactory
     virtual bool isCompatible( QgsVectorLayer *layer ) const;
 
     virtual QgsGeometryCheck::Flags flags() const;
-
 };
 
 

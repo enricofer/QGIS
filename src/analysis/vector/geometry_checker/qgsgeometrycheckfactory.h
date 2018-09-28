@@ -85,17 +85,6 @@ class QgsGeometryCheckFactoryT : public QgsGeometryCheckFactory
     {
       return T::factoryFlags();
     }
-
-    bool isCompatible( QgsVectorLayer *layer ) const override
-    {
-      return T::factoryIsCompatible( layer );
-    }
-
-    QgsGeometryCheck::Flags flags() const override
-    {
-      return T::factoryFlags();
-    }
-
 };
 
 
