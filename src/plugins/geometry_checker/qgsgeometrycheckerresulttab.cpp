@@ -43,6 +43,7 @@
 #include "qgssettings.h"
 #include "qgsscrollarea.h"
 #include "qgsgeometrycheckerror.h"
+#include "qgsgeometry.h"
 
 QString QgsGeometryCheckerResultTab::sSettingsGroup = QStringLiteral( "/geometry_checker/default_fix_methods/" );
 
@@ -343,11 +344,10 @@ void QgsGeometryCheckerResultTab::highlightErrors( bool current )
   {
     QgsGeometryCheckError *error = ui.tableWidgetErrors->item( item->row(), 0 )->data( Qt::UserRole ).value<QgsGeometryCheckError *>();
 
-    const QgsAbstractGeometry *geometry = error->geometry();
-    if ( ui.checkBoxHighlight->isChecked() && geometry )
+    const QgsGeometry geom = error->geometry();
+    if ( ui.checkBoxHighlight->isChecked() && !geom.isNull() )
     {
       QgsRubberBand *featureRubberBand = new QgsRubberBand( mIface->mapCanvas() );
-      QgsGeometry geom( geometry->clone() );
       featureRubberBand->addGeometry( geom, nullptr );
       featureRubberBand->setWidth( 5 );
       featureRubberBand->setColor( Qt::yellow );
