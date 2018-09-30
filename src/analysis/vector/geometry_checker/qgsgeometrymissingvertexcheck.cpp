@@ -25,7 +25,7 @@
 #include "qgsgeometryutils.h"
 
 QgsGeometryMissingVertexCheck::QgsGeometryMissingVertexCheck( const QgsGeometryCheckContext *context, const QVariantMap &geometryCheckConfiguration )
-  : QgsGeometryCheck( LayerCheck,  context, geometryCheckConfiguration )
+  : QgsGeometryCheck( context, geometryCheckConfiguration )
 
 {}
 
@@ -178,6 +178,11 @@ QgsGeometryCheck::Flags QgsGeometryMissingVertexCheck::flags() const
   return factoryFlags();
 }
 
+QgsGeometryCheck::CheckType QgsGeometryMissingVertexCheck::checkType() const
+{
+  return factoryCheckType();
+}
+
 QList<QgsWkbTypes::GeometryType> QgsGeometryMissingVertexCheck::factoryCompatibleGeometryTypes()
 {
   return {QgsWkbTypes::PolygonGeometry};
@@ -201,4 +206,9 @@ QString QgsGeometryMissingVertexCheck::factoryId()
 QgsGeometryCheck::Flags QgsGeometryMissingVertexCheck::factoryFlags()
 {
   return QgsGeometryCheck::AvailableInValidation;
+}
+
+QgsGeometryCheck::CheckType QgsGeometryMissingVertexCheck::factoryCheckType()
+{
+  return QgsGeometryCheck::LayerCheck;
 }
