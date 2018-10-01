@@ -143,7 +143,7 @@ class ANALYSIS_EXPORT QgsSingleGeometryCheck : public QgsGeometryCheck
     void collectErrors( const QMap<QString, QgsFeaturePool *> &featurePools,
                         QList<QgsGeometryCheckError *> &errors,
                         QStringList &messages,
-                        QgsFeedback *feedback = nullptr,
+                        QgsFeedback *feedback,
                         const QgsGeometryCheck::LayerFeatureIds &ids = QgsGeometryCheck::LayerFeatureIds() ) const final;
 
     /**
