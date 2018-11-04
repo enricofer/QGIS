@@ -30,6 +30,8 @@ class QgsProcessingParameterDefinition;
 class QgsAbstractProcessingParameterWidgetWrapper;
 class QgsExpressionLineEdit;
 class QgsProcessingModelAlgorithm;
+class QgsProcessingParameterWidgetContext;
+class QgsProcessingContextGenerator;
 
 class QLabel;
 class QToolButton;
@@ -55,7 +57,7 @@ class QComboBox;
  * \ingroup gui
  * \since QGIS 3.4
  */
-class GUI_EXPORT QgsProcessingModelerParameterWidget : public QWidget
+class GUI_EXPORT QgsProcessingModelerParameterWidget : public QWidget, public QgsExpressionContextGenerator
 {
     Q_OBJECT
 
@@ -81,6 +83,19 @@ class GUI_EXPORT QgsProcessingModelerParameterWidget : public QWidget
                                          QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
     ~QgsProcessingModelerParameterWidget() override;
+
+    /**
+     * Sets the \a context in which the modeler parameter widget is shown, e.g., the
+     * parent model algorithm and other relevant information which allows the widget
+     * to fine-tune its behavior.
+     */
+    void setWidgetContext( const QgsProcessingParameterWidgetContext &context );
+
+    /**
+     * Registers a Processing context \a generator class that will be used to retrieve
+     * a Processing context for the widget when required.
+     */
+    void registerProcessingContextGenerator( QgsProcessingContextGenerator *generator );
 
     /**
      * Populates the widget with available sources for the parameter's value, e.g.
@@ -132,6 +147,8 @@ class GUI_EXPORT QgsProcessingModelerParameterWidget : public QWidget
      * \see setWidgetValue()
      */
     virtual QgsProcessingModelChildParameterSource value() const;
+
+    QgsExpressionContext createExpressionContext() const override;
 
   private slots:
 

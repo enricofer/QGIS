@@ -61,9 +61,9 @@ void QgsEditFormConfig::setFields( const QgsFields &fields )
 
 void QgsEditFormConfig::onRelationsLoaded()
 {
-  QList<QgsAttributeEditorElement *> relations = d->mInvisibleRootContainer->findElements( QgsAttributeEditorElement::AeTypeRelation );
+  const QList<QgsAttributeEditorElement *> relations = d->mInvisibleRootContainer->findElements( QgsAttributeEditorElement::AeTypeRelation );
 
-  Q_FOREACH ( QgsAttributeEditorElement *relElem, relations )
+  for ( QgsAttributeEditorElement *relElem : relations )
   {
     QgsAttributeEditorRelation *rel = dynamic_cast< QgsAttributeEditorRelation * >( relElem );
     if ( !rel )
@@ -77,7 +77,7 @@ bool QgsEditFormConfig::setWidgetConfig( const QString &widgetName, const QVaria
 {
   if ( d->mFields.indexOf( widgetName ) != -1 )
   {
-    QgsDebugMsg( "Trying to set a widget config for a field on QgsEditFormConfig. Use layer->setEditorWidgetSetup() instead." );
+    QgsDebugMsg( QStringLiteral( "Trying to set a widget config for a field on QgsEditFormConfig. Use layer->setEditorWidgetSetup() instead." ) );
     return false;
   }
 
@@ -573,6 +573,12 @@ QgsAttributeEditorElement *QgsEditFormConfig::attributeEditorElementFromDomEleme
     relElement->setShowUnlinkButton( elem.attribute( QStringLiteral( "showUnlinkButton" ), QStringLiteral( "1" ) ).toInt() );
     newElement = relElement;
   }
+  else if ( elem.tagName() == QLatin1String( "attributeEditorQmlElement" ) )
+  {
+    QgsAttributeEditorQmlElement *qmlElement = new QgsAttributeEditorQmlElement( elem.attribute( QStringLiteral( "name" ) ), parent );
+    qmlElement->setQmlCode( elem.text() );
+    newElement = qmlElement;
+  }
 
   if ( newElement )
   {
@@ -599,7 +605,9 @@ QgsAttributeEditorElement *QgsAttributeEditorContainer::clone( QgsAttributeEdito
 {
   QgsAttributeEditorContainer *element = new QgsAttributeEditorContainer( name(), parent );
 
-  Q_FOREACH ( QgsAttributeEditorElement *child, children() )
+  const auto childElements = children();
+
+  for ( QgsAttributeEditorElement *child : childElements )
   {
     element->addChildElement( child->clone( element ) );
   }

@@ -253,8 +253,8 @@ void QgsStyleManagerDialog::tabItemType_currentChanged( int )
   actnExportAsPNG->setVisible( flag );
   actnExportAsSVG->setVisible( flag );
 
-  listItems->setIconSize( QSize( 100, 90 ) );
-  listItems->setGridSize( QSize( 120, 110 ) );
+  double iconSize = Qgis::UI_SCALE_FACTOR * fontMetrics().width( 'X' ) * 10;
+  listItems->setIconSize( QSize( static_cast< int >( iconSize ), static_cast< int >( iconSize * 0.9 ) ) );  // ~100, 90 on low dpi
 
   populateList();
 }
@@ -283,9 +283,12 @@ void QgsStyleManagerDialog::populateSymbols( const QStringList &symbolNames, boo
     {
       QStringList tags = mStyle->tagsOfSymbol( QgsStyle::SymbolEntity, name );
       QStandardItem *item = new QStandardItem( name );
-      QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( symbol.get(), listItems->iconSize(), 18 );
+      QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( symbol.get(), listItems->iconSize(), static_cast< int >( listItems->iconSize().width() * 0.16 ) );
       item->setIcon( icon );
       item->setData( name ); // used to find out original name when user edited the name
+      QFont f = item->data( Qt::FontRole ).value< QFont >();
+      f.setPointSize( 9 );
+      item->setData( f, Qt::FontRole );
       item->setCheckable( check );
       item->setToolTip( QStringLiteral( "<b>%1</b><br><i>%2</i>" ).arg( name, tags.count() > 0 ? tags.join( QStringLiteral( ", " ) ) : tr( "Not tagged" ) ) );
       // add to model
@@ -308,7 +311,7 @@ void QgsStyleManagerDialog::populateColorRamps( const QStringList &colorRamps, b
     std::unique_ptr< QgsColorRamp > ramp( mStyle->colorRamp( name ) );
 
     QStandardItem *item = new QStandardItem( name );
-    QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( ramp.get(), listItems->iconSize(), 18 );
+    QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( ramp.get(), listItems->iconSize(), static_cast< int >( listItems->iconSize().width() * 0.16 ) );
     item->setIcon( icon );
     item->setData( name ); // used to find out original name when user edited the name
     item->setCheckable( check );
@@ -902,6 +905,9 @@ void QgsStyleManagerDialog::setBold( QStandardItem *item )
 
 void QgsStyleManagerDialog::populateGroups()
 {
+  if ( mBlockGroupUpdates )
+    return;
+
   QStandardItemModel *model = qobject_cast<QStandardItemModel *>( groupTree->model() );
   model->clear();
 
@@ -1082,7 +1088,13 @@ int QgsStyleManagerDialog::addTag()
                            tr( "Tag name already exists in your symbol database." ) );
     return 0;
   }
+
+  // block the auto-repopulation of groups when the style emits groupsModified
+  // instead, we manually update the model items for better state retention
+  mBlockGroupUpdates++;
   id = mStyle->addTag( itemName );
+  mBlockGroupUpdates--;
+
   if ( !id )
   {
     QMessageBox::critical( this, tr( "Add Tag" ),
@@ -1118,7 +1130,13 @@ int QgsStyleManagerDialog::addSmartgroup()
   QgsSmartGroupEditorDialog dlg( mStyle, this );
   if ( dlg.exec() == QDialog::Rejected )
     return 0;
+
+  // block the auto-repopulation of groups when the style emits groupsModified
+  // instead, we manually update the model items for better state retention
+  mBlockGroupUpdates++;
   id = mStyle->addSmartgroup( dlg.smartgroupName(), dlg.conditionOperator(), dlg.conditionMap() );
+  mBlockGroupUpdates--;
+
   if ( !id )
     return 0;
   itemName = dlg.smartgroupName();
@@ -1148,6 +1166,11 @@ void QgsStyleManagerDialog::removeGroup()
   }
 
   QStandardItem *parentItem = model->itemFromIndex( index.parent() );
+
+  // block the auto-repopulation of groups when the style emits groupsModified
+  // instead, we manually update the model items for better state retention
+  mBlockGroupUpdates++;
+
   if ( parentItem->data( Qt::UserRole + 1 ).toString() == QLatin1String( "smartgroups" ) )
   {
     mStyle->remove( QgsStyle::SmartgroupEntity, index.data( Qt::UserRole + 1 ).toInt() );
@@ -1156,6 +1179,8 @@ void QgsStyleManagerDialog::removeGroup()
   {
     mStyle->remove( QgsStyle::TagEntity, index.data( Qt::UserRole + 1 ).toInt() );
   }
+
+  mBlockGroupUpdates--;
   parentItem->removeRow( index.row() );
 }
 
@@ -1164,6 +1189,7 @@ void QgsStyleManagerDialog::groupRenamed( QStandardItem *item )
   QgsDebugMsg( QStringLiteral( "Symbol group edited: data=%1 text=%2" ).arg( item->data( Qt::UserRole + 1 ).toString(), item->text() ) );
   int id = item->data( Qt::UserRole + 1 ).toInt();
   QString name = item->text();
+  mBlockGroupUpdates++;
   if ( item->parent()->data( Qt::UserRole + 1 ) == "smartgroups" )
   {
     mStyle->rename( QgsStyle::SmartgroupEntity, id, name );
@@ -1172,6 +1198,7 @@ void QgsStyleManagerDialog::groupRenamed( QStandardItem *item )
   {
     mStyle->rename( QgsStyle::TagEntity, id, name );
   }
+  mBlockGroupUpdates--;
 }
 
 void QgsStyleManagerDialog::tagSymbolsAction()
@@ -1526,8 +1553,10 @@ void QgsStyleManagerDialog::editSmartgroupAction()
   if ( dlg.exec() == QDialog::Rejected )
     return;
 
+  mBlockGroupUpdates++;
   mStyle->remove( QgsStyle::SmartgroupEntity, item->data().toInt() );
   int id = mStyle->addSmartgroup( dlg.smartgroupName(), dlg.conditionOperator(), dlg.conditionMap() );
+  mBlockGroupUpdates--;
   if ( !id )
   {
     QMessageBox::critical( this, tr( "Edit Smart Group" ),

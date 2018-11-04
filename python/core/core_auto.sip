@@ -54,9 +54,9 @@
 %Include auto_generated/qgsfields.sip
 %Include auto_generated/qgsfileutils.sip
 %Include auto_generated/qgsfontutils.sip
-%Include auto_generated/qgsgeometryfixes.sip
 %Include auto_generated/qgsgeometrysimplifier.sip
 %Include auto_generated/qgshistogram.sip
+%Include auto_generated/qgshstoreutils.sip
 %Include auto_generated/qgshtmlutils.sip
 %Include auto_generated/qgsinterval.sip
 %Include auto_generated/qgsjsonutils.sip
@@ -71,7 +71,7 @@
 %Include auto_generated/qgsmaphittest.sip
 %Include auto_generated/qgsmaplayerdependency.sip
 %Include auto_generated/qgsmaplayerrenderer.sip
-%Include auto_generated/qgsmaplayerstylemanager.sip
+%Include auto_generated/qgsmaplayerstyle.sip
 %Include auto_generated/qgsmapsettings.sip
 %Include auto_generated/qgsmapsettingsutils.sip
 %Include auto_generated/qgsmaptopixel.sip
@@ -106,6 +106,7 @@
 %Include auto_generated/qgspythonrunner.sip
 %Include auto_generated/qgsrange.sip
 %Include auto_generated/qgsreadwritecontext.sip
+%Include auto_generated/qgsreadwritelocker.sip
 %Include auto_generated/qgsrenderchecker.sip
 %Include auto_generated/qgsrendercontext.sip
 %Include auto_generated/qgsrulebasedlabeling.sip
@@ -293,7 +294,6 @@
 %Include auto_generated/geometry/qgstriangle.sip
 %Include auto_generated/geometry/qgssurface.sip
 %Include auto_generated/geometry/qgswkbptr.sip
-%Include auto_generated/geometry/qgswkbtypes.sip
 %Include auto_generated/./3d/qgs3drendererregistry.sip
 %Include auto_generated/./3d/qgsabstract3drenderer.sip
 %Include auto_generated/fieldformatter/qgsrangefieldformatter.sip
@@ -312,6 +312,7 @@
 %Include auto_generated/qgsanimatedicon.sip
 %Include auto_generated/qgsauxiliarystorage.sip
 %Include auto_generated/qgsbrowsermodel.sip
+%Include auto_generated/qgsbrowserproxymodel.sip
 %Include auto_generated/qgscoordinatereferencesystem.sip
 %Include auto_generated/qgscredentials.sip
 %Include auto_generated/qgsdataitem.sip
@@ -326,6 +327,7 @@
 %Include auto_generated/qgsfieldproxymodel.sip
 %Include auto_generated/qgsfiledownloader.sip
 %Include auto_generated/qgsfeaturefiltermodel.sip
+%Include auto_generated/qgsgeometryoptions.sip
 %Include auto_generated/qgsgeometryvalidator.sip
 %Include auto_generated/qgsgml.sip
 %Include auto_generated/qgsgmlschema.sip
@@ -334,7 +336,7 @@
 %Include auto_generated/qgsmaplayermodel.sip
 %Include auto_generated/qgsmaplayerproxymodel.sip
 %Include auto_generated/qgsmaplayerstore.sip
-%Include auto_generated/qgsmaplayerstyle.sip
+%Include auto_generated/qgsmaplayerstylemanager.sip
 %Include auto_generated/qgsmaprenderercache.sip
 %Include auto_generated/qgsmaprenderercustompainterjob.sip
 %Include auto_generated/qgsmaprendererjob.sip
@@ -394,6 +396,7 @@
 %Include auto_generated/geometry/qgsabstractgeometry.sip
 %Include auto_generated/geometry/qgsgeometry.sip
 %Include auto_generated/geometry/qgspoint.sip
+%Include auto_generated/geometry/qgswkbtypes.sip
 %Include auto_generated/geocms/geonode/qgsgeonoderequest.sip
 %Include auto_generated/gps/qgsgpsconnection.sip
 %Include auto_generated/gps/qgsgpsdetector.sip
@@ -438,6 +441,7 @@
 %Include auto_generated/symbology/qgscptcityarchive.sip
 %Include auto_generated/symbology/qgssvgcache.sip
 %Include auto_generated/symbology/qgsstyle.sip
+%Include auto_generated/symbology/qgsstylemodel.sip
 %Include auto_generated/layertree/qgslayertree.sip
 %Include auto_generated/layertree/qgslayertreegroup.sip
 %Include auto_generated/layertree/qgslayertreelayer.sip

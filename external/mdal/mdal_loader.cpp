@@ -15,7 +15,15 @@
 #endif
 
 #ifdef HAVE_GDAL
-#include "frmts/mdal_grib.hpp"
+#include "frmts/mdal_gdal_grib.hpp"
+#endif
+
+#ifdef HAVE_NETCDF
+#include "frmts/mdal_3di.hpp"
+#endif
+
+#if defined HAVE_GDAL && defined HAVE_NETCDF
+#include "frmts/mdal_gdal_netcdf.hpp"
 #endif
 
 std::unique_ptr<MDAL::Mesh> MDAL::Loader::load( const std::string &meshFile, MDAL_Status *status )
@@ -29,14 +37,33 @@ std::unique_ptr<MDAL::Mesh> MDAL::Loader::load( const std::string &meshFile, MDA
   MDAL::Loader2dm loader( meshFile );
   std::unique_ptr<MDAL::Mesh> mesh = loader.load( status );
 
-#ifdef HAVE_GDAL
+#ifdef HAVE_NETCDF
   if ( !mesh && status && *status == MDAL_Status::Err_UnknownFormat )
   {
-    MDAL::LoaderGrib loader( meshFile );
+    MDAL::Loader3Di loader( meshFile );
     mesh = loader.load( status );
   }
 #endif
 
+#ifdef HAVE_GDAL
+  if ( !mesh && status && *status == MDAL_Status::Err_UnknownFormat )
+  {
+#ifdef HAVE_NETCDF
+    if ( MDAL::endsWith( meshFile, ".nc" ) )
+    {
+      MDAL::LoaderGdalNetCDF loader( meshFile );
+      mesh = loader.load( status );
+    }
+    else
+    {
+#endif // HAVE_GDAL && HAVE_NETCDF
+      MDAL::LoaderGdalGrib loader( meshFile );
+      mesh = loader.load( status );
+    }
+#ifdef HAVE_NETCDF
+  }
+#endif // HAVE_GDAL && HAVE_NETCDF
+#endif // HAVE_GDAL
   return mesh;
 }
 

@@ -379,6 +379,7 @@ the results.
     {
       FilterToolbox,
       FilterModeler,
+      FilterInPlace,
     };
     typedef QFlags<QgsProcessingToolboxProxyModel::Filter> Filters;
 
@@ -415,6 +416,11 @@ Set ``filters`` that affect how toolbox content is filtered.
 Returns any filters that affect how toolbox content is filtered.
 
 .. seealso:: :py:func:`setFilters`
+%End
+
+    void setInPlaceLayer( QgsVectorLayer *layer );
+%Docstring
+Sets the vector ``layer`` for in-place algorithm filter
 %End
 
     void setFilterString( const QString &filter );

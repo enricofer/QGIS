@@ -28,15 +28,31 @@
 #include "qgsserverrequest.h"
 #include "qgslegendsettings.h"
 #include "qgsprojectversion.h"
+#include "qgsogcutils.h"
 #include "qgsserverparameters.h"
 
 namespace QgsWms
 {
+  struct QgsWmsParametersFilter
+  {
+    //! Filter type
+    enum Type
+    {
+      UNKNOWN,
+      SQL,
+      OGC_FE
+    };
+
+    QString mFilter;
+    QgsWmsParametersFilter::Type mType = QgsWmsParametersFilter::UNKNOWN;
+    QgsOgcUtils::FilterVersion mVersion = QgsOgcUtils::FILTER_OGC_1_0; // only if FE
+  };
+
   struct QgsWmsParametersLayer
   {
     QString mNickname; // name, id or short name
     int mOpacity = -1;
-    QStringList mFilter; // list of filter
+    QList<QgsWmsParametersFilter> mFilter; // list of filter
     QStringList mSelection; // list of string fid
     QString mStyle;
   };
@@ -116,6 +132,7 @@ namespace QgsWms
         SYMBOLWIDTH,
         OPACITIES,
         SLD,
+        SLD_BODY,
         FI_POLYGON_TOLERANCE,
         FI_LINE_TOLERANCE,
         FI_POINT_TOLERANCE,
@@ -234,6 +251,22 @@ namespace QgsWms
        * \throws QgsBadRequestException Invalid parameter exception
        */
       QColor toColor() const;
+
+      /**
+       * Converts the parameter into an url.
+       * \returns An url
+       * \throws QgsBadRequestException Invalid parameter exception
+       * \since QGIS 3.4
+       */
+      QUrl toUrl() const;
+
+      /**
+       * Loads the data associated to the parameter converted into an url.
+       * \returns The content loaded
+       * \throws QgsBadRequestException Invalid parameter exception
+       * \since QGIS 3.4
+       */
+      QString loadUrl() const;
 
       /**
        * Raises an error in case of an invalid conversion.
@@ -361,10 +394,10 @@ namespace QgsWms
       QgsRectangle bboxAsRectangle() const;
 
       /**
-       * Returns SLD if defined or an empty string.
-       * \returns sld
+       * Returns SLD_body if defined or an empty string.
+       * \returns sld body
        */
-      QString sld() const;
+      QString sldBody() const;
 
       /**
        * Returns the list of feature selection found in SELECTION parameter.
@@ -1125,7 +1158,7 @@ namespace QgsWms
       void raiseError( const QString &msg ) const;
       void log( const QString &msg ) const;
 
-      QMultiMap<QString, QString> getLayerFilters( const QStringList &layers ) const;
+      QMultiMap<QString, QgsWmsParametersFilter> layerFilters( const QStringList &layers ) const;
 
       QMap<QgsWmsParameter::Name, QgsWmsParameter> mWmsParameters;
       QMap<QString, QMap<QString, QString> > mExternalWMSParameters;

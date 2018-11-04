@@ -38,6 +38,84 @@ Change history for the QGIS Project
 Last Updated: %%date(%A %B %d, %Y)
 Last Change : %%mtime(%A %B %d, %Y)
 
+= What's new in Version 3.4-LTR 'Madeira'? =
+
+This release has following new features:
+
+- Expressions: New expression functions and variables
+- Expressions: Code completion for expression builder
+- User Interface: Auto selection of exported files in file manager
+- User Interface: New "Open Directory" option for disabled welcome page projects
+- User Interface: UX Improvements for Temporary Scratch Layers
+- User Interface: Task manager improvements
+- User Interface: Hyperlinks to local vector & raster datasets in the information panel
+- User Interface: Style manager improvements
+- User Interface: Polished browser panel interface and experience
+- User Interface: QML chart and drawings widget
+- Symbology: Mesh layer styling
+- Symbology: Classify symmetric in graduated renderer
+- Digitising: GPS tracking improvements
+- Digitising: More angle choices in advanced digitizing dock
+- Digitising: Vertex tool can work on the current layer only
+- Digitising: Add reverse line maptools
+- Digitising: Geometry Precision
+- Digitising: Automatically remove duplicate nodes
+- Digitising: Check for geometry validity
+- Digitising: Topology checks while editing
+- Data Management: Translation of QGIS projects
+- Data Management: Switch Attribute Table dock mode on demand
+- Data Management: New locator filter to search across all layers
+- Data Management: Non-removable (required) layers highlighted in layer tree
+- Data Management: Append raster layer to an existing Geopackage
+- Map Composer: 3d map items
+- Processing: Edit in place
+- Processing: Store models inside project
+- Processing: Sample Raster Values
+- Processing: New 'Raster pixels to polygons' algorithm
+- Processing: K Means clustering algorithm
+- Processing: dbscan spatial clustering algorithm
+- Processing: Improved algorithms
+- Processing: Filter Vertices by M and Filter Vertices by Z algorithms
+- Processing: "Array of Translated Features" algorithm
+- Processing: "Array of offset (parallel) lines" algorithm
+- Processing: Choice of units for non degree/unknown distances
+- Processing: "Drape features to z/m" algorithms
+- Processing: "Raster pixels to points" algorithm
+- Processing: Line substring algorithm
+- Processing: "Interpolate point on line" algorithm
+- Processing: k-neighbour concave hull
+- Processing: Python scripts which implement algorithms now execute the algorithm on drag and drop and browser double click
+- Processing: New GDAL's rearrange band algorithm
+- Processing: "Precalculated" values for model algorithm parameters
+- Processing: "Categorize a layer using a style XML file" algorithm
+- General: Flatpak
+- General: SVG files can be embedded in projects and symbols
+- General: OpenCL based acceleration
+- Data Providers: OAuth2 authentication method plugin
+- Data Providers: Mesh layer: New mesh layer format support
+- Data Providers: Mesh layer: add function to identify value on mesh layers
+- Data Providers: Mesh layer: allow to choose different vector and scalar dataset
+- Data Providers:  Mesh layer: allow render vectors/arrows on the user-defined grid
+- Data Providers: JSON/JSONB Type support
+- Data Providers: ESRI Token Authentication support
+- Data Providers: SQL Server - Invalid geometry handling
+- QGIS Server: Server Cache can be manage by plugins
+- QGIS Server: WMTS 1.0.0 support
+- QGIS Server: Add ability to define min. scale for WMTS
+- QGIS Server:  Support QGIS Server logs to stderr
+- Plugins: Support for encrypted zips in the Plugin Manager
+- Plugins: Offline Editing GeoPackage
+- Programmability: QgsSpatialIndexKDBush
+- Programmability: QgsRasterDataProvider::sample method for efficient sampling of rasters at a given point
+- Programmability: New geometry API call to return a curve substring
+- Programmability: sip Module API Changes
+- 3D Features: Improved navigation
+- 3D Features: Animation
+- 3D Features: Simple rendering of 3D linestrings
+- 3D Features: Identification map tool for 3D views
+-
+
+
 = What's new in Version 3.2 'Bonn'? =
 
 This release has following new features:

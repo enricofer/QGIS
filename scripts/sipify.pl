@@ -534,6 +534,13 @@ while ($LINE_IDX < $LINE_COUNT){
         write_output("COD", $LINE."\n");
         next;
     }
+    # do not process SIP code %Property
+    if ( $SIP_RUN == 1 && $LINE =~ m/^ *% *(Property)(.*)?$/ ){
+        $LINE = "%$1$2";
+        $COMMENT = '';
+        write_output("COD", $LINE."\n");
+        next;
+    }
 
     # Skip preprocessor stuff
     if ($LINE =~ m/^\s*#/){
@@ -747,7 +754,7 @@ while ($LINE_IDX < $LINE_COUNT){
 
     # class declaration started
     # https://regex101.com/r/6FWntP/10
-    if ( $LINE =~ m/^(\s*class)\s+([A-Z]+_EXPORT\s+)?(\w+)(\s*\:\s*(public|protected|private)\s+\w+(< *(\w|::)+ *>)?(::\w+(<\w+>)?)*(,\s*(public|protected|private)\s+\w+(< *(\w|::)+ *>)?(::\w+(<\w+>)?)*)*)?(?<annot>\s*\/?\/?\s*SIP_\w+)?\s*?(\/\/.*|(?!;))$/ ){
+    if ( $LINE =~ m/^(\s*class)\s+([A-Z0-9_]+_EXPORT\s+)?(\w+)(\s*\:\s*(public|protected|private)\s+\w+(< *(\w|::)+ *>)?(::\w+(<\w+>)?)*(,\s*(public|protected|private)\s+\w+(< *(\w|::)+ *>)?(::\w+(<\w+>)?)*)*)?(?<annot>\s*\/?\/?\s*SIP_\w+)?\s*?(\/\/.*|(?!;))$/ ){
         dbg_info("class definition started");
         push @ACCESS, PUBLIC;
         push @EXPORTED, 0;
@@ -763,7 +770,7 @@ while ($LINE_IDX < $LINE_COUNT){
                 push @DECLARED_CLASSES, $CLASSNAME[$#CLASSNAME];
             }
             dbg_info("class: ".$CLASSNAME[$#CLASSNAME]);
-            if ($LINE =~ m/\b[A-Z]+_EXPORT\b/ || $#CLASSNAME != 0 || $INPUT_LINES[$LINE_IDX-2] =~ m/^\s*template</){
+            if ($LINE =~ m/\b[A-Z0-9_]+_EXPORT\b/ || $#CLASSNAME != 0 || $INPUT_LINES[$LINE_IDX-2] =~ m/^\s*template</){
                 # class should be exported except those not at top level or template classes
                 # if class is not exported, then its methods should be (checked whenever leaving out the class)
                 $EXPORTED[-1]++;
@@ -935,11 +942,11 @@ while ($LINE_IDX < $LINE_COUNT){
                 if (detect_comment_block()){
                     next;
                 }
-                if ($LINE =~ m/\};/){
-                    last;
-                }
+                last if ($LINE =~ m/\};/);
+                next if ($LINE =~ m/^\s*\w+\s*\|/); # multi line declaration as sum of enums
+
                 do {no warnings 'uninitialized';
-                    my $enum_decl = $LINE =~ s/(\s*\w+)(\s+SIP_\w+(?:\([^()]+\))?)?(?:\s*=\s*(?:[\w\s\d|+-]|::|<<)+.*?)?(,?).*$/$1$2$3/r;
+                    my $enum_decl = $LINE =~ s/^(\s*\w+)(\s+SIP_\w+(?:\([^()]+\))?)?(?:\s*=\s*(?:[\w\s\d|+-]|::|<<)+)?(,?).*$/$1$2$3/r;
                     $enum_decl = fix_annotations($enum_decl);
                     write_output("ENU3", "$enum_decl\n");
                 };
@@ -953,12 +960,13 @@ while ($LINE_IDX < $LINE_COUNT){
     }
 
     $IS_OVERRIDE = 1 if ( $LINE =~ m/\boverride\b/);
+    $IS_OVERRIDE = 1 if ( $LINE =~ m/\bFINAL\b/);
 
     # keyword fixes
     do {no warnings 'uninitialized';
         $LINE =~ s/^(\s*template\s*<)(?:class|typename) (\w+>)(.*)$/$1$2$3/;
         $LINE =~ s/\s*\boverride\b//;
-        $LINE =~ s/\s*\bfinal\b//;
+        $LINE =~ s/\s*\bFINAL\b/ \${SIP_FINAL}/;
         $LINE =~ s/\s*\bextern \b//;
         $LINE =~ s/\s*\bMAYBE_UNUSED \b//;
         $LINE =~ s/\s*\bNODISCARD \b//;
@@ -1035,7 +1043,7 @@ while ($LINE_IDX < $LINE_COUNT){
                 if ( $virtual_line !~ m/^(\s*)virtual\b(.*)$/ ){
                     my $idx = $#OUTPUT-$LINE_IDX+$virtual_line_idx+2;
                     #print "len: $#OUTPUT line_idx: $LINE_IDX virt: $virtual_line_idx\n"idx: $idx\n$OUTPUT[$idx]\n";
-                    $OUTPUT[$idx] = $virtual_line =~ s/^(\s*?)\b(.*)$/$1 virtual $2\n/r;
+                    $OUTPUT[$idx] = fix_annotations($virtual_line =~ s/^(\s*?)\b(.*)$/$1 virtual $2\n/r);
                 }
             }
             elsif ( $LINE !~ m/^(\s*)virtual\b(.*)$/ ){
@@ -1141,7 +1149,7 @@ while ($LINE_IDX < $LINE_COUNT){
         }
     }
     elsif ( $LINE =~ m/^[^()]+\([^()]*([^()]*\([^()]*\)[^()]*)*[^)]*$/ ){
-      dbg_info("Mulitline detected");
+      dbg_info("Multiline detected:: $LINE");
       if ( $LINE =~ m/^\s*((else )?if|while|for) *\(/ ){
           $MULTILINE_DEFINITION = MULTILINE_CONDITIONAL_STATEMENT;
       }

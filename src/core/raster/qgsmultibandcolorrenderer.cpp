@@ -189,7 +189,7 @@ QgsRasterBlock *QgsMultiBandColorRenderer::block( int bandNo, QgsRectangle  cons
     if ( !bandBlocks[*bandIt] )
     {
       // We should free the alloced mem from block().
-      QgsDebugMsg( "No input band" );
+      QgsDebugMsg( QStringLiteral( "No input band" ) );
       --bandIt;
       for ( ; bandIt != bands.constBegin(); --bandIt )
       {
@@ -279,9 +279,9 @@ QgsRasterBlock *QgsMultiBandColorRenderer::block( int bandNo, QgsRectangle  cons
         }
         else
         {
-          int redVal = ( int )redBlock->value( i );
-          int greenVal = ( int )greenBlock->value( i );
-          int blueVal = ( int )blueBlock->value( i );
+          int redVal = static_cast<int>( redBlock->value( i ) );
+          int greenVal = static_cast<int>( greenBlock->value( i ) );
+          int blueVal = static_cast<int>( blueBlock->value( i ) );
           outputBlockColorData[i] = qRgb( redVal, greenVal, blueVal );
         }
       }

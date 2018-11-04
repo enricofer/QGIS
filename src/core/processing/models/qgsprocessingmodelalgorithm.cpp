@@ -70,14 +70,20 @@ QString QgsProcessingModelAlgorithm::svgIconPath() const
 
 QString QgsProcessingModelAlgorithm::shortHelpString() const
 {
-  if ( mHelpContent.contains( QStringLiteral( "ALG_DESC" ) ) )
-    return mHelpContent.value( QStringLiteral( "ALG_DESC" ) ).toString();
-  return QString();
+  if ( mHelpContent.empty() )
+    return QString();
+
+  return QgsProcessingUtils::formatHelpMapAsHtml( mHelpContent, this );
+}
+
+QString QgsProcessingModelAlgorithm::shortDescription() const
+{
+  return mHelpContent.value( QStringLiteral( "SHORT_DESCRIPTION" ) ).toString();
 }
 
 QString QgsProcessingModelAlgorithm::helpUrl() const
 {
-  return QgsProcessingUtils::formatHelpMapAsHtml( mHelpContent, this );
+  return mHelpContent.value( QStringLiteral( "HELP_URL" ) ).toString();
 }
 
 QgsProcessingAlgorithm::Flags QgsProcessingModelAlgorithm::flags() const
@@ -529,6 +535,15 @@ QMap<QString, QgsProcessingModelAlgorithm::VariableDefinition> QgsProcessingMode
 
     };
 
+    if ( value.canConvert<QgsProcessingOutputLayerDefinition>() )
+    {
+      QgsProcessingOutputLayerDefinition fromVar = qvariant_cast<QgsProcessingOutputLayerDefinition>( value );
+      value = fromVar.sink;
+      if ( value.canConvert<QgsProperty>() )
+      {
+        value = value.value< QgsProperty >().valueAsString( context.expressionContext() );
+      }
+    }
     QgsMapLayer *layer = qobject_cast< QgsMapLayer * >( qvariant_cast<QObject *>( value ) );
     if ( !layer )
       layer = QgsProcessingUtils::mapLayerFromString( value.toString(), context );
@@ -588,6 +603,10 @@ QMap<QString, QgsProcessingModelAlgorithm::VariableDefinition> QgsProcessingMode
     {
       QgsProcessingOutputLayerDefinition fromVar = qvariant_cast<QgsProcessingOutputLayerDefinition>( value );
       value = fromVar.sink;
+      if ( value.canConvert<QgsProperty>() )
+      {
+        value = value.value< QgsProperty >().valueAsString( context.expressionContext() );
+      }
     }
     if ( QgsVectorLayer *layer = qobject_cast< QgsVectorLayer * >( qvariant_cast<QObject *>( value ) ) )
     {
@@ -930,6 +949,16 @@ bool QgsProcessingModelAlgorithm::vectorOutputIsCompatibleType( const QList<int>
                 outputType == QgsProcessing::TypeVectorPolygon ) ) );
 }
 
+void QgsProcessingModelAlgorithm::reattachAlgorithms() const
+{
+  QMap< QString, QgsProcessingModelChildAlgorithm >::const_iterator childIt = mChildAlgorithms.constBegin();
+  for ( ; childIt != mChildAlgorithms.constEnd(); ++childIt )
+  {
+    if ( !childIt->algorithm() )
+      childIt->reattach();
+  }
+}
+
 bool QgsProcessingModelAlgorithm::toFile( const QString &path ) const
 {
   QDomDocument doc = QDomDocument( QStringLiteral( "model" ) );
@@ -1182,6 +1211,7 @@ QSet< QString > QgsProcessingModelAlgorithm::dependsOnChildAlgorithms( const QSt
 
 bool QgsProcessingModelAlgorithm::canExecute( QString *errorMessage ) const
 {
+  reattachAlgorithms();
   QMap< QString, QgsProcessingModelChildAlgorithm >::const_iterator childIt = mChildAlgorithms.constBegin();
   for ( ; childIt != mChildAlgorithms.constEnd(); ++childIt )
   {

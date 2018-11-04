@@ -91,7 +91,7 @@ static void printGEOSNotice( const char *fmt, ... )
   vsnprintf( buffer, sizeof buffer, fmt, ap );
   va_end( ap );
 
-  QgsDebugMsg( QString( "GEOS notice: %1" ).arg( QString::fromUtf8( buffer ) ) );
+  QgsDebugMsg( QStringLiteral( "GEOS notice: %1" ).arg( QString::fromUtf8( buffer ) ) );
 #else
   Q_UNUSED( fmt );
 #endif
@@ -157,7 +157,7 @@ QgsGeometry QgsGeos::geometryFromGeos( GEOSGeometry *geos )
   return g;
 }
 
-QgsGeometry QgsGeos::geometryFromGeos( geos::unique_ptr geos )
+QgsGeometry QgsGeos::geometryFromGeos( const geos::unique_ptr &geos )
 {
   QgsGeometry g( QgsGeos::fromGeos( geos.get() ) );
   return g;
@@ -910,7 +910,7 @@ QgsGeometryEngine::EngineOperationResult QgsGeos::splitPolygonGeometry( GEOSGeom
     intersectGeometry.reset( GEOSIntersection_r( geosinit.ctxt, mGeos.get(), polygon ) );
     if ( !intersectGeometry )
     {
-      QgsDebugMsg( "intersectGeometry is nullptr" );
+      QgsDebugMsg( QStringLiteral( "intersectGeometry is nullptr" ) );
       continue;
     }
 
@@ -1187,7 +1187,9 @@ std::unique_ptr<QgsPolygon> QgsGeos::fromGeosPolygon( const GEOSGeometry *geos )
   }
 
   QVector<QgsCurve *> interiorRings;
-  for ( int i = 0; i < GEOSGetNumInteriorRings_r( geosinit.ctxt, geos ); ++i )
+  const int ringCount = GEOSGetNumInteriorRings_r( geosinit.ctxt, geos );
+  interiorRings.reserve( ringCount );
+  for ( int i = 0; i < ringCount; ++i )
   {
     ring = GEOSGetInteriorRingN_r( geosinit.ctxt, geos, i );
     if ( ring )

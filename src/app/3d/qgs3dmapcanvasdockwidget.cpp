@@ -15,24 +15,28 @@
 
 #include "qgs3dmapcanvasdockwidget.h"
 
-#include "qgisapp.h"
-#include "qgs3dmapcanvas.h"
-#include "qgs3dmapconfigwidget.h"
-#include "qgs3dmapscene.h"
-#include "qgscameracontroller.h"
-#include "qgsmapcanvas.h"
-
-#include "qgs3danimationsettings.h"
-#include "qgs3danimationwidget.h"
-#include "qgs3dmapsettings.h"
-#include "qgs3dutils.h"
-
 #include <QBoxLayout>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QProgressBar>
 #include <QToolBar>
 #include <QUrl>
+
+#include "qgisapp.h"
+#include "qgs3dmapcanvas.h"
+#include "qgs3dmapconfigwidget.h"
+#include "qgs3dmapscene.h"
+#include "qgscameracontroller.h"
+#include "qgsmapcanvas.h"
+#include "qgsmessagebar.h"
+
+#include "qgs3danimationsettings.h"
+#include "qgs3danimationwidget.h"
+#include "qgs3dmapsettings.h"
+#include "qgs3dmaptoolidentify.h"
+#include "qgs3dutils.h"
+
+
 
 Qgs3DMapCanvasDockWidget::Qgs3DMapCanvasDockWidget( QWidget *parent )
   : QgsDockWidget( parent )
@@ -53,6 +57,10 @@ Qgs3DMapCanvasDockWidget::Qgs3DMapCanvasDockWidget( QWidget *parent )
                         tr( "Animations" ), this, &Qgs3DMapCanvasDockWidget::toggleAnimations );
   actionAnim->setCheckable( true );
 
+  QAction *actionIdentify = toolBar->addAction( QIcon( QgsApplication::iconPath( "mActionIdentify.svg" ) ),
+                            tr( "Identify" ), this, &Qgs3DMapCanvasDockWidget::identify );
+  actionIdentify->setCheckable( true );
+
   mCanvas = new Qgs3DMapCanvas( contentsWidget );
   mCanvas->setMinimumSize( QSize( 200, 200 ) );
   mCanvas->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
@@ -61,6 +69,8 @@ Qgs3DMapCanvasDockWidget::Qgs3DMapCanvasDockWidget( QWidget *parent )
   {
     QgisApp::instance()->messageBar()->pushSuccess( tr( "Save as Image" ), tr( "Successfully saved the 3D map to <a href=\"%1\">%2</a>" ).arg( QUrl::fromLocalFile( fileName ).toString(), QDir::toNativeSeparators( fileName ) ) );
   } );
+
+  mMapToolIdentify = new Qgs3DMapToolIdentify( mCanvas );
 
   mLabelPendingJobs = new QLabel( this );
   mProgressPendingJobs = new QProgressBar( this );
@@ -115,6 +125,15 @@ void Qgs3DMapCanvasDockWidget::toggleAnimations()
   {
     mAnimationWidget->setDefaultAnimation();
   }
+}
+
+void Qgs3DMapCanvasDockWidget::identify()
+{
+  QAction *action = qobject_cast<QAction *>( sender() );
+  if ( !action )
+    return;
+
+  mCanvas->setMapTool( action->isChecked() ? mMapToolIdentify : nullptr );
 }
 
 void Qgs3DMapCanvasDockWidget::setMapSettings( Qgs3DMapSettings *map )

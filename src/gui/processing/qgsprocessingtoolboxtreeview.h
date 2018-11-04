@@ -85,6 +85,12 @@ class GUI_EXPORT QgsProcessingToolboxTreeView : public QTreeView
      */
     void setFilters( QgsProcessingToolboxProxyModel::Filters filters );
 
+
+    /**
+     * Sets the vector \a layer for the in-place algorithms
+     */
+    void setInPlaceLayer( QgsVectorLayer *layer );
+
   public slots:
 
     /**
@@ -102,6 +108,8 @@ class GUI_EXPORT QgsProcessingToolboxTreeView : public QTreeView
      * Returns the first visible algorithm in the tree.
      */
     QModelIndex findFirstVisibleAlgorithm( const QModelIndex &parent );
+
+    friend class TestQgsProcessingModel;
 
 };
 

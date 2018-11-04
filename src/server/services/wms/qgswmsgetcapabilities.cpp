@@ -94,7 +94,10 @@ namespace QgsWms
                              const QString &version, const QgsServerRequest &request,
                              QgsServerResponse &response, bool projectSettings )
   {
-    QgsAccessControl *accessControl = serverIface->accessControls();
+    QgsAccessControl *accessControl = nullptr;
+#ifdef HAVE_SERVER_PYTHON_PLUGINS
+    accessControl = serverIface->accessControls();
+#endif
 
     QDomDocument doc;
     const QDomDocument *capabilitiesDocument = nullptr;
@@ -110,7 +113,10 @@ namespace QgsWms
       cache = accessControl->fillCacheKey( cacheKeyList );
     QString cacheKey = cacheKeyList.join( '-' );
 
-    QgsServerCacheManager *cacheManager = serverIface->cacheManager();
+    QgsServerCacheManager *cacheManager = nullptr;
+#ifdef HAVE_SERVER_PYTHON_PLUGINS
+    cacheManager = serverIface->cacheManager();
+#endif
     if ( cacheManager && cacheManager->getCachedDocument( &doc, project, request, accessControl ) )
     {
       capabilitiesDocument = &doc;
@@ -771,7 +777,6 @@ namespace QgsWms
       const QgsProject *project, const QString &version,
       const QgsServerRequest &request, bool projectSettings )
   {
-    QStringList nonIdentifiableLayers = project->nonIdentifiableLayers();
     const QgsLayerTree *projectLayerTreeRoot = project->layerTreeRoot();
 
     QDomElement layerParentElem = doc.createElement( QStringLiteral( "Layer" ) );
@@ -936,7 +941,7 @@ namespace QgsWms
           }
 
           // queryable layer
-          if ( project->nonIdentifiableLayers().contains( l->id() ) )
+          if ( !l->flags().testFlag( QgsMapLayer::Identifiable ) )
           {
             layerElem.setAttribute( QStringLiteral( "queryable" ), QStringLiteral( "0" ) );
           }
@@ -1012,7 +1017,24 @@ namespace QgsWms
             appendCrsElementsToLayer( doc, layerElem, crsList, outputCrsList );
 
             //Ex_GeographicBoundingBox
-            appendLayerBoundingBoxes( doc, layerElem, l->extent(), l->crs(), crsList, outputCrsList, project );
+            QgsRectangle extent = l->extent();  // layer extent by default
+            if ( l->type() == QgsMapLayer::VectorLayer )
+            {
+              QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( l );
+              if ( vl && vl->featureCount() == 0 )
+              {
+                // if there's no feature, use the wms extent defined in the
+                // project...
+                extent = QgsServerProjectUtils::wmsExtent( *project );
+                if ( extent.isNull() )
+                {
+                  // or the CRS extent otherwise
+                  extent = vl->crs().bounds();
+                }
+              }
+            }
+
+            appendLayerBoundingBoxes( doc, layerElem, extent, l->crs(), crsList, outputCrsList, project );
           }
 
           // add details about supported styles of the layer

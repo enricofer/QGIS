@@ -79,7 +79,7 @@ QgsLineString::QgsLineString( const QVector<QgsPoint> &points )
   }
 }
 
-QgsLineString::QgsLineString( const QVector<double> &x, const QVector<double> &y, const QVector<double> &z, const QVector<double> &m )
+QgsLineString::QgsLineString( const QVector<double> &x, const QVector<double> &y, const QVector<double> &z, const QVector<double> &m, bool is25DType )
 {
   mWkbType = QgsWkbTypes::LineString;
   int pointCount = std::min( x.size(), y.size() );
@@ -101,7 +101,7 @@ QgsLineString::QgsLineString( const QVector<double> &x, const QVector<double> &y
   }
   if ( !z.isEmpty() && z.count() >= pointCount )
   {
-    mWkbType = QgsWkbTypes::addZ( mWkbType );
+    mWkbType = is25DType ? QgsWkbTypes::LineString25D : QgsWkbTypes::LineStringZ;
     if ( z.size() == pointCount )
     {
       mZ = z;
@@ -466,7 +466,7 @@ QgsLineString *QgsLineString::curveToLine( double tolerance, SegmentationToleran
 {
   Q_UNUSED( tolerance );
   Q_UNUSED( toleranceType );
-  return static_cast<QgsLineString *>( clone() );
+  return clone();
 }
 
 int QgsLineString::numPoints() const

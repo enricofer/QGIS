@@ -35,6 +35,10 @@ INCLUDE_DIRECTORIES(SYSTEM
   ${SQLITE3_INCLUDE_DIR}
   )
 
+IF(HAVE_OPENCL)
+    INCLUDE_DIRECTORIES(SYSTEM ${OpenCL_INCLUDE_DIRS})
+ENDIF(HAVE_OPENCL)
+
 #note for tests we should not include the moc of our
 #qtests in the executable file list as the moc is
 #directly included in the sources
@@ -75,6 +79,8 @@ SET(TESTS
  testqgsauthconfig.cpp
  testqgsauthmanager.cpp
  testqgsblendmodes.cpp
+ testqgsbrowsermodel.cpp
+ testqgsbrowserproxymodel.cpp
  testqgscadutils.cpp
  testqgsclipper.cpp
  testqgscolorscheme.cpp
@@ -99,6 +105,7 @@ SET(TESTS
  testqgsfields.cpp
  testqgsfield.cpp
  testqgsfilledmarker.cpp
+ testqgsgdalutils.cpp
  testqgsvectorfilewriter.cpp
  testqgsfontmarker.cpp
  testqgsgeometryimport.cpp
@@ -109,6 +116,7 @@ SET(TESTS
  testqgsgradients.cpp
  testqgsgraduatedsymbolrenderer.cpp
  testqgshistogram.cpp
+ testqgshstoreutils.cpp
  testqgsimageoperation.cpp
  testqgsinternalgeometryengine.cpp
  testqgsinvertedpolygonrenderer.cpp
@@ -139,6 +147,7 @@ SET(TESTS
  testqgslegendrenderer.cpp
  testqgscentroidfillsymbol.cpp
  testqgslinefillsymbol.cpp
+ testqgsmapdevicepixelratio.cpp
  testqgsmaplayerstylemanager.cpp
  testqgsmaplayer.cpp
  testqgsmaprendererjob.cpp

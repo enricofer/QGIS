@@ -12,7 +12,7 @@
 
 
 
-class QgsProcessingModelerParameterWidget : QWidget
+class QgsProcessingModelerParameterWidget : QWidget, QgsExpressionContextGenerator
 {
 %Docstring
 
@@ -56,6 +56,19 @@ last for the lifetime of the widget.
 %End
 
     ~QgsProcessingModelerParameterWidget();
+
+    void setWidgetContext( const QgsProcessingParameterWidgetContext &context );
+%Docstring
+Sets the ``context`` in which the modeler parameter widget is shown, e.g., the
+parent model algorithm and other relevant information which allows the widget
+to fine-tune its behavior.
+%End
+
+    void registerProcessingContextGenerator( QgsProcessingContextGenerator *generator );
+%Docstring
+Registers a Processing context ``generator`` class that will be used to retrieve
+a Processing context for the widget when required.
+%End
 
     void populateSources( const QStringList &compatibleParameterTypes,
                           const QStringList &compatibleOutputTypes,
@@ -107,6 +120,9 @@ Returns the current value of the parameter.
 
 .. seealso:: :py:func:`setWidgetValue`
 %End
+
+    virtual QgsExpressionContext createExpressionContext() const;
+
 
 };
 

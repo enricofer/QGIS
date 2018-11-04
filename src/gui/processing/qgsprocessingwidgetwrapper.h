@@ -34,6 +34,8 @@ class QgsProcessingModelAlgorithm;
 class QLabel;
 class QgsPropertyOverrideButton;
 class QgsVectorLayer;
+class QgsProcessingModelAlgorithm;
+class QgsMapCanvas;
 
 /**
  * \class QgsProcessingContextGenerator
@@ -60,6 +62,79 @@ class GUI_EXPORT QgsProcessingContextGenerator
 };
 
 /**
+ * \ingroup gui
+ * \class QgsProcessingParameterWidgetContext
+ * Contains settings which reflect the context in which a Processing parameter widget is shown, e.g., the
+ * parent model algorithm, a linked map canvas, and other relevant information which allows the widget
+ * to fine-tune its behavior.
+ *
+ * \since QGIS 3.4
+ */
+class GUI_EXPORT QgsProcessingParameterWidgetContext
+{
+  public:
+
+    /**
+     * Constructor for QgsProcessingParameterWidgetContext.
+     */
+    QgsProcessingParameterWidgetContext() = default;
+
+    /**
+     * Sets the map \a canvas associated with the widget. This allows the widget to retrieve the current
+     * map scale and other properties from the canvas.
+     * \see mapCanvas()
+     */
+    void setMapCanvas( QgsMapCanvas *canvas );
+
+    /**
+     * Returns the map canvas associated with the widget.
+     * \see setMapCanvas()
+     */
+    QgsMapCanvas *mapCanvas() const;
+
+    /**
+     * Returns the model which the parameter widget is associated with.
+     *
+     * \see setModel()
+     * \see modelChildAlgorithmId()
+     */
+    QgsProcessingModelAlgorithm *model() const;
+
+    /**
+     * Sets the \a model which the parameter widget is associated with.
+     *
+     * \see model()
+     * \see setModelChildAlgorithmId()
+     */
+    void setModel( QgsProcessingModelAlgorithm *model );
+
+    /**
+     * Returns the child algorithm ID within the model which the parameter widget is associated with.
+     *
+     * \see setModelChildAlgorithmId()
+     * \see model()
+     */
+    QString modelChildAlgorithmId() const;
+
+    /**
+     * Sets the child algorithm \a id within the model which the parameter widget is associated with.
+     *
+     * \see modelChildAlgorithmId()
+     * \see setModel()
+     */
+    void setModelChildAlgorithmId( const QString &id );
+
+  private:
+
+    QgsProcessingModelAlgorithm *mModel = nullptr;
+
+    QString mModelChildAlgorithmId;
+
+    QgsMapCanvas *mMapCanvas = nullptr;
+
+};
+
+/**
  * \class QgsAbstractProcessingParameterWidgetWrapper
  *
  * A widget wrapper for Processing parameter value widgets.
@@ -78,7 +153,7 @@ class GUI_EXPORT QgsProcessingContextGenerator
  * \ingroup gui
  * \since QGIS 3.4
  */
-class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject
+class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject, public QgsExpressionContextGenerator
 {
     Q_OBJECT
 
@@ -95,6 +170,26 @@ class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject
      * Returns the dialog type for which widgets and labels will be created by this wrapper.
      */
     QgsProcessingGui::WidgetType type() const;
+
+    /**
+     * Sets the \a context in which the Processing parameter widget is shown, e.g., the
+     * parent model algorithm, a linked map canvas, and other relevant information which allows the widget
+     * to fine-tune its behavior.
+     *
+     * Subclasses should take care to call the base class method when reimplementing this method.
+     *
+     * \see widgetContext()
+     */
+    virtual void setWidgetContext( const QgsProcessingParameterWidgetContext &context );
+
+    /**
+     * Returns the context in which the Processing parameter widget is shown, e.g., the
+     * parent model algorithm, a linked map canvas, and other relevant information which allows the widget
+     * to fine-tune its behavior.
+     *
+     * \see setWidgetContext()
+     */
+    const QgsProcessingParameterWidgetContext &widgetContext() const;
 
     /**
      * Creates and return a new wrapped widget which allows customization of the parameter's value.
@@ -139,6 +234,11 @@ class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject
      */
     const QgsProcessingParameterDefinition *parameterDefinition() const;
 
+    // TODO QGIS 4.0 -- remove
+#ifdef SIP_RUN
+    % Property( name = param, get = parameterDefinition )
+#endif
+
     /**
      * Sets the current \a value for the parameter.
      *
@@ -157,7 +257,7 @@ class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject
     QVariant parameterValue() const;
 
     /**
-     * Register a Processing context generator class that will be used to retrieve
+     * Registers a Processing context \a generator class that will be used to retrieve
      * a Processing context for the wrapper when required.
      */
     void registerProcessingContextGenerator( QgsProcessingContextGenerator *generator );
@@ -167,6 +267,8 @@ class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject
      * allowing the wrapper to connect to the wrappers of other, related parameters.
      */
     virtual void postInitialize( const QList< QgsAbstractProcessingParameterWidgetWrapper * > &wrappers );
+
+    QgsExpressionContext createExpressionContext() const override;
 
   signals:
 
@@ -218,6 +320,11 @@ class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject
      */
     virtual QVariant widgetValue() const = 0;
 
+  protected:
+
+    QgsProcessingContextGenerator *mProcessingContextGenerator = nullptr;
+    QgsProcessingParameterWidgetContext mWidgetContext;
+
   private slots:
 
     void parentLayerChanged( QgsAbstractProcessingParameterWidgetWrapper *wrapper );
@@ -226,7 +333,6 @@ class GUI_EXPORT QgsAbstractProcessingParameterWidgetWrapper : public QObject
 
     QgsProcessingGui::WidgetType mType = QgsProcessingGui::Standard;
     const QgsProcessingParameterDefinition *mParameterDefinition = nullptr;
-    QgsProcessingContextGenerator *mProcessingContextGenerator = nullptr;
 
     void setDynamicParentLayerParameter( const QVariant &value );
 

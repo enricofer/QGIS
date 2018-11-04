@@ -22,6 +22,7 @@
 #include "qgsprocessingguiregistry.h"
 #include "models/qgsprocessingmodelalgorithm.h"
 #include "qgsgui.h"
+#include "qgsexpressioncontext.h"
 #include <QHBoxLayout>
 #include <QToolButton>
 #include <QStackedWidget>
@@ -81,6 +82,7 @@ QgsProcessingModelerParameterWidget::QgsProcessingModelerParameterWidget( QgsPro
   }
 
   mExpressionWidget = new QgsExpressionLineEdit();
+  mExpressionWidget->registerExpressionContextGenerator( this );
   mStackedWidget->addWidget( mExpressionWidget );
 
   mModelInputCombo = new QComboBox();
@@ -112,6 +114,18 @@ QgsProcessingModelerParameterWidget::QgsProcessingModelerParameterWidget( QgsPro
 }
 
 QgsProcessingModelerParameterWidget::~QgsProcessingModelerParameterWidget() = default;
+
+void QgsProcessingModelerParameterWidget::setWidgetContext( const QgsProcessingParameterWidgetContext &context )
+{
+  if ( mStaticWidgetWrapper )
+    mStaticWidgetWrapper->setWidgetContext( context );
+}
+
+void QgsProcessingModelerParameterWidget::registerProcessingContextGenerator( QgsProcessingContextGenerator *generator )
+{
+  if ( mStaticWidgetWrapper )
+    mStaticWidgetWrapper->registerProcessingContextGenerator( generator );
+}
 
 const QgsProcessingParameterDefinition *QgsProcessingModelerParameterWidget::parameterDefinition() const
 {
@@ -161,6 +175,30 @@ QgsProcessingModelChildParameterSource QgsProcessingModelerParameterWidget::valu
   }
 
   return QgsProcessingModelChildParameterSource();
+}
+
+QgsExpressionContext QgsProcessingModelerParameterWidget::createExpressionContext() const
+{
+  QgsExpressionContext c = mContext.expressionContext();
+  if ( mModel )
+  {
+    const QgsProcessingAlgorithm *alg = nullptr;
+    if ( mModel->childAlgorithms().contains( mChildId ) )
+      alg = mModel->childAlgorithm( mChildId ).algorithm();
+    QgsExpressionContextScope *algorithmScope = QgsExpressionContextUtils::processingAlgorithmScope( alg, QVariantMap(), mContext );
+    c << algorithmScope;
+    QgsExpressionContextScope *childScope = mModel->createExpressionContextScopeForChildAlgorithm( mChildId, mContext, QVariantMap(), QVariantMap() );
+    c << childScope;
+
+    QStringList highlightedVariables = childScope->variableNames();
+    QStringList highlightedFunctions = childScope->functionNames();
+    highlightedVariables += algorithmScope->variableNames();
+    highlightedFunctions += algorithmScope->functionNames();
+    c.setHighlightedVariables( highlightedVariables );
+    c.setHighlightedFunctions( highlightedFunctions );
+  }
+
+  return c;
 }
 
 void QgsProcessingModelerParameterWidget::sourceMenuAboutToShow()
@@ -276,6 +314,9 @@ void QgsProcessingModelerParameterWidget::populateSources( const QStringList &co
 
       case QgsProcessingModelChildParameterSource::ChildOutput:
       {
+        if ( !mModel->childAlgorithms().contains( source.outputChildId() ) )
+          continue;
+
         const QgsProcessingModelChildAlgorithm &alg = mModel->childAlgorithm( source.outputChildId() );
         if ( !alg.algorithm() )
           continue;

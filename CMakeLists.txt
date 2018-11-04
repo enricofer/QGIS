@@ -11,7 +11,7 @@ CMAKE_POLICY (SET CMP0053 NEW)
 #############################################################
 # Project and version
 SET(CPACK_PACKAGE_VERSION_MAJOR "3")
-SET(CPACK_PACKAGE_VERSION_MINOR "3")
+SET(CPACK_PACKAGE_VERSION_MINOR "5")
 SET(CPACK_PACKAGE_VERSION_PATCH "0")
 SET(COMPLETE_VERSION ${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH})
 SET(RELEASE_NAME "Master")
@@ -29,15 +29,28 @@ MESSAGE(STATUS "QGIS version: ${COMPLETE_VERSION} ${RELEASE_NAME} (${QGIS_VERSIO
 
 #############################################################
 # Configure OpenCL if available
-IF (APPLE)
+SET(HAVE_OPENCL FALSE)
+IF (${CMAKE_HOST_SYSTEM_NAME} MATCHES "BSD$")
   OPTION(USE_OPENCL "Use OpenCL" OFF)
-ELSE (APPLE)
+ELSE (${CMAKE_HOST_SYSTEM_NAME} MATCHES "BSD$")
   OPTION(USE_OPENCL "Use OpenCL" ON)
-ENDIF (APPLE)
+ENDIF (${CMAKE_HOST_SYSTEM_NAME} MATCHES "BSD$")
 IF (USE_OPENCL)
     FIND_PACKAGE(OpenCL)
     IF(${OpenCL_FOUND})
         SET(HAVE_OPENCL TRUE)
+        # Fixup for standard FindOpenCL module not assinging proper framework headers directory
+        IF (APPLE AND "${OpenCL_INCLUDE_DIR}" MATCHES "OpenCL\\.framework/?$")
+            SET(OpenCL_INCLUDE_DIR "${OpenCL_INCLUDE_DIR}/Headers" CACHE PATH "" FORCE)
+            SET(OpenCL_INCLUDE_DIRS ${OpenCL_INCLUDE_DIR})
+        ENDIF ()
+        FIND_PACKAGE(OpenCLhpp)
+        IF(NOT OPENCL_HPP_FOUND)
+            # Use internal headers copied from OpenCL-CLHPP project
+            SET(OPENCL_HPP_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/opencl-clhpp/include CACHE PATH "" FORCE)
+            MESSAGE(STATUS "Couldn't find OpenCL C++ headers, using internal: ${OPENCL_HPP_INCLUDE_DIR}")
+        ENDIF(NOT OPENCL_HPP_FOUND)
+        SET(OpenCL_INCLUDE_DIRS ${OpenCL_INCLUDE_DIRS} ${OPENCL_HPP_INCLUDE_DIR})
     ELSE(${OpenCL_FOUND})
         MESSAGE(STATUS "Couldn't find OpenCL: support DISABLED")
     ENDIF(${OpenCL_FOUND})
@@ -107,9 +120,12 @@ IF(WITH_CORE)
   IF (NOT WITH_GUI)
     SET (HAVE_GUI FALSE)    # used in qgsconfig.h
     # force value of some options
-    SET(WITH_DESKTOP FALSE)
-    SET(WITH_CUSTOM_WIDGETS FALSE)
-    SET(WITH_SERVER FALSE)  # for some reason server also uses GUI library
+    IF(WITH_DESKTOP)
+      MESSAGE(FATAL_ERROR "Desktop cannot be built without gui. Enable WITH_GUI or disable WITH_DESKTOP.")
+    ENDIF(WITH_DESKTOP)
+    IF(WITH_CUSTOM_WIDGETS)
+      MESSAGE(FATAL_ERROR "Custom widgets cannot be built without gui. Enable WITH_GUI or disable WITH_CUSTOM_WIDGETS.")
+    ENDIF(WITH_CUSTOM_WIDGETS)
   ELSE ()
     SET (HAVE_GUI TRUE)     # used in qgsconfig.h
   ENDIF()
@@ -389,12 +405,6 @@ IF(WITH_CORE)
   # Disable automatic conversion from QString to ASCII 8-bit strings (char *)
   # (Keeps code compatible with Qt/Mac/64bit)
   ADD_DEFINITIONS(-DQT_NO_CAST_TO_ASCII)
-
-  FIND_PROGRAM(QT_LRELEASE_EXECUTABLE
-    NAMES lrelease
-    PATHS ${QT_BINARY_DIR}
-    NO_DEFAULT_PATH
-  )
 ENDIF(WITH_CORE)
 
 # build our version of astyle

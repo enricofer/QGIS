@@ -25,16 +25,17 @@ email                : sherman at mrcc.com
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QKeyEvent>
-#include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
 #include <QRect>
 #include <QTextStream>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QString>
 #include <QStringList>
 #include <QWheelEvent>
+#include <QWindow>
 
 #include "qgis.h"
 #include "qgssettings.h"
@@ -48,6 +49,7 @@ email                : sherman at mrcc.com
 #include "qgsmapcanvasmap.h"
 #include "qgsmapcanvassnappingutils.h"
 #include "qgsmaplayer.h"
+#include "qgsmapmouseevent.h"
 #include "qgsmaptoolpan.h"
 #include "qgsmaptoolzoom.h"
 #include "qgsmaptopixel.h"
@@ -163,10 +165,16 @@ QgsMapCanvas::QgsMapCanvas( QWidget *parent )
 
   QSize s = viewport()->size();
   mSettings.setOutputSize( s );
+  mSettings.setDevicePixelRatio( devicePixelRatio() );
   setSceneRect( 0, 0, s.width(), s.height() );
   mScene->setSceneRect( QRectF( 0, 0, s.width(), s.height() ) );
 
   moveCanvasContents( true );
+
+  // keep device pixel ratio up to date on screen or resolution change
+  connect( window()->windowHandle(), &QWindow::screenChanged, this, [ = ]( QScreen * ) {mSettings.setDevicePixelRatio( devicePixelRatio() );} );
+  if ( window()->windowHandle() )
+    connect( window()->windowHandle()->screen(), &QScreen::physicalDotsPerInchChanged, this, [ = ]( qreal ) {mSettings.setDevicePixelRatio( devicePixelRatio() );} );
 
   connect( &mMapUpdateTimer, &QTimer::timeout, this, &QgsMapCanvas::mapUpdateTimeout );
   mMapUpdateTimer.setInterval( 250 );
@@ -681,8 +689,19 @@ QgsRectangle QgsMapCanvas::imageRect( const QImage &img, const QgsMapSettings &m
   // This is a hack to pass QgsMapCanvasItem::setRect what it
   // expects (encoding of position and size of the item)
   const QgsMapToPixel &m2p = mapSettings.mapToPixel();
-  QgsPointXY topLeft = m2p.toMapPoint( 0, 0 );
-  double res = m2p.mapUnitsPerPixel();
+  QgsPointXY topLeft = m2p.toMapCoordinates( 0, 0 );
+#ifdef QGISDEBUG
+  // do not assert this, since it might lead to crashes when changing screen while rendering
+  if ( img.devicePixelRatio() != mapSettings.devicePixelRatio() )
+  {
+    QgsLogger::warning( QStringLiteral( "The renderer map has a wrong device pixel ratio" ) );
+  }
+#endif
+#if QT_VERSION >= 0x050600
+  double res = m2p.mapUnitsPerPixel() / img.devicePixelRatioF();
+#else
+  double res = m2p.mapUnitsPerPixel() / img.devicePixelRatio();
+#endif
   QgsRectangle rect( topLeft.x(), topLeft.y(), topLeft.x() + img.width()*res, topLeft.y() - img.height()*res );
   return rect;
 }
@@ -756,7 +775,7 @@ void QgsMapCanvas::saveAsImage( const QString &fileName, QPixmap *theQPixmap, co
   {
     item = i.previous();
 
-    if ( !item || dynamic_cast< QgsMapCanvasAnnotationItem * >( item ) )
+    if ( !( item && dynamic_cast< QgsMapCanvasAnnotationItem * >( item ) ) )
     {
       continue;
     }
@@ -977,8 +996,40 @@ void QgsMapCanvas::zoomToSelected( QgsVectorLayer *layer )
   }
 
   rect = mapSettings().layerExtentToOutputExtent( layer, rect );
+
+  // zoom in if point cannot be distinguished from others
+  // also check that rect is empty, as it might not in case of multi points
+  if ( layer->geometryType() == QgsWkbTypes::PointGeometry && rect.isEmpty() )
+  {
+    int scaleFactor = 5;
+    QgsPointXY center = mSettings.mapToLayerCoordinates( layer, rect.center() );
+    QgsRectangle extentRect = mSettings.mapToLayerCoordinates( layer, extent() ).scaled( 1.0 / scaleFactor, &center );
+    QgsFeatureRequest req = QgsFeatureRequest().setFilterRect( extentRect ).setLimit( 1000 ).setNoAttributes();
+    QgsFeatureIterator fit = layer->getFeatures( req );
+    QgsFeature f;
+    QgsPointXY closestPoint;
+    double closestSquaredDistance = extentRect.width() + extentRect.height();
+    bool pointFound = false;
+    while ( fit.nextFeature( f ) )
+    {
+      QgsPointXY point = f.geometry().asPoint();
+      double sqrDist = point.sqrDist( center );
+      if ( sqrDist > closestSquaredDistance || sqrDist < 4 * std::numeric_limits<double>::epsilon() )
+        continue;
+      pointFound = true;
+      closestPoint = point;
+      closestSquaredDistance = sqrDist;
+    }
+    if ( pointFound )
+    {
+      // combine selected point with closest point and scale this rect
+      rect.combineExtentWith( mSettings.layerToMapCoordinates( layer, closestPoint ) );
+      rect.scale( scaleFactor, &center );
+    }
+  }
+
   zoomToFeatureExtent( rect );
-} // zoomToSelected
+}
 
 void QgsMapCanvas::zoomToFeatureExtent( QgsRectangle &rect )
 {
@@ -1046,7 +1097,7 @@ void QgsMapCanvas::panToFeatureIds( QgsVectorLayer *layer, const QgsFeatureIds &
 
 bool QgsMapCanvas::boundingBoxOfFeatureIds( const QgsFeatureIds &ids, QgsVectorLayer *layer, QgsRectangle &bbox, QString &errorMsg ) const
 {
-  QgsFeatureIterator it = layer->getFeatures( QgsFeatureRequest().setFilterFids( ids ).setSubsetOfAttributes( QgsAttributeList() ) );
+  QgsFeatureIterator it = layer->getFeatures( QgsFeatureRequest().setFilterFids( ids ).setNoAttributes() );
   bbox.setMinimal();
   QgsFeature fet;
   int featureCount = 0;
@@ -1115,7 +1166,7 @@ void QgsMapCanvas::flashFeatureIds( QgsVectorLayer *layer, const QgsFeatureIds &
 
   QList< QgsGeometry > geoms;
 
-  QgsFeatureIterator it = layer->getFeatures( QgsFeatureRequest().setFilterFids( ids ).setSubsetOfAttributes( QgsAttributeList() ) );
+  QgsFeatureIterator it = layer->getFeatures( QgsFeatureRequest().setFilterFids( ids ).setNoAttributes() );
   QgsFeature fet;
   while ( it.nextFeature( fet ) )
   {
@@ -1543,6 +1594,12 @@ void QgsMapCanvas::wheelEvent( QWheelEvent *e )
       return;
   }
 
+  if ( e->delta() == 0 )
+  {
+    e->accept();
+    return;
+  }
+
   double zoomFactor = mWheelZoomFactor;
 
   // "Normal" mouse have an angle delta of 120, precision mouses provide data faster, in smaller steps
@@ -1558,7 +1615,7 @@ void QgsMapCanvas::wheelEvent( QWheelEvent *e )
 
   // zoom map to mouse cursor by scaling
   QgsPointXY oldCenter = center();
-  QgsPointXY mousePos( getCoordinateTransform()->toMapPoint( e->x(), e->y() ) );
+  QgsPointXY mousePos( getCoordinateTransform()->toMapCoordinates( e->x(), e->y() ) );
   QgsPointXY newCenter( mousePos.x() + ( ( oldCenter.x() - mousePos.x() ) * signedWheelFactor ),
                         mousePos.y() + ( ( oldCenter.y() - mousePos.y() ) * signedWheelFactor ) );
 
@@ -1599,7 +1656,7 @@ void QgsMapCanvas::zoomWithCenter( int x, int y, bool zoomIn )
   else
   {
     // transform the mouse pos to map coordinates
-    QgsPointXY center  = getCoordinateTransform()->toMapPoint( x, y );
+    QgsPointXY center  = getCoordinateTransform()->toMapCoordinates( x, y );
     QgsRectangle r = mapSettings().visibleExtent();
     r.scale( scaleFactor, &center );
     setExtent( r, true );

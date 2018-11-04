@@ -18,7 +18,6 @@
 
 #include "qgis_core.h"
 #include "qgis_sip.h"
-#include "qgsmaplayer.h"
 
 #include <QByteArray>
 #include <QMap>
@@ -27,6 +26,7 @@
 
 
 class QDomElement;
+class QgsMapLayer;
 
 /**
  * \ingroup core
@@ -40,7 +40,6 @@ class QDomElement;
 class CORE_EXPORT QgsMapLayerStyle
 {
   public:
-
     //! construct invalid style
     QgsMapLayerStyle() = default;
 

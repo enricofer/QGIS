@@ -348,7 +348,7 @@ void MDAL::LoaderGdal::addDatasetGroups()
   // Add dataset to mMesh
   for ( data_hash::const_iterator band = mBands.begin(); band != mBands.end(); band++ )
   {
-    std::shared_ptr<DatasetGroup> group( new DatasetGroup() );
+    std::shared_ptr<DatasetGroup> group = std::make_shared< DatasetGroup >();
     group->uri = mFileName;
     group->setName( band->first );
     group->isOnVertices = true;
@@ -358,7 +358,7 @@ void MDAL::LoaderGdal::addDatasetGroups()
       std::vector<GDALRasterBandH> raster_bands = time_step->second;
       bool is_vector = ( raster_bands.size() > 1 );
 
-      std::shared_ptr<MDAL::Dataset> dataset( new MDAL::Dataset );
+      std::shared_ptr<MDAL::Dataset> dataset = std::make_shared< MDAL::Dataset >();
       group->isScalar = !is_vector;
 
       dataset->time = time_step->first;
@@ -545,6 +545,7 @@ void MDAL::LoaderGdal::parseBandIsVector( std::string &band_name, bool *is_vecto
        MDAL::startsWith( band_name, "x-", MDAL::CaseInsensitive ) ||
        MDAL::contains( band_name, "u-component", MDAL::CaseInsensitive ) ||
        MDAL::contains( band_name, "u component", MDAL::CaseInsensitive ) ||
+       MDAL::contains( band_name, "U wind component", MDAL::CaseInsensitive ) ||
        MDAL::contains( band_name, "x-component", MDAL::CaseInsensitive ) ||
        MDAL::contains( band_name, "x component", MDAL::CaseInsensitive ) )
   {
@@ -555,6 +556,7 @@ void MDAL::LoaderGdal::parseBandIsVector( std::string &band_name, bool *is_vecto
             MDAL::startsWith( band_name, "y-", MDAL::CaseInsensitive ) ||
             MDAL::contains( band_name, "v-component", MDAL::CaseInsensitive ) ||
             MDAL::contains( band_name, "v component", MDAL::CaseInsensitive ) ||
+            MDAL::contains( band_name, "V wind component", MDAL::CaseInsensitive ) ||
             MDAL::contains( band_name, "y-component", MDAL::CaseInsensitive ) ||
             MDAL::contains( band_name, "y component", MDAL::CaseInsensitive ) )
   {
@@ -571,6 +573,8 @@ void MDAL::LoaderGdal::parseBandIsVector( std::string &band_name, bool *is_vecto
   {
     band_name = MDAL::replace( band_name, "u-component of", "", MDAL::CaseInsensitive );
     band_name = MDAL::replace( band_name, "v-component of", "", MDAL::CaseInsensitive );
+    band_name = MDAL::replace( band_name, "U wind component", "wind", MDAL::CaseInsensitive );
+    band_name = MDAL::replace( band_name, "V wind component", "wind", MDAL::CaseInsensitive );
     band_name = MDAL::replace( band_name, "x-component of", "", MDAL::CaseInsensitive );
     band_name = MDAL::replace( band_name, "y-component of", "", MDAL::CaseInsensitive );
     band_name = MDAL::replace( band_name, "u-component", "", MDAL::CaseInsensitive );

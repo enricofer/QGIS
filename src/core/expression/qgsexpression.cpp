@@ -784,6 +784,10 @@ void QgsExpression::initVariableHelp()
 
   //processing variables
   sVariableHelpTexts.insert( QStringLiteral( "algorithm_id" ), QCoreApplication::translate( "algorithm_id", "Unique ID for algorithm." ) );
+  sVariableHelpTexts.insert( QStringLiteral( "fullextent_minx" ), QCoreApplication::translate( "fullextent_minx", "Minimum x-value from full canvas extent (including all layers)." ) );
+  sVariableHelpTexts.insert( QStringLiteral( "fullextent_miny" ), QCoreApplication::translate( "fullextent_miny", "Minimum y-value from full canvas extent (including all layers)." ) );
+  sVariableHelpTexts.insert( QStringLiteral( "fullextent_maxx" ), QCoreApplication::translate( "fullextent_maxx", "Maximum x-value from full canvas extent (including all layers)." ) );
+  sVariableHelpTexts.insert( QStringLiteral( "fullextent_maxy" ), QCoreApplication::translate( "fullextent_maxy", "Maximum y-value from full canvas extent (including all layers)." ) );
 
   //provider notification
   sVariableHelpTexts.insert( QStringLiteral( "notification_message" ), QCoreApplication::translate( "notification_message", "Content of the notification message sent by the provider (available only for actions triggered by provider notifications)." ) );
@@ -791,6 +795,9 @@ void QgsExpression::initVariableHelp()
   //form context variable
   sVariableHelpTexts.insert( QStringLiteral( "current_geometry" ), QCoreApplication::translate( "current_geometry", "Represents the geometry of the feature currently being edited in the form or the table row. Can be used in a form/row context to filter the related features." ) );
   sVariableHelpTexts.insert( QStringLiteral( "current_feature" ), QCoreApplication::translate( "current_feature", "Represents the feature currently being edited in the form or the table row. Can be used in a form/row context to filter the related features." ) );
+
+  //form variable
+  sVariableHelpTexts.insert( QStringLiteral( "form_mode" ), QCoreApplication::translate( "form_mode", "What the form is used for, like AddFeatureMode, SingleEditMode, MultiEditMode, SearchMode, AggregateSearchMode or IdentifyMode as string." ) );
 }
 
 QString QgsExpression::variableHelpText( const QString &variableName )
@@ -824,17 +831,22 @@ QString QgsExpression::group( const QString &name )
 {
   if ( sGroups.isEmpty() )
   {
+    sGroups.insert( QStringLiteral( "Aggregates" ), tr( "Aggregates" ) );
+    sGroups.insert( QStringLiteral( "Arrays" ), tr( "Arrays" ) );
     sGroups.insert( QStringLiteral( "General" ), tr( "General" ) );
     sGroups.insert( QStringLiteral( "Operators" ), tr( "Operators" ) );
     sGroups.insert( QStringLiteral( "Conditionals" ), tr( "Conditionals" ) );
     sGroups.insert( QStringLiteral( "Fields and Values" ), tr( "Fields and Values" ) );
+    sGroups.insert( QStringLiteral( "Map Layers" ), tr( "Map Layers" ) );
+    sGroups.insert( QStringLiteral( "Maps" ), tr( "Maps" ) );
     sGroups.insert( QStringLiteral( "Math" ), tr( "Math" ) );
     sGroups.insert( QStringLiteral( "Conversions" ), tr( "Conversions" ) );
     sGroups.insert( QStringLiteral( "Date and Time" ), tr( "Date and Time" ) );
     sGroups.insert( QStringLiteral( "String" ), tr( "String" ) );
     sGroups.insert( QStringLiteral( "Color" ), tr( "Color" ) );
     sGroups.insert( QStringLiteral( "GeometryGroup" ), tr( "Geometry" ) );
-    sGroups.insert( QStringLiteral( "Record" ), tr( "Record" ) );
+    sGroups.insert( QStringLiteral( "Rasters" ), tr( "Rasters" ) );
+    sGroups.insert( QStringLiteral( "Record and Attributes" ), tr( "Record and Attributes" ) );
     sGroups.insert( QStringLiteral( "Variables" ), tr( "Variables" ) );
     sGroups.insert( QStringLiteral( "Fuzzy Matching" ), tr( "Fuzzy Matching" ) );
     sGroups.insert( QStringLiteral( "Recent (%1)" ), tr( "Recent (%1)" ) );

@@ -21,6 +21,8 @@
 #include "qgis_app.h"
 #include "qgsmaptooladvanceddigitizing.h"
 #include "qgsgeometry.h"
+#include "qgspointlocator.h"
+
 
 class QRubberBand;
 
@@ -154,6 +156,9 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
     //! Gets list of matches of all vertices of a layer exactly snapped to a map point
     QList<QgsPointLocator::Match> layerVerticesSnappedToPoint( QgsVectorLayer *layer, const QgsPointXY &mapPoint );
 
+    //! Gets list of matches of all segments of a layer coincident with the given segment
+    QList<QgsPointLocator::Match> layerSegmentsSnappedToSegment( QgsVectorLayer *layer, const QgsPointXY &mapPoint1, const QgsPointXY &mapPoint2 );
+
     void startDraggingAddVertex( const QgsPointLocator::Match &m );
 
     void startDraggingAddVertexAtEndpoint( const QgsPointXY &mapPoint );
@@ -174,6 +179,8 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
     typedef QHash<QgsVectorLayer *, QHash<QgsFeatureId, QgsGeometry> > VertexEdits;
 
     void addExtraVerticesToEdits( VertexEdits &edits, const QgsPointXY &mapPoint, QgsVectorLayer *dragLayer = nullptr, const QgsPointXY &layerPoint = QgsPointXY() );
+
+    void addExtraSegmentsToEdits( QgsVertexTool::VertexEdits &edits, const QgsPointXY &mapPoint, QgsVectorLayer *dragLayer, const QgsPointXY &layerPoint );
 
     void applyEditsToLayers( VertexEdits &edits );
 
@@ -196,13 +203,13 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
      * Initialize rectangle that is being dragged to select vertices.
      * Argument point0 is in screen coordinates.
      */
-    void startSelectionRect( const QPoint &point0 );
+    void startSelectionRect( QPoint point0 );
 
     /**
      * Update bottom-right corner of the existing selection rectangle.
      * Argument point1 is in screen coordinates.
      */
-    void updateSelectionRect( const QPoint &point1 );
+    void updateSelectionRect( QPoint point1 );
 
     void stopSelectionRect();
 
@@ -327,6 +334,12 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
      * vertex (mDraggingVertex)
      */
     QList<QgsVector> mDraggingExtraVerticesOffset;
+
+    /**
+     * list of Vertex instances identifying segments (by their first vertex index) that should
+     * also get a new vertex: this is used for topo editing when adding a vertex to existing segment
+     */
+    QList<Vertex> mDraggingExtraSegments;
 
     // members for selection handling
 

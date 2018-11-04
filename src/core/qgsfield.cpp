@@ -23,6 +23,7 @@
 #include <QDataStream>
 #include <QIcon>
 #include <QLocale>
+#include <QJsonDocument>
 
 /***************************************************************************
  * This class is considered CRITICAL and any change MUST be accompanied with
@@ -252,6 +253,11 @@ QString QgsField::displayString( const QVariant &v ) const
     qlonglong converted( v.toLongLong( &ok ) );
     if ( ok )
       return QLocale().toString( converted );
+  }
+  else if ( d->typeName == QLatin1String( "json" ) || d->typeName == QLatin1String( "jsonb" ) )
+  {
+    QJsonDocument doc = QJsonDocument::fromVariant( v );
+    return QString::fromUtf8( doc.toJson().data() );
   }
   // Fallback if special rules do not apply
   return v.toString();

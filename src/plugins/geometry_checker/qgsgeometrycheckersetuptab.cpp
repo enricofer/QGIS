@@ -15,12 +15,14 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "qgsgeometrycheckcontext.h"
 #include "qgsgeometrycheckersetuptab.h"
 #include "qgsgeometrycheckerresulttab.h"
 #include "qgsgeometrychecker.h"
 #include "qgsgeometrycheckfactory.h"
 #include "qgsgeometrycheck.h"
 #include "qgsfeaturepool.h"
+#include "qgsvectordataproviderfeaturepool.h"
 
 #include "qgsfeatureiterator.h"
 #include "qgisinterface.h"
@@ -236,7 +238,7 @@ void QgsGeometryCheckerSetupTab::selectOutputDirectory()
 void QgsGeometryCheckerSetupTab::runChecks()
 {
   // Get selected layer
-  QList<QgsVectorLayer *> layers = getSelectedLayers();
+  const QList<QgsVectorLayer *> layers = getSelectedLayers();
   if ( layers.isEmpty() )
     return;
 
@@ -272,7 +274,7 @@ void QgsGeometryCheckerSetupTab::runChecks()
   // Set window busy
   setCursor( Qt::WaitCursor );
   mRunButton->setEnabled( false );
-  ui.labelStatus->setText( tr( "<b>Preparing output...</b>" ) );
+  ui.labelStatus->setText( tr( "<b>Preparing output…</b>" ) );
   ui.labelStatus->show();
   QApplication::processEvents( QEventLoop::ExcludeUserInputEvents );
 
@@ -409,26 +411,22 @@ void QgsGeometryCheckerSetupTab::runChecks()
   }
 
   // Setup checker
-  ui.labelStatus->setText( tr( "<b>Building spatial index...</b>" ) );
+  ui.labelStatus->setText( tr( "<b>Building spatial index…</b>" ) );
   QApplication::processEvents( QEventLoop::ExcludeUserInputEvents );
   QMap<QString, QgsFeaturePool *> featurePools;
   for ( QgsVectorLayer *layer : qgis::as_const( processLayers ) )
   {
-    double layerToMapUntis = mIface->mapCanvas()->mapSettings().layerToMapUnits( layer );
-    QgsCoordinateTransform layerToMapTransform( layer->crs(), QgsProject::instance()->crs(), QgsProject::instance() );
-    featurePools.insert( layer->id(), new QgsFeaturePool( layer, layerToMapUntis, layerToMapTransform, selectedOnly ) );
+    featurePools.insert( layer->id(), new QgsVectorDataProviderFeaturePool( layer, selectedOnly ) );
   }
   // LineLayerIntersection check is enabled, make sure there is also a feature pool for that layer
   if ( ui.checkLineLayerIntersection->isChecked() && !featurePools.keys().contains( ui.comboLineLayerIntersection->currentData().toString() ) )
   {
     QgsVectorLayer *layer = dynamic_cast<QgsVectorLayer *>( QgsProject::instance()->mapLayer( ui.comboLineLayerIntersection->currentData().toString() ) );
     Q_ASSERT( layer );
-    double layerToMapUntis = mIface->mapCanvas()->mapSettings().layerToMapUnits( layer );
-    QgsCoordinateTransform layerToMapTransform( layer->crs(), QgsProject::instance()->crs(), QgsProject::instance() );
-    featurePools.insert( layer->id(), new QgsFeaturePool( layer, layerToMapUntis, layerToMapTransform, selectedOnly ) );
+    featurePools.insert( layer->id(), new QgsVectorDataProviderFeaturePool( layer, selectedOnly ) );
   }
 
-  QgsGeometryCheckerContext *context = new QgsGeometryCheckerContext( ui.spinBoxTolerance->value(), QgsProject::instance()->crs(), featurePools );
+  QgsGeometryCheckContext *context = new QgsGeometryCheckContext( ui.spinBoxTolerance->value(), QgsProject::instance()->crs(), QgsProject::instance()->transformContext() );
 
   QList<QgsGeometryCheck *> checks;
   for ( const QgsGeometryCheckFactory *factory : QgsGeometryCheckFactoryRegistry::getCheckFactories() )
@@ -439,7 +437,7 @@ void QgsGeometryCheckerSetupTab::runChecks()
       checks.append( check );
     }
   }
-  QgsGeometryChecker *checker = new QgsGeometryChecker( checks, context );
+  QgsGeometryChecker *checker = new QgsGeometryChecker( checks, context, featurePools );
 
   emit checkerStarted( checker );
 
@@ -493,7 +491,7 @@ void QgsGeometryCheckerSetupTab::runChecks()
 void QgsGeometryCheckerSetupTab::showCancelFeedback()
 {
   mAbortButton->setEnabled( false );
-  ui.labelStatus->setText( tr( "<b>Waiting for running checks to finish...</b>" ) );
+  ui.labelStatus->setText( tr( "<b>Waiting for running checks to finish…</b>" ) );
   ui.labelStatus->show();
   ui.progressBar->hide() ;
 }

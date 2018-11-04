@@ -63,13 +63,13 @@
        <item>
         <widget class="QGroupBox" name="groupBox_3">
          <property name="title">
-          <string>Scene settings</string>
+          <string>Scene Settings</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_5">
           <item>
            <widget class="QPushButton" name="mCopySettingsButton">
             <property name="text">
-             <string>Copy settings from a 3D view...</string>
+             <string>Copy Settings from a 3D View…</string>
             </property>
            </widget>
           </item>
@@ -79,7 +79,7 @@
        <item>
         <widget class="QGroupBox" name="groupBox_4">
          <property name="title">
-          <string>Camera pose</string>
+          <string>Camera Pose</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_3">
           <item row="1" column="1">
@@ -202,7 +202,7 @@
           <item row="6" column="0" colspan="2">
            <widget class="QPushButton" name="mPoseFromViewButton">
             <property name="text">
-             <string>Set from a 3D view...</string>
+             <string>Set from a 3D View…</string>
             </property>
            </widget>
           </item>

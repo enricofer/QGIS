@@ -28,6 +28,8 @@ __revision__ = '$Format:%H$'
 import os
 import warnings
 
+from qgis.core import QgsApplication
+from qgis.gui import QgsGui
 from qgis.PyQt import uic
 from qgis.PyQt.QtCore import Qt, QCoreApplication
 from qgis.PyQt.QtWidgets import QAction, QPushButton, QDialogButtonBox, QStyle, QMessageBox, QFileDialog, QMenu, QTreeWidgetItem
@@ -49,14 +51,11 @@ class HistoryDialog(BASE, WIDGET):
         super(HistoryDialog, self).__init__(None)
         self.setupUi(self)
 
-        self.groupIcon = QIcon()
-        self.groupIcon.addPixmap(self.style().standardPixmap(
-            QStyle.SP_DirClosedIcon), QIcon.Normal, QIcon.Off)
-        self.groupIcon.addPixmap(self.style().standardPixmap(
-            QStyle.SP_DirOpenIcon), QIcon.Normal, QIcon.On)
+        QgsGui.instance().enableAutoGeometryRestore(self)
 
-        self.keyIcon = QIcon()
-        self.keyIcon.addPixmap(self.style().standardPixmap(QStyle.SP_FileIcon))
+        self.groupIcon = QgsApplication.getThemeIcon('mIconFolder.svg')
+
+        self.keyIcon = self.style().standardIcon(QStyle.SP_FileIcon)
 
         self.clearButton = QPushButton(self.tr('Clear'))
         self.clearButton.setToolTip(self.tr('Clear history'))
@@ -117,7 +116,7 @@ class HistoryDialog(BASE, WIDGET):
         if isinstance(item, TreeLogEntryItem):
             if item.isAlg:
                 script = 'import processing\n'
-                script += 'from qgis.core import QgsProcessingOutputLayerDefinition, QgsProcessingFeatureSourceDefinition, QgsProperty\n'
+                script += 'from qgis.core import QgsProcessingOutputLayerDefinition, QgsProcessingFeatureSourceDefinition, QgsProperty, QgsCoordinateReferenceSystem\n'
                 script += item.entry.text.replace('processing.run(', 'processing.execAlgorithmDialog(')
                 self.close()
                 exec(script)

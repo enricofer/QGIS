@@ -55,10 +55,35 @@ namespace QgsWms
                         const QString &version, const QgsServerRequest &request,
                         QgsServerResponse &response )
   {
-    QDomDocument doc = getContext( serverIface, project, version, request );
+    QgsAccessControl *accessControl = nullptr;
+#ifdef HAVE_SERVER_PYTHON_PLUGINS
+    accessControl = serverIface->accessControls();
+#endif
+
+    QDomDocument doc;
+    const QDomDocument *contextDocument = nullptr;
+
+    QgsServerCacheManager *cacheManager = nullptr;
+#ifdef HAVE_SERVER_PYTHON_PLUGINS
+    cacheManager = serverIface->cacheManager();
+#endif
+    if ( cacheManager && cacheManager->getCachedDocument( &doc, project, request, accessControl ) )
+    {
+      contextDocument = &doc;
+    }
+    else //context xml not in cache. Create a new one
+    {
+      doc = getContext( serverIface, project, version, request );
+
+      if ( cacheManager )
+      {
+        cacheManager->setCachedDocument( &doc, project, request, accessControl );
+      }
+      contextDocument = &doc;
+    }
 
     response.setHeader( QStringLiteral( "Content-Type" ), QStringLiteral( "text/xml; charset=utf-8" ) );
-    response.write( doc.toByteArray() );
+    response.write( contextDocument->toByteArray() );
   }
 
 
@@ -247,7 +272,7 @@ namespace QgsWms
           QDomElement layerElem = doc.createElement( QStringLiteral( "Layer" ) );
 
           // queryable layer
-          if ( project->nonIdentifiableLayers().contains( l->id() ) )
+          if ( !l->flags().testFlag( QgsMapLayer::Identifiable ) )
           {
             layerElem.setAttribute( QStringLiteral( "queryable" ), QStringLiteral( "false" ) );
           }
@@ -455,8 +480,4 @@ namespace QgsWms
     }
   }
 
-} // samespace QgsWms
-
-
-
-
+} // namespace QgsWms

@@ -27,6 +27,7 @@
 #include "qgsmeshrenderersettings.h"
 
 class QgsMapLayerRenderer;
+struct QgsMeshLayerRendererCache;
 class QgsSymbol;
 class QgsTriangularMesh;
 struct QgsMesh;
@@ -125,8 +126,10 @@ class CORE_EXPORT QgsMeshLayer : public QgsMapLayer
     QgsMeshLayer *clone() const override SIP_FACTORY;
     QgsRectangle extent() const override;
     QgsMapLayerRenderer *createMapRenderer( QgsRenderContext &rendererContext ) override SIP_FACTORY;
-    bool readSymbology( const QDomNode &node, QString &errorMessage, QgsReadWriteContext &context ) override;
-    bool writeSymbology( QDomNode &node, QDomDocument &doc, QString &errorMessage, const QgsReadWriteContext &context ) const override;
+    bool readSymbology( const QDomNode &node, QString &errorMessage,
+                        QgsReadWriteContext &context, QgsMapLayer::StyleCategories categories = QgsMapLayer::AllStyleCategories ) override;
+    bool writeSymbology( QDomNode &node, QDomDocument &doc, QString &errorMessage,
+                         const QgsReadWriteContext &context, QgsMapLayer::StyleCategories categories = QgsMapLayer::AllStyleCategories ) const override;
     QString encodedSource( const QString &source, const QgsReadWriteContext &context ) const override;
     QString decodedSource( const QString &source, const QString &provider, const QgsReadWriteContext &context ) const override;
     bool readXml( const QDomNode &layer_node, QgsReadWriteContext &context ) override;
@@ -140,6 +143,9 @@ class CORE_EXPORT QgsMeshLayer : public QgsMapLayer
 
     //! Returns triangular mesh (nullptr before rendering)
     QgsTriangularMesh *triangularMesh() SIP_SKIP;
+
+    //! Returns native mesh (nullptr before rendering)
+    QgsMeshLayerRendererCache *rendererCache() SIP_SKIP;
 
     //! Returns renderer settings
     QgsMeshRendererSettings rendererSettings() const;
@@ -216,6 +222,9 @@ class CORE_EXPORT QgsMeshLayer : public QgsMapLayer
 
     //! Pointer to derived mesh structure
     std::unique_ptr<QgsTriangularMesh> mTriangularMesh;
+
+    //! Pointer to the cache with data used for last rendering
+    std::unique_ptr<QgsMeshLayerRendererCache> mRendererCache;
 
     //! Renderer configuration
     QgsMeshRendererSettings mRendererSettings;

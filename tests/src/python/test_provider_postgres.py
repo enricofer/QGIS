@@ -615,6 +615,41 @@ class TestPyQgsPostgresProvider(unittest.TestCase, ProviderTestCase):
             self.assertTrue(vl.deleteFeatures([new_pk]))
             self.assertTrue(vl.commitChanges())
 
+    def testJson(self):
+        vl = QgsVectorLayer('%s table="qgis_test"."json" sql=' % (self.dbconn), "testjson", "postgres")
+        self.assertTrue(vl.isValid())
+
+        fields = vl.dataProvider().fields()
+        self.assertEqual(fields.at(fields.indexFromName('jvalue')).type(), QVariant.Map)
+        self.assertEqual(fields.at(fields.indexFromName('jbvalue')).type(), QVariant.Map)
+
+        fi = vl.getFeatures(QgsFeatureRequest())
+        f = QgsFeature()
+
+        #test list
+        fi.nextFeature(f)
+        value_idx = vl.fields().lookupField('jvalue')
+        self.assertIsInstance(f.attributes()[value_idx], list)
+        self.assertEqual(f.attributes()[value_idx], [1, 2, 3])
+        self.assertEqual(f.attributes()[value_idx], [1.0, 2.0, 3.0])
+
+        value_idx = vl.fields().lookupField('jbvalue')
+        self.assertIsInstance(f.attributes()[value_idx], list)
+        self.assertEqual(f.attributes()[value_idx], [4, 5, 6])
+        self.assertEqual(f.attributes()[value_idx], [4.0, 5.0, 6.0])
+
+        #test dict
+        fi.nextFeature(f)
+        value_idx = vl.fields().lookupField('jvalue')
+        self.assertIsInstance(f.attributes()[value_idx], dict)
+        self.assertEqual(f.attributes()[value_idx], {'a': 1, 'b': 2})
+        self.assertEqual(f.attributes()[value_idx], {'a': 1.0, 'b': 2.0})
+
+        value_idx = vl.fields().lookupField('jbvalue')
+        self.assertIsInstance(f.attributes()[value_idx], dict)
+        self.assertEqual(f.attributes()[value_idx], {'c': 4, 'd': 5})
+        self.assertEqual(f.attributes()[value_idx], {'c': 4.0, 'd': 5.0})
+
     def testStringArray(self):
         vl = QgsVectorLayer('%s table="qgis_test"."string_array" sql=' % (self.dbconn), "teststringarray", "postgres")
         self.assertTrue(vl.isValid())
@@ -773,14 +808,21 @@ class TestPyQgsPostgresProvider(unittest.TestCase, ProviderTestCase):
         default_clause = 'nextval(\'qgis_test."someData_pk_seq"\'::regclass)'
         self.assertEqual(vl.dataProvider().defaultValueClause(0), default_clause)
 
-        # check that provider default clause takes precedence over passed attribute values
-        # this also checks that the inbuilt unique constraint handling is bypassed in the case of a provider default clause
+        # If an attribute map is provided, QgsVectorLayerUtils.createFeature must
+        # respect it, otherwise default values from provider are checked.
+        # User's choice will not be respected if the value violates unique constraints.
+        # See https://issues.qgis.org/issues/19936
         f = QgsVectorLayerUtils.createFeature(vl, attributes={1: 5, 3: 'map'})
-        self.assertEqual(f.attributes(), [default_clause, 5, "'qgis'::text", "'qgis'::text", None, None])
+        # changed so that createFeature respects user choice
+        self.assertEqual(f.attributes(), [default_clause, 5, "'qgis'::text", 'map', None, None])
 
-        # test take vector layer default value expression overrides postgres provider default clause
         vl.setDefaultValueDefinition(3, QgsDefaultValue("'mappy'"))
+        # test ignore vector layer default value expression overrides postgres provider default clause,
+        # due to user's choice
         f = QgsVectorLayerUtils.createFeature(vl, attributes={1: 5, 3: 'map'})
+        self.assertEqual(f.attributes(), [default_clause, 5, "'qgis'::text", 'map', None, None])
+        # Since user did not enter a default for field 3, test must return the default value chosen
+        f = QgsVectorLayerUtils.createFeature(vl, attributes={1: 5})
         self.assertEqual(f.attributes(), [default_clause, 5, "'qgis'::text", 'mappy', None, None])
 
     # See https://issues.qgis.org/issues/15188

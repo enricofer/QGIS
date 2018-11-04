@@ -53,10 +53,11 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
   public:
     enum StyleType
     {
-      QML = 0,
+      QML,
       SLD,
       DB,
     };
+    Q_ENUM( StyleType )
 
     QgsVectorLayerProperties( QgsVectorLayer *lyr = nullptr, QWidget *parent = nullptr, Qt::WindowFlags fl = QgsGuiUtils::ModalDialogFlags );
 
@@ -115,8 +116,6 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
     void mCrsSelector_crsChanged( const QgsCoordinateReferenceSystem &crs );
     void loadDefaultStyle_clicked();
     void saveDefaultStyle_clicked();
-    void loadStyle_clicked();
-    void saveStyleAs_clicked();
     void loadMetadata();
     void saveMetadataAs();
     void saveDefaultMetadata();
@@ -133,21 +132,17 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
 
   signals:
 
-    //! Emitted when changes to layer were saved to update legend
-    void refreshLegend( const QString &layerID, bool expandItem );
-    void refreshLegend( const QString &layerID );
-
     void toggleEditing( QgsMapLayer * );
 
   private slots:
     //! Toggle editing of layer
     void toggleEditing();
 
-    //! Save the style based on selected format from the menu
-    void saveStyleAsMenuTriggered( QAction * );
+    //! Save the style
+    void saveStyleAs();
 
-    //! Called when is possible to choice if load the style from filesystem or from db
-    void loadStyleMenuTriggered( QAction * );
+    //! Load the style
+    void loadStyle();
 
     void aboutToShowStyleMenu();
 
@@ -178,11 +173,6 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
       Metadata,
     };
 
-    void saveStyleAs( StyleType styleType );
-
-    //! When provider supports, it will list all the styles relative the layer in a dialog
-    void showListOfStylesFromDatabase();
-
     void updateSymbologyPage();
 
     void setPbnQueryBuilderEnabled();
@@ -198,11 +188,8 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
     QAction *mActionLoadMetadata = nullptr;
     QAction *mActionSaveMetadataAs = nullptr;
 
-    QMenu *mSaveAsMenu = nullptr;
-    QMenu *mLoadStyleMenu = nullptr;
-
     QAction *mActionLoadStyle = nullptr;
-    QAction *mActionSaveStyleAs = nullptr;
+    QAction *mActionSaveStyle = nullptr;
 
     //! Renderer dialog which is shown
     QgsRendererPropertiesDialog *mRendererDialog = nullptr;
@@ -233,7 +220,7 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
     //! Adds a new join to mJoinTreeWidget
     void addJoinToTreeWidget( const QgsVectorLayerJoinInfo &join, int insertIndex = -1 );
 
-    void updateAuxiliaryStoragePage( bool reset = false );
+    void updateAuxiliaryStoragePage();
     void deleteAuxiliaryField( int index );
 
     QgsExpressionContext mContext;
@@ -256,8 +243,12 @@ class APP_EXPORT QgsVectorLayerProperties : public QgsOptionsDialogBase, private
 
     QgsVectorLayer3DRendererWidget *mVector3DWidget = nullptr;
 
+    QHash<QCheckBox *, QString> mGeometryCheckFactoriesGroupBoxes;
+
   private slots:
     void openPanel( QgsPanelWidget *panel );
+
+    friend class QgsAppScreenShots;
 };
 
 

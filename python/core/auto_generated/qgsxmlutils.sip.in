@@ -9,6 +9,9 @@
 
 
 
+
+
+
 class QgsXmlUtils
 {
 %Docstring
@@ -60,12 +63,14 @@ Supported types are
 - QVariant.Double
 - QVariant.String
 - :py:class:`QgsProperty` (since QGIS 3.4)
+- :py:class:`QgsCoordinateReferenceSystem` (since QGIS 3.4)
 %End
 
     static QVariant readVariant( const QDomElement &element );
 %Docstring
 Read a QVariant from a QDomElement.
 %End
+
 };
 
 

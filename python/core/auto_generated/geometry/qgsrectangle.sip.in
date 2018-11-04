@@ -185,6 +185,13 @@ Scale the rectangle around its center point.
 Scale the rectangle around its center point.
 %End
 
+    QgsRectangle scaled( double scaleFactor, const QgsPointXY *center = 0 ) const;
+%Docstring
+Scale the rectangle around its ``center`` point.
+
+.. versionadded:: 3.4
+%End
+
     void grow( double delta );
 %Docstring
 Grows the rectangle in place by the specified amount.
@@ -322,10 +329,18 @@ Converts the rectangle to a 3D box, with the specified
 
     operator QVariant() const;
 
+    QgsRectangle snappedToGrid( double spacing ) const;
+%Docstring
+Returns a copy of this rectangle that is snapped to a grid with
+the specified ``spacing`` between the grid lines.
+
+.. versionadded:: 3.4
+%End
+
     SIP_PYOBJECT __repr__();
 %MethodCode
     QString str = QStringLiteral( "<QgsRectangle: %1>" ).arg( sipCpp->asWktCoordinates() );
-    sipRes = PyUnicode_FromString( str.toUtf8().data() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
 %End
 
 };

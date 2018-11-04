@@ -42,7 +42,9 @@ from qgis.core import (QgsProcessingParameterDefinition,
                        QgsProcessingParameterFeatureSink,
                        QgsProcessingParameterVectorDestination,
                        QgsProject)
-from qgis.gui import QgsProcessingContextGenerator
+from qgis.gui import (QgsProcessingContextGenerator,
+                      QgsProcessingParameterWidgetContext)
+from qgis.utils import iface
 
 from qgis.PyQt import uic
 from qgis.PyQt.QtCore import QCoreApplication, Qt
@@ -66,9 +68,10 @@ class ParametersPanel(BASE, WIDGET):
 
     NOT_SELECTED = QCoreApplication.translate('ParametersPanel', '[Not selected]')
 
-    def __init__(self, parent, alg):
+    def __init__(self, parent, alg, in_place=False):
         super(ParametersPanel, self).__init__(None)
         self.setupUi(self)
+        self.in_place = in_place
 
         self.grpAdvanced.hide()
 
@@ -121,6 +124,11 @@ class ParametersPanel(BASE, WIDGET):
             if param.flags() & QgsProcessingParameterDefinition.FlagAdvanced:
                 self.grpAdvanced.show()
                 break
+
+        widget_context = QgsProcessingParameterWidgetContext()
+        if iface is not None:
+            widget_context.setMapCanvas(iface.mapCanvas())
+
         # Create widgets and put them in layouts
         for param in self.alg.parameterDefinitions():
             if param.flags() & QgsProcessingParameterDefinition.FlagHidden:
@@ -138,10 +146,18 @@ class ParametersPanel(BASE, WIDGET):
                 # TODO QGIS 4.0 - remove
                 is_python_wrapper = issubclass(wrapper.__class__, WidgetWrapper)
                 if not is_python_wrapper:
+                    wrapper.setWidgetContext(widget_context)
                     widget = wrapper.createWrappedWidget(self.processing_context)
                     wrapper.registerProcessingContextGenerator(self.context_generator)
                 else:
                     widget = wrapper.widget
+
+                if self.in_place and param.name() in ('INPUT', 'OUTPUT'):
+                    # don't show the input/output parameter widgets in in-place mode
+                    # we still need to CREATE them, because other wrappers may need to interact
+                    # with them (e.g. those parameters which need the input layer for field
+                    # selections/crs properties/etc)
+                    continue
 
                 if widget is not None:
                     if is_python_wrapper:
@@ -194,6 +210,9 @@ class ParametersPanel(BASE, WIDGET):
 
         for output in self.alg.destinationParameterDefinitions():
             if output.flags() & QgsProcessingParameterDefinition.FlagHidden:
+                continue
+
+            if self.in_place and param.name() in ('INPUT', 'OUTPUT'):
                 continue
 
             label = QLabel(output.description())

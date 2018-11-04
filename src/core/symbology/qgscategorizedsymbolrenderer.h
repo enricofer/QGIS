@@ -26,6 +26,7 @@
 #include <QHash>
 
 class QgsVectorLayer;
+class QgsStyle;
 
 /**
  * \ingroup core
@@ -101,6 +102,7 @@ class CORE_EXPORT QgsCategorizedSymbolRenderer : public QgsFeatureRenderer
     void startRender( QgsRenderContext &context, const QgsFields &fields ) override;
     void stopRender( QgsRenderContext &context ) override;
     QSet<QString> usedAttributes( const QgsRenderContext &context ) const override;
+    bool filterNeedsGeometry() const override;
     QString dump() const override;
     QgsCategorizedSymbolRenderer *clone() const override SIP_FACTORY;
     void toSld( QDomDocument &doc, QDomElement &element, const QgsStringMap &props = QgsStringMap() ) const override;
@@ -224,6 +226,26 @@ class CORE_EXPORT QgsCategorizedSymbolRenderer : public QgsFeatureRenderer
      * \since QGIS 3.0
      */
     QgsDataDefinedSizeLegend *dataDefinedSizeLegend() const;
+
+    /**
+     * Replaces category symbols with the symbols from a \a style that have a matching
+     * name and symbol \a type.
+     *
+     * The \a unmatchedCategories list will be filled with all existing categories which could not be matched
+     * to a symbol in \a style.
+     *
+     * The \a unmatchedSymbols list will be filled with all symbol names from \a style which were not matched
+     * to an existing category.
+     *
+     * If \a caseSensitive is false, then a case-insensitive match will be performed. If \a useTolerantMatch
+     * is true, then non-alphanumeric characters in style and category names will be ignored during the match.
+     *
+     * Returns the count of symbols matched.
+     *
+     * \since QGIS 3.4
+     */
+    int matchToSymbols( QgsStyle *style, QgsSymbol::SymbolType type,
+                        QVariantList &unmatchedCategories SIP_OUT, QStringList &unmatchedSymbols SIP_OUT, bool caseSensitive = true, bool useTolerantMatch = false );
 
   protected:
     QString mAttrName;

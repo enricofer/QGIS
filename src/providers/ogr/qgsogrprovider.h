@@ -274,6 +274,9 @@ class QgsOgrProvider : public QgsVectorDataProvider
     // Friendly name of the GDAL Driver that was actually used to open the layer
     QString mGDALDriverName;
 
+    //! Whether we can share the same dataset handle among different layers
+    bool mShareSameDatasetAmongLayers = true;
+
     bool mValid = false;
 
     OGRwkbGeometryType mOGRGeomType = wkbUnknown;
@@ -323,7 +326,6 @@ class QgsOgrProvider : public QgsVectorDataProvider
     QgsOgrTransaction *mTransaction = nullptr;
 
     void setTransaction( QgsTransaction *transaction ) override;
-
 };
 
 class QgsOgrDataset;
@@ -365,6 +367,7 @@ class QgsOgrProviderUtils
         GDALDatasetH   hDS = nullptr;
         QMap<QString, QgsOgrLayer *>  setLayers;
         int            refCount = 0;
+        bool           canBeShared = true;
 
         DatasetWithLayers(): mutex( QMutex::Recursive ) {}
     };
@@ -390,20 +393,30 @@ class QgsOgrProviderUtils
                                  DatasetWithLayers *ds,
                                  bool removeFromDatasetList );
 
+    static DatasetWithLayers *createDatasetWithLayers(
+      const QString &dsName,
+      bool updateMode,
+      const QStringList &options,
+      const QString &layerName,
+      const DatasetIdentification &ident,
+      QgsOgrLayerUniquePtr &layer,
+      QString &errCause );
   public:
 
     //! Inject credentials into the dsName (if any)
     static QString expandAuthConfig( const QString &dsName );
 
-    static void setRelevantFields( OGRLayerH ogrLayer, int fieldCount, bool fetchGeometry, const QgsAttributeList &fetchAttributes, bool firstAttrIsFid );
+    static void setRelevantFields( OGRLayerH ogrLayer, int fieldCount,
+                                   bool fetchGeometry,
+                                   const QgsAttributeList &fetchAttributes,
+                                   bool firstAttrIsFid,
+                                   const QString &subsetString );
 
     /**
      * Sets a subset string for an OGR \a layer.
-     *
-     * If \a addOriginalFid is specified, then the original OGR feature ID field will be added. If this is successful,
-     * \a origFidAdded will be set to true.
+     * Might return either layer, or a new OGR SQL result layer
      */
-    static OGRLayerH setSubsetString( OGRLayerH layer, GDALDatasetH ds, QTextCodec *encoding, const QString &subsetString, bool addOriginalFid = false, bool *origFidAdded = nullptr );
+    static OGRLayerH setSubsetString( OGRLayerH layer, GDALDatasetH ds, QTextCodec *encoding, const QString &subsetString );
     static QByteArray quotedIdentifier( QByteArray field, const QString &driverName );
 
     /**
@@ -460,7 +473,7 @@ class QgsOgrProviderUtils
     static void invalidateCachedDatasets( const QString &dsName );
 
     //! Returns the string to provide to QgsOgrConnPool::instance() methods
-    static QString connectionPoolId( const QString &dataSourceURI );
+    static QString connectionPoolId( const QString &dataSourceURI, bool datasetSharedAmongLayers );
 
     //! Invalidate the cached last modified date of a dataset
     static void invalidateCachedLastModifiedDate( const QString &dsName );
@@ -471,6 +484,8 @@ class QgsOgrProviderUtils
     //! Converts a OGR WKB type to the corresponding QGIS wkb type
     static QgsWkbTypes::Type qgisTypeFromOgrType( OGRwkbGeometryType type );
 
+    //! Whether a driver can share the same dataset handle among different layers
+    static bool canDriverShareSameDatasetAmongLayers( const QString &driverName );
 };
 
 
@@ -496,7 +511,7 @@ class QgsOgrDataset
 
     bool executeSQLNoReturn( const QString &sql );
 
-    OGRLayerH createSQLResultLayer( QTextCodec *encoding, const QString &layerName, int layerIndex );
+    OGRLayerH getLayerFromNameOrIndex( const QString &layerName, int layerIndex );
 
     void releaseResultSet( OGRLayerH hSqlLayer );
 };

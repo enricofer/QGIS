@@ -15,8 +15,18 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "qgsmapsavedialog.h"
 
+#include <QClipboard>
+#include <QCheckBox>
+#include <QFileDialog>
+#include <QImage>
+#include <QList>
+#include <QPainter>
+#include <QPrinter>
+#include <QSpinBox>
+
+#include "qgsmapsavedialog.h"
+#include "qgsguiutils.h"
 #include "qgis.h"
 #include "qgisapp.h"
 #include "qgsscalecalculator.h"
@@ -28,15 +38,9 @@
 #include "qgsmaprenderertask.h"
 #include "qgsproject.h"
 #include "qgssettings.h"
+#include "qgsmapcanvas.h"
+#include "qgsmessagebar.h"
 
-#include <QClipboard>
-#include <QCheckBox>
-#include <QFileDialog>
-#include <QImage>
-#include <QList>
-#include <QPainter>
-#include <QPrinter>
-#include <QSpinBox>
 
 Q_GUI_EXPORT extern int qt_defaultDpiX();
 
@@ -124,7 +128,7 @@ QgsMapSaveDialog::QgsMapSaveDialog( QWidget *parent, QgsMapCanvas *mapCanvas, co
 
 void QgsMapSaveDialog::updateDpi( int dpi )
 {
-  mSize *= ( double )dpi / mDpi;
+  mSize *= static_cast<double>( dpi ) / mDpi;
   mDpi = dpi;
 
   updateOutputSize();
@@ -132,7 +136,7 @@ void QgsMapSaveDialog::updateDpi( int dpi )
 
 void QgsMapSaveDialog::updateOutputWidth( int width )
 {
-  double scale = ( double )width / mSize.width();
+  double scale = static_cast<double>( width ) / mSize.width();
   double adjustment = ( ( mExtent.width() * scale ) - mExtent.width() ) / 2;
 
   mSize.setWidth( width );
@@ -143,7 +147,7 @@ void QgsMapSaveDialog::updateOutputWidth( int width )
   if ( mLockAspectRatio->locked() )
   {
     int height = width * mExtentGroupBox->ratio().height() / mExtentGroupBox->ratio().width();
-    double scale = ( double )height / mSize.height();
+    double scale = static_cast<double>( height ) / mSize.height();
     double adjustment = ( ( mExtent.height() * scale ) - mExtent.height() ) / 2;
 
     whileBlocking( mOutputHeightSpinBox )->setValue( height );
@@ -158,7 +162,7 @@ void QgsMapSaveDialog::updateOutputWidth( int width )
 
 void QgsMapSaveDialog::updateOutputHeight( int height )
 {
-  double scale = ( double )height / mSize.height();
+  double scale = static_cast<double>( height ) / mSize.height();
   double adjustment = ( ( mExtent.height() * scale ) - mExtent.height() ) / 2;
 
   mSize.setHeight( height );
@@ -169,7 +173,7 @@ void QgsMapSaveDialog::updateOutputHeight( int height )
   if ( mLockAspectRatio->locked() )
   {
     int width = height * mExtentGroupBox->ratio().width() / mExtentGroupBox->ratio().height();
-    double scale = ( double )width / mSize.width();
+    double scale = static_cast<double>( width ) / mSize.width();
     double adjustment = ( ( mExtent.width() * scale ) - mExtent.width() ) / 2;
 
     whileBlocking( mOutputWidthSpinBox )->setValue( width );

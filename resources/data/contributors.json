@@ -40,8 +40,9 @@
       "properties": {
         "Name": "Marco Bernasocchi",
         "Committer": "No",
+        "First Commit Message": "Fixed mousewheel zoom making it consistent to qgis zoom (scroll up = zoom in) [talking about globe, Ed.]",
         "GIT Nickname": "mbernasocchi",
-        "First Commit Date": "25-03-2011"
+        "First Commit Date": "02-11-2010"
       },
       "geometry": {
         "type": "Point",
@@ -887,6 +888,23 @@
         "coordinates": [
           16.3137828,
           49.871362
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Name": "Loïc Bartoletti",
+        "Committer": "No",
+        "First Commit Message": "Oriented Minimum Bounding Box",
+        "First Commit Date": "11-06-2015",
+        "GIT Nickname": "lbartoletti"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          6.63055,
+          45.93943
         ]
       }
     }

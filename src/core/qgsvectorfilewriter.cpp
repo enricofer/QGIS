@@ -102,6 +102,7 @@ QgsVectorFileWriter::QgsVectorFileWriter(
   const QStringList &layerOptions,
   QString *newFilename,
   SymbologyExport symbologyExport,
+  QgsFeatureSink::SinkFlags sinkFlags,
   QString *newLayer
 )
   : mError( NoError )
@@ -111,7 +112,7 @@ QgsVectorFileWriter::QgsVectorFileWriter(
 {
   init( vectorFileName, fileEncoding, fields,  geometryType,
         srs, driverName, datasourceOptions, layerOptions, newFilename, nullptr,
-        QString(), CreateOrOverwriteFile, newLayer );
+        QString(), CreateOrOverwriteFile, newLayer, sinkFlags );
 }
 
 QgsVectorFileWriter::QgsVectorFileWriter( const QString &vectorFileName,
@@ -135,11 +136,15 @@ QgsVectorFileWriter::QgsVectorFileWriter( const QString &vectorFileName,
 {
   init( vectorFileName, fileEncoding, fields, geometryType, srs, driverName,
         datasourceOptions, layerOptions, newFilename, fieldValueConverter,
-        layerName, action, newLayer );
+        layerName, action, newLayer, nullptr );
 }
 
 bool QgsVectorFileWriter::supportsFeatureStyles( const QString &driverName )
 {
+  if ( driverName == QLatin1String( "MapInfo MIF" ) )
+  {
+    return true;
+  }
 #if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(2,3,0)
   GDALDriverH gdalDriver = GDALGetDriverByName( driverName.toLocal8Bit().constData() );
   if ( !gdalDriver )
@@ -151,7 +156,7 @@ bool QgsVectorFileWriter::supportsFeatureStyles( const QString &driverName )
 
   return CSLFetchBoolean( driverMetadata, GDAL_DCAP_FEATURE_STYLES, false );
 #else
-  return driverName == QLatin1String( "DXF" ) || driverName == QLatin1String( "KML" ) || driverName == QLatin1String( "MapInfo File" ) || driverName == QLatin1String( "MapInfo MIF" );
+  return driverName == QLatin1String( "DXF" ) || driverName == QLatin1String( "KML" ) || driverName == QLatin1String( "MapInfo File" );
 #endif
 }
 
@@ -167,7 +172,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
                                 FieldValueConverter *fieldValueConverter,
                                 const QString &layerNameIn,
                                 ActionOnExistingFile action,
-                                QString *newLayer )
+                                QString *newLayer, SinkFlags sinkFlags )
 {
   mRenderContext.setRendererScale( mSymbologyScale );
 
@@ -289,7 +294,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
   {
     if ( fileEncoding.compare( metadata.compulsoryEncoding, Qt::CaseInsensitive ) != 0 )
     {
-      QgsDebugMsg( QString( "forced %1 encoding for %2" ).arg( metadata.compulsoryEncoding, driverName ) );
+      QgsDebugMsg( QStringLiteral( "forced %1 encoding for %2" ).arg( metadata.compulsoryEncoding, driverName ) );
       fileEncoding = metadata.compulsoryEncoding;
     }
 
@@ -301,11 +306,12 @@ void QgsVectorFileWriter::init( QString vectorFileName,
     options = new char *[ datasourceOptions.size() + 1 ];
     for ( int i = 0; i < datasourceOptions.size(); i++ )
     {
-      QgsDebugMsg( QString( "-dsco=%1" ).arg( datasourceOptions[i] ) );
+      QgsDebugMsg( QStringLiteral( "-dsco=%1" ).arg( datasourceOptions[i] ) );
       options[i] = CPLStrdup( datasourceOptions[i].toLocal8Bit().constData() );
     }
     options[ datasourceOptions.size()] = nullptr;
   }
+  mAttrIdxToOgrIdx.remove( 0 );
 
   // create the data source
   if ( action == CreateOrOverwriteFile )
@@ -359,11 +365,11 @@ void QgsVectorFileWriter::init( QString vectorFileName,
 
   if ( action == CreateOrOverwriteFile )
   {
-    QgsDebugMsg( "Created data source" );
+    QgsDebugMsg( QStringLiteral( "Created data source" ) );
   }
   else
   {
-    QgsDebugMsg( "Opened data source in update mode" );
+    QgsDebugMsg( QStringLiteral( "Opened data source in update mode" ) );
   }
 
   // use appropriate codec
@@ -406,7 +412,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
     options = new char *[ layerOptions.size() + 1 ];
     for ( int i = 0; i < layerOptions.size(); i++ )
     {
-      QgsDebugMsg( QString( "-lco=%1" ).arg( layerOptions[i] ) );
+      QgsDebugMsg( QStringLiteral( "-lco=%1" ).arg( layerOptions[i] ) );
       options[i] = CPLStrdup( layerOptions[i].toLocal8Bit().constData() );
     }
     options[ layerOptions.size()] = nullptr;
@@ -415,15 +421,15 @@ void QgsVectorFileWriter::init( QString vectorFileName,
   // disable encoding conversion of OGR Shapefile layer
   CPLSetConfigOption( "SHAPE_ENCODING", "" );
 
-  if ( driverName == QLatin1String( "DGN" ) )
-  {
-    mLayer = OGR_DS_GetLayerByName( mDS.get(), "elements" );
-  }
-  else if ( action == CreateOrOverwriteFile || action == CreateOrOverwriteLayer )
+  if ( action == CreateOrOverwriteFile || action == CreateOrOverwriteLayer )
   {
     mLayer = OGR_DS_CreateLayer( mDS.get(), layerName.toUtf8().constData(), mOgrRef, wkbType, options );
-    if ( newLayer )
+    if ( newLayer && mLayer )
       *newLayer = OGR_L_GetName( mLayer );
+  }
+  else if ( driverName == QLatin1String( "DGN" ) )
+  {
+    mLayer = OGR_DS_GetLayerByName( mDS.get(), "elements" );
   }
   else
   {
@@ -477,7 +483,7 @@ void QgsVectorFileWriter::init( QString vectorFileName,
 
   OGRFeatureDefnH defn = OGR_L_GetLayerDefn( mLayer );
 
-  QgsDebugMsg( "created layer" );
+  QgsDebugMsg( QStringLiteral( "created layer" ) );
 
   // create the fields
   QgsDebugMsg( "creating " + QString::number( fields.size() ) + " fields" );
@@ -488,202 +494,219 @@ void QgsVectorFileWriter::init( QString vectorFileName,
 
   mFieldValueConverter = fieldValueConverter;
 
-  for ( int fldIdx = 0; ( action == CreateOrOverwriteFile ||
-                          action == CreateOrOverwriteLayer ||
-                          action == AppendToLayerAddFields ) &&
-        fldIdx < fields.count(); ++fldIdx )
+  switch ( action )
   {
-    QgsField attrField = fields.at( fldIdx );
-
-    if ( fieldValueConverter )
+    case CreateOrOverwriteFile:
+    case CreateOrOverwriteLayer:
+    case AppendToLayerAddFields:
     {
-      attrField = fieldValueConverter->fieldDefinition( fields.at( fldIdx ) );
-    }
-
-    QString name( attrField.name() );
-    if ( action == AppendToLayerAddFields )
-    {
-      int ogrIdx = OGR_FD_GetFieldIndex( defn, mCodec->fromUnicode( name ) );
-      if ( ogrIdx >= 0 )
+      for ( int fldIdx = 0; fldIdx < fields.count(); ++fldIdx )
       {
+        QgsField attrField = fields.at( fldIdx );
+
+        if ( fieldValueConverter )
+        {
+          attrField = fieldValueConverter->fieldDefinition( fields.at( fldIdx ) );
+        }
+
+        QString name( attrField.name() );
+        if ( action == AppendToLayerAddFields )
+        {
+          int ogrIdx = OGR_FD_GetFieldIndex( defn, mCodec->fromUnicode( name ) );
+          if ( ogrIdx >= 0 )
+          {
+            mAttrIdxToOgrIdx.insert( fldIdx, ogrIdx );
+            continue;
+          }
+        }
+
+        OGRFieldType ogrType = OFTString; //default to string
+        int ogrWidth = attrField.length();
+        int ogrPrecision = attrField.precision();
+        if ( ogrPrecision > 0 )
+          ++ogrWidth;
+
+        switch ( attrField.type() )
+        {
+          case QVariant::LongLong:
+          {
+            const char *pszDataTypes = GDALGetMetadataItem( poDriver, GDAL_DMD_CREATIONFIELDDATATYPES, nullptr );
+            if ( pszDataTypes && strstr( pszDataTypes, "Integer64" ) )
+              ogrType = OFTInteger64;
+            else
+              ogrType = OFTReal;
+            ogrWidth = ogrWidth > 0 && ogrWidth <= 20 ? ogrWidth : 20;
+            ogrPrecision = 0;
+            break;
+          }
+          case QVariant::String:
+            ogrType = OFTString;
+            if ( ogrWidth <= 0 || ogrWidth > 255 )
+              ogrWidth = 255;
+            break;
+
+          case QVariant::Int:
+            ogrType = OFTInteger;
+            ogrWidth = ogrWidth > 0 && ogrWidth <= 10 ? ogrWidth : 10;
+            ogrPrecision = 0;
+            break;
+
+          case QVariant::Bool:
+            ogrType = OFTInteger;
+            ogrWidth = 1;
+            ogrPrecision = 0;
+            break;
+
+          case QVariant::Double:
+            ogrType = OFTReal;
+            break;
+
+          case QVariant::Date:
+            ogrType = OFTDate;
+            break;
+
+          case QVariant::Time:
+            if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
+            {
+              ogrType = OFTString;
+              ogrWidth = 12; // %02d:%02d:%06.3f
+            }
+            else
+            {
+              ogrType = OFTTime;
+            }
+            break;
+
+          case QVariant::DateTime:
+            if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
+            {
+              ogrType = OFTString;
+              ogrWidth = 24; // "%04d/%02d/%02d %02d:%02d:%06.3f"
+            }
+            else
+            {
+              ogrType = OFTDateTime;
+            }
+            break;
+
+          default:
+            //assert(0 && "invalid variant type!");
+            mErrorMessage = QObject::tr( "Unsupported type for field %1" )
+                            .arg( attrField.name() );
+            mError = ErrAttributeTypeUnsupported;
+            return;
+        }
+
+        if ( mOgrDriverName == QLatin1String( "SQLite" ) && name.compare( QLatin1String( "ogc_fid" ), Qt::CaseInsensitive ) == 0 )
+        {
+          int i;
+          for ( i = 0; i < 10; i++ )
+          {
+            name = QStringLiteral( "ogc_fid%1" ).arg( i );
+
+            int j;
+            for ( j = 0; j < fields.size() && name.compare( fields.at( j ).name(), Qt::CaseInsensitive ) != 0; j++ )
+              ;
+
+            if ( j == fields.size() )
+              break;
+          }
+
+          if ( i == 10 )
+          {
+            mErrorMessage = QObject::tr( "No available replacement for internal fieldname ogc_fid found" ).arg( attrField.name() );
+            mError = ErrAttributeCreationFailed;
+            return;
+          }
+
+          QgsMessageLog::logMessage( QObject::tr( "Reserved attribute name ogc_fid replaced with %1" ).arg( name ), QObject::tr( "OGR" ) );
+        }
+
+        // create field definition
+        gdal::ogr_field_def_unique_ptr fld( OGR_Fld_Create( mCodec->fromUnicode( name ), ogrType ) );
+        if ( ogrWidth > 0 )
+        {
+          OGR_Fld_SetWidth( fld.get(), ogrWidth );
+        }
+
+        if ( ogrPrecision >= 0 )
+        {
+          OGR_Fld_SetPrecision( fld.get(), ogrPrecision );
+        }
+
+        switch ( attrField.type() )
+        {
+          case QVariant::Bool:
+            OGR_Fld_SetSubType( fld.get(), OFSTBoolean );
+            break;
+          default:
+            break;
+        }
+
+        // create the field
+        QgsDebugMsg( "creating field " + attrField.name() +
+                     " type " + QString( QVariant::typeToName( attrField.type() ) ) +
+                     " width " + QString::number( ogrWidth ) +
+                     " precision " + QString::number( ogrPrecision ) );
+        if ( OGR_L_CreateField( mLayer, fld.get(), true ) != OGRERR_NONE )
+        {
+          QgsDebugMsg( "error creating field " + attrField.name() );
+          mErrorMessage = QObject::tr( "Creation of field %1 failed (OGR error: %2)" )
+                          .arg( attrField.name(),
+                                QString::fromUtf8( CPLGetLastErrorMsg() ) );
+          mError = ErrAttributeCreationFailed;
+          return;
+        }
+
+        int ogrIdx = OGR_FD_GetFieldIndex( defn, mCodec->fromUnicode( name ) );
+        QgsDebugMsg( QStringLiteral( "returned field index for %1: %2" ).arg( name ).arg( ogrIdx ) );
+        if ( ogrIdx < 0 || existingIdxs.contains( ogrIdx ) )
+        {
+          // GDAL 1.7 not just truncates, but launders more aggressivly.
+          ogrIdx = OGR_FD_GetFieldCount( defn ) - 1;
+
+          if ( ogrIdx < 0 )
+          {
+            QgsDebugMsg( "error creating field " + attrField.name() );
+            mErrorMessage = QObject::tr( "Created field %1 not found (OGR error: %2)" )
+                            .arg( attrField.name(),
+                                  QString::fromUtf8( CPLGetLastErrorMsg() ) );
+            mError = ErrAttributeCreationFailed;
+            return;
+          }
+        }
+
+        existingIdxs.insert( ogrIdx );
         mAttrIdxToOgrIdx.insert( fldIdx, ogrIdx );
-        continue;
       }
     }
+    break;
 
-    OGRFieldType ogrType = OFTString; //default to string
-    int ogrWidth = attrField.length();
-    int ogrPrecision = attrField.precision();
-    if ( ogrPrecision > 0 )
-      ++ogrWidth;
-
-    switch ( attrField.type() )
+    case AppendToLayerNoNewFields:
     {
-      case QVariant::LongLong:
+      for ( int fldIdx = 0; fldIdx < fields.count(); ++fldIdx )
       {
-        const char *pszDataTypes = GDALGetMetadataItem( poDriver, GDAL_DMD_CREATIONFIELDDATATYPES, nullptr );
-        if ( pszDataTypes && strstr( pszDataTypes, "Integer64" ) )
-          ogrType = OFTInteger64;
-        else
-          ogrType = OFTReal;
-        ogrWidth = ogrWidth > 0 && ogrWidth <= 20 ? ogrWidth : 20;
-        ogrPrecision = 0;
-        break;
-      }
-      case QVariant::String:
-        ogrType = OFTString;
-        if ( ogrWidth <= 0 || ogrWidth > 255 )
-          ogrWidth = 255;
-        break;
-
-      case QVariant::Int:
-        ogrType = OFTInteger;
-        ogrWidth = ogrWidth > 0 && ogrWidth <= 10 ? ogrWidth : 10;
-        ogrPrecision = 0;
-        break;
-
-      case QVariant::Bool:
-        ogrType = OFTInteger;
-        ogrWidth = 1;
-        ogrPrecision = 0;
-        break;
-
-      case QVariant::Double:
-        ogrType = OFTReal;
-        break;
-
-      case QVariant::Date:
-        ogrType = OFTDate;
-        break;
-
-      case QVariant::Time:
-        if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
-        {
-          ogrType = OFTString;
-          ogrWidth = 12; // %02d:%02d:%06.3f
-        }
-        else
-        {
-          ogrType = OFTTime;
-        }
-        break;
-
-      case QVariant::DateTime:
-        if ( mOgrDriverName == QLatin1String( "ESRI Shapefile" ) )
-        {
-          ogrType = OFTString;
-          ogrWidth = 24; // "%04d/%02d/%02d %02d:%02d:%06.3f"
-        }
-        else
-        {
-          ogrType = OFTDateTime;
-        }
-        break;
-
-      default:
-        //assert(0 && "invalid variant type!");
-        mErrorMessage = QObject::tr( "Unsupported type for field %1" )
-                        .arg( attrField.name() );
-        mError = ErrAttributeTypeUnsupported;
-        return;
-    }
-
-    if ( mOgrDriverName == QLatin1String( "SQLite" ) && name.compare( QLatin1String( "ogc_fid" ), Qt::CaseInsensitive ) == 0 )
-    {
-      int i;
-      for ( i = 0; i < 10; i++ )
-      {
-        name = QStringLiteral( "ogc_fid%1" ).arg( i );
-
-        int j;
-        for ( j = 0; j < fields.size() && name.compare( fields.at( j ).name(), Qt::CaseInsensitive ) != 0; j++ )
-          ;
-
-        if ( j == fields.size() )
-          break;
-      }
-
-      if ( i == 10 )
-      {
-        mErrorMessage = QObject::tr( "No available replacement for internal fieldname ogc_fid found" ).arg( attrField.name() );
-        mError = ErrAttributeCreationFailed;
-        return;
-      }
-
-      QgsMessageLog::logMessage( QObject::tr( "Reserved attribute name ogc_fid replaced with %1" ).arg( name ), QObject::tr( "OGR" ) );
-    }
-
-    // create field definition
-    gdal::ogr_field_def_unique_ptr fld( OGR_Fld_Create( mCodec->fromUnicode( name ), ogrType ) );
-    if ( ogrWidth > 0 )
-    {
-      OGR_Fld_SetWidth( fld.get(), ogrWidth );
-    }
-
-    if ( ogrPrecision >= 0 )
-    {
-      OGR_Fld_SetPrecision( fld.get(), ogrPrecision );
-    }
-
-    switch ( attrField.type() )
-    {
-      case QVariant::Bool:
-        OGR_Fld_SetSubType( fld.get(), OFSTBoolean );
-        break;
-      default:
-        break;
-    }
-
-    // create the field
-    QgsDebugMsg( "creating field " + attrField.name() +
-                 " type " + QString( QVariant::typeToName( attrField.type() ) ) +
-                 " width " + QString::number( ogrWidth ) +
-                 " precision " + QString::number( ogrPrecision ) );
-    if ( OGR_L_CreateField( mLayer, fld.get(), true ) != OGRERR_NONE )
-    {
-      QgsDebugMsg( "error creating field " + attrField.name() );
-      mErrorMessage = QObject::tr( "Creation of field %1 failed (OGR error: %2)" )
-                      .arg( attrField.name(),
-                            QString::fromUtf8( CPLGetLastErrorMsg() ) );
-      mError = ErrAttributeCreationFailed;
-      return;
-    }
-
-    int ogrIdx = OGR_FD_GetFieldIndex( defn, mCodec->fromUnicode( name ) );
-    QgsDebugMsg( QString( "returned field index for %1: %2" ).arg( name ).arg( ogrIdx ) );
-    if ( ogrIdx < 0 || existingIdxs.contains( ogrIdx ) )
-    {
-      // GDAL 1.7 not just truncates, but launders more aggressivly.
-      ogrIdx = OGR_FD_GetFieldCount( defn ) - 1;
-
-      if ( ogrIdx < 0 )
-      {
-        QgsDebugMsg( "error creating field " + attrField.name() );
-        mErrorMessage = QObject::tr( "Created field %1 not found (OGR error: %2)" )
-                        .arg( attrField.name(),
-                              QString::fromUtf8( CPLGetLastErrorMsg() ) );
-        mError = ErrAttributeCreationFailed;
-        return;
+        QgsField attrField = fields.at( fldIdx );
+        QString name( attrField.name() );
+        int ogrIdx = OGR_FD_GetFieldIndex( defn, mCodec->fromUnicode( name ) );
+        if ( ogrIdx >= 0 )
+          mAttrIdxToOgrIdx.insert( fldIdx, ogrIdx );
       }
     }
-
-    existingIdxs.insert( ogrIdx );
-    mAttrIdxToOgrIdx.insert( fldIdx, ogrIdx );
+    break;
   }
 
-  if ( action == AppendToLayerNoNewFields )
+  // Geopackages require a unique feature id. If the input feature stream cannot guarantee
+  // the uniqueness of the FID column, we drop it and let OGR generate new ones
+  if ( sinkFlags.testFlag( QgsFeatureSink::RegeneratePrimaryKey ) && driverName == QLatin1String( "GPKG" ) )
   {
-    for ( int fldIdx = 0; fldIdx < fields.count(); ++fldIdx )
-    {
-      QgsField attrField = fields.at( fldIdx );
-      QString name( attrField.name() );
-      int ogrIdx = OGR_FD_GetFieldIndex( defn, mCodec->fromUnicode( name ) );
-      if ( ogrIdx >= 0 )
-        mAttrIdxToOgrIdx.insert( fldIdx, ogrIdx );
-    }
+    int fidIdx = fields.lookupField( QStringLiteral( "FID" ) );
+
+    if ( fidIdx >= 0 )
+      mAttrIdxToOgrIdx.remove( fidIdx );
   }
 
-  QgsDebugMsg( "Done creating fields" );
+  QgsDebugMsg( QStringLiteral( "Done creating fields" ) );
 
   mWkbType = geometryType;
 
@@ -838,6 +861,17 @@ class QgsVectorFileWriterMetadataContainer
                              << QStringLiteral( "TAB" ),
                              QStringLiteral( "COMMA" ) // Default value
                            ) );
+
+#if defined(GDAL_COMPUTE_VERSION) && GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(2,3,0)
+      layerOptions.insert( QStringLiteral( "STRING_QUOTING" ), new QgsVectorFileWriter::SetOption(
+                             QObject::tr( "Double-quote strings. IF_AMBIGUOUS means that string values that look like numbers will be quoted." ),
+                             QStringList()
+                             << QStringLiteral( "IF_NEEDED" )
+                             << QStringLiteral( "IF_AMBIGUOUS" )
+                             << QStringLiteral( "ALWAYS" ),
+                             QStringLiteral( "IF_AMBIGUOUS" ) // Default value
+                           ) );
+#endif
 
       layerOptions.insert( QStringLiteral( "WRITE_BOM" ), new QgsVectorFileWriter::BoolOption(
                              QObject::tr( "Write a UTF-8 Byte Order Mark (BOM) at the start of the file." ),
@@ -1627,7 +1661,7 @@ class QgsVectorFileWriterMetadataContainer
                            ) );
 
       layerOptions.insert( QStringLiteral( "COMPRESS_COLUMNS" ), new QgsVectorFileWriter::StringOption(
-                             QObject::tr( "column_name1[,column_name2, ...] A list of (String) columns that "
+                             QObject::tr( "column_name1[,column_name2, …] A list of (String) columns that "
                                           "must be compressed with ZLib DEFLATE algorithm. This might be beneficial "
                                           "for databases that have big string blobs. However, use with care, since "
                                           "the value of such columns will be seen as compressed binary content with "
@@ -1709,7 +1743,7 @@ class QgsVectorFileWriterMetadataContainer
                            ) );
 
       layerOptions.insert( QStringLiteral( "COMPRESS_COLUMNS" ), new QgsVectorFileWriter::StringOption(
-                             QObject::tr( "column_name1[,column_name2, ...] A list of (String) columns that "
+                             QObject::tr( "column_name1[,column_name2, …] A list of (String) columns that "
                                           "must be compressed with ZLib DEFLATE algorithm. This might be beneficial "
                                           "for databases that have big string blobs. However, use with care, since "
                                           "the value of such columns will be seen as compressed binary content with "
@@ -2076,11 +2110,11 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
   qint64 fid = FID_TO_NUMBER( feature.id() );
   if ( fid > std::numeric_limits<int>::max() )
   {
-    QgsDebugMsg( QString( "feature id %1 too large." ).arg( fid ) );
+    QgsDebugMsg( QStringLiteral( "feature id %1 too large." ).arg( fid ) );
     OGRErr err = OGR_F_SetFID( poFeature.get(), static_cast<long>( fid ) );
     if ( err != OGRERR_NONE )
     {
-      QgsDebugMsg( QString( "Failed to set feature id to %1: %2 (OGR error: %3)" )
+      QgsDebugMsg( QStringLiteral( "Failed to set feature id to %1: %2 (OGR error: %3)" )
                    .arg( feature.id() )
                    .arg( err ).arg( CPLGetLastErrorMsg() )
                  );
@@ -2221,6 +2255,19 @@ gdal::ogr_feature_unique_ptr QgsVectorFileWriter::createFeature( const QgsFeatur
           }
         }
 
+        // drop m/z value if not present in output wkb type
+        if ( !QgsWkbTypes::hasZ( mWkbType ) && QgsWkbTypes::hasZ( geom.wkbType() ) )
+          geom.get()->dropZValue();
+        if ( !QgsWkbTypes::hasM( mWkbType ) && QgsWkbTypes::hasM( geom.wkbType() ) )
+          geom.get()->dropMValue();
+
+        // add m/z values if not present in the input wkb type -- this is needed for formats which determine
+        // geometry type based on features, e.g. geojson
+        if ( QgsWkbTypes::hasZ( mWkbType ) && !QgsWkbTypes::hasZ( geom.wkbType() ) )
+          geom.get()->addZValue( 0 );
+        if ( QgsWkbTypes::hasM( mWkbType ) && !QgsWkbTypes::hasM( geom.wkbType() ) )
+          geom.get()->addMValue( 0 );
+
         if ( !mGeom2 )
         {
           // there's a problem when layer type is set as wkbtype Polygon
@@ -2312,7 +2359,7 @@ QgsVectorFileWriter::~QgsVectorFileWriter()
   {
     if ( OGRERR_NONE != OGR_L_CommitTransaction( mLayer ) )
     {
-      QgsDebugMsg( "Error while committing transaction on OGRLayer." );
+      QgsDebugMsg( QStringLiteral( "Error while committing transaction on OGRLayer." ) );
     }
   }
 
@@ -2439,7 +2486,7 @@ QgsVectorFileWriter::WriterError QgsVectorFileWriter::prepareWriteAsVectorFormat
     {
       req.setFilterFids( details.selectedFeatureIds );
     }
-    req.setSubsetOfAttributes( QgsAttributeList() );
+    req.setNoAttributes();
     details.geometryTypeScanIterator = layer->getFeatures( req );
   }
 
@@ -2803,7 +2850,7 @@ bool QgsVectorFileWriter::deleteShapeFile( const QString &fileName )
     QFile f( dir.canonicalPath() + '/' + file );
     if ( !f.remove() )
     {
-      QgsDebugMsg( QString( "Removing file %1 failed: %2" ).arg( file, f.errorString() ) );
+      QgsDebugMsg( QStringLiteral( "Removing file %1 failed: %2" ).arg( file, f.errorString() ) );
       ok = false;
     }
   }

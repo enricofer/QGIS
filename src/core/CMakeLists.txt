@@ -47,6 +47,7 @@ SET(QGIS_CORE_SRCS
   symbology/qgsrulebasedrenderer.cpp
   symbology/qgssinglesymbolrenderer.cpp
   symbology/qgsstyle.cpp
+  symbology/qgsstylemodel.cpp
   symbology/qgssvgcache.cpp
   symbology/qgssymbollayer.cpp
   symbology/qgssymbollayerregistry.cpp
@@ -150,6 +151,7 @@ SET(QGIS_CORE_SRCS
   qgsauxiliarystorage.cpp
   qgsbearingutils.cpp
   qgsbrowsermodel.cpp
+  qgsbrowserproxymodel.cpp
   qgscachedfeatureiterator.cpp
   qgscacheindex.cpp
   qgscacheindexfeatureid.cpp
@@ -201,12 +203,14 @@ SET(QGIS_CORE_SRCS
   qgsfiledownloader.cpp
   qgsfileutils.cpp
   qgsfontutils.cpp
+  qgsgdalutils.cpp
   qgsgeometrysimplifier.cpp
   qgsgeometryvalidator.cpp
-  qgsgeometryfixes.cpp
+  qgsgeometryoptions.cpp
   qgsgml.cpp
   qgsgmlschema.cpp
   qgshistogram.cpp
+  qgshstoreutils.cpp
   qgshtmlutils.cpp
   qgsinterval.cpp
   qgsjsonutils.cpp
@@ -281,6 +285,7 @@ SET(QGIS_CORE_SRCS
   qgsproxyprogresstask.cpp
   qgspythonrunner.cpp
   qgsreadwritecontext.cpp
+  qgsreadwritelocker.cpp
   qgsrelation.cpp
   qgsrelationmanager.cpp
   qgsrenderchecker.cpp
@@ -586,6 +591,7 @@ SET(QGIS_CORE_MOC_HDRS
   qgsanimatedicon.h
   qgsauxiliarystorage.h
   qgsbrowsermodel.h
+  qgsbrowserproxymodel.h
   qgscoordinatereferencesystem.h
   qgscredentials.h
   qgsdataitem.h
@@ -602,6 +608,7 @@ SET(QGIS_CORE_MOC_HDRS
   qgsfiledownloader.h
   qgsfeaturefiltermodel.h
   qgsfeaturefiltermodel_p.h
+  qgsgeometryoptions.h
   qgsgeometryvalidator.h
   qgsgml.h
   qgsgmlschema.h
@@ -610,7 +617,6 @@ SET(QGIS_CORE_MOC_HDRS
   qgsmaplayermodel.h
   qgsmaplayerproxymodel.h
   qgsmaplayerstore.h
-  qgsmaplayerstyle.h
   qgsmaplayerstylemanager.h
   qgsmaprenderercache.h
   qgsmaprenderercustompainterjob.h
@@ -697,6 +703,7 @@ SET(QGIS_CORE_MOC_HDRS
   geometry/qgsabstractgeometry.h
   geometry/qgsgeometry.h
   geometry/qgspoint.h
+  geometry/qgswkbtypes.h
 
   geocms/geonode/qgsgeonoderequest.h
 
@@ -746,6 +753,7 @@ SET(QGIS_CORE_MOC_HDRS
   symbology/qgscptcityarchive.h
   symbology/qgssvgcache.h
   symbology/qgsstyle.h
+  symbology/qgsstylemodel.h
 
   layertree/qgslayertree.h
   layertree/qgslayertreegroup.h
@@ -864,9 +872,9 @@ SET(QGIS_CORE_HDRS
   qgsfields.h
   qgsfileutils.h
   qgsfontutils.h
-  qgsgeometryfixes.h
   qgsgeometrysimplifier.h
   qgshistogram.h
+  qgshstoreutils.h
   qgshtmlutils.h
   qgsindexedfeature.h
   qgsinterval.h
@@ -885,7 +893,7 @@ SET(QGIS_CORE_HDRS
   qgsmaphittest.h
   qgsmaplayerdependency.h
   qgsmaplayerrenderer.h
-  qgsmaplayerstylemanager.h
+  qgsmaplayerstyle.h
   qgsmapsettings.h
   qgsmapsettingsutils.h
   qgsmaptopixel.h
@@ -921,6 +929,7 @@ SET(QGIS_CORE_HDRS
   qgspythonrunner.h
   qgsrange.h
   qgsreadwritecontext.h
+  qgsreadwritelocker.h
   qgsrenderchecker.h
   qgsrendercontext.h
   qgsrulebasedlabeling.h
@@ -944,6 +953,7 @@ SET(QGIS_CORE_HDRS
   qgstextlabelfeature.h
   qgstextrenderer.h
   qgstextrenderer_p.h
+  qgsthreadingutils.h
   qgstracer.h
   qgstranslationcontext.h
 
@@ -1153,7 +1163,6 @@ SET(QGIS_CORE_HDRS
   geometry/qgstriangle.h
   geometry/qgssurface.h
   geometry/qgswkbptr.h
-  geometry/qgswkbtypes.h
 
   3d/qgs3drendererregistry.h
   3d/qgsabstract3drenderer.h
@@ -1236,7 +1245,7 @@ IF (HAVE_OPENCL)
     SET(QGIS_CORE_HDRS ${QGIS_CORE_HDRS}
         qgsopenclutils.h
     )
-    INCLUDE_DIRECTORIES(${OpenCL_INCLUDE_DIR})
+    INCLUDE_DIRECTORIES(SYSTEM ${OpenCL_INCLUDE_DIRS})
 ENDIF (HAVE_OPENCL)
 
 

@@ -162,7 +162,7 @@ namespace QgsWms
       void setLayerOpacity( QgsMapLayer *layer, int opacity ) const;
 
       // Set layer filter
-      void setLayerFilter( QgsMapLayer *layer, const QStringList &filter );
+      void setLayerFilter( QgsMapLayer *layer, const QList<QgsWmsParametersFilter> &filters );
 
       // Set layer python filter
       void setLayerAccessControlFilter( QgsMapLayer *layer ) const;
@@ -278,7 +278,7 @@ namespace QgsWms
         QStringList *attributes = nullptr ) const;
 
       //! Replaces attribute value with ValueRelation or ValueRelation if defined. Otherwise returns the original value
-      static QString replaceValueMapAndRelation( QgsVectorLayer *vl, int idx, const QString &attributeVal );
+      static QString replaceValueMapAndRelation( QgsVectorLayer *vl, int idx, const QVariant &attributeVal );
       //! Gets layer search rectangle (depending on request parameter, layer type, map and layer crs)
       QgsRectangle featureInfoSearchRect( QgsVectorLayer *ml, const QgsMapSettings &ms, const QgsRenderContext &rct, const QgsPointXY &infoPoint ) const;
 

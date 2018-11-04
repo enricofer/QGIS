@@ -31,7 +31,7 @@ QgsProcessingToolboxTreeView::QgsProcessingToolboxTreeView( QWidget *parent,
 void QgsProcessingToolboxTreeView::setRegistry( QgsProcessingRegistry *registry, QgsProcessingRecentAlgorithmLog *recentLog )
 {
   QgsProcessingToolboxProxyModel *newModel = new QgsProcessingToolboxProxyModel( this, registry, recentLog );
-  mToolboxModel = mModel->toolboxModel();
+  mToolboxModel = newModel->toolboxModel();
   setModel( newModel );
   mModel->deleteLater();
   mModel = newModel;
@@ -91,6 +91,11 @@ const QgsProcessingAlgorithm *QgsProcessingToolboxTreeView::selectedAlgorithm()
 void QgsProcessingToolboxTreeView::setFilters( QgsProcessingToolboxProxyModel::Filters filters )
 {
   mModel->setFilters( filters );
+}
+
+void QgsProcessingToolboxTreeView::setInPlaceLayer( QgsVectorLayer *layer )
+{
+  mModel->setInPlaceLayer( layer );
 }
 
 QModelIndex QgsProcessingToolboxTreeView::findFirstVisibleAlgorithm( const QModelIndex &parent )

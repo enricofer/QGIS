@@ -61,9 +61,9 @@ of feature and attribute information from a spatial datasource.
 
     enum FeatureCountState
     {
-      //! Feature
+      //! Feature count not yet computed
       Uncounted,
-      //! Provider
+      //! Provider returned an unknown feature count
       UnknownCount,
     };
 
@@ -503,7 +503,7 @@ It returns false by default.
 Must be implemented by providers that support delete styles from db returning true
 %End
 
-    virtual QgsFeatureRenderer *createRenderer( const QVariantMap &configuration = QVariantMap() ) const;
+    virtual QgsFeatureRenderer *createRenderer( const QVariantMap &configuration = QVariantMap() ) const /Factory/;
 %Docstring
 Creates a new vector layer feature renderer, using provider backend specific information.
 

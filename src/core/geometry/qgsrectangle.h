@@ -262,6 +262,12 @@ class CORE_EXPORT QgsRectangle
     }
 
     /**
+     * Scale the rectangle around its \a center point.
+     * \since QGIS 3.4
+     */
+    QgsRectangle scaled( double scaleFactor, const QgsPointXY *center = nullptr ) const;
+
+    /**
      * Grows the rectangle in place by the specified amount.
      * \see buffered()
      */
@@ -541,11 +547,19 @@ class CORE_EXPORT QgsRectangle
       return QVariant::fromValue( *this );
     }
 
+    /**
+     * Returns a copy of this rectangle that is snapped to a grid with
+     * the specified \a spacing between the grid lines.
+     *
+     * \since QGIS 3.4
+     */
+    QgsRectangle snappedToGrid( double spacing ) const;
+
 #ifdef SIP_RUN
     SIP_PYOBJECT __repr__();
     % MethodCode
     QString str = QStringLiteral( "<QgsRectangle: %1>" ).arg( sipCpp->asWktCoordinates() );
-    sipRes = PyUnicode_FromString( str.toUtf8().data() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
     % End
 #endif
 

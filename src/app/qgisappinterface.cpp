@@ -745,7 +745,7 @@ QgsAttributeDialog *QgisAppInterface::getFeatureForm( QgsVectorLayer *l, QgsFeat
   QgsAttributeDialog *dialog = new QgsAttributeDialog( l, &feature, false, qgis, true, context );
   if ( !feature.isValid() )
   {
-    dialog->setMode( QgsAttributeForm::AddFeatureMode );
+    dialog->setMode( QgsAttributeEditorContext::AddFeatureMode );
   }
   return dialog;
 }
@@ -788,4 +788,14 @@ void QgisAppInterface::invalidateLocatorResults()
 bool QgisAppInterface::askForDatumTransform( QgsCoordinateReferenceSystem sourceCrs, QgsCoordinateReferenceSystem destinationCrs )
 {
   return qgis->askUserForDatumTransform( sourceCrs, destinationCrs );
+}
+
+void QgisAppInterface::takeAppScreenShots( const QString &saveDirectory, const int categories )
+{
+  qgis->takeAppScreenShots( saveDirectory, categories );
+}
+
+QgsBrowserModel *QgisAppInterface::browserModel()
+{
+  return qgis->mBrowserModel;
 }

@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgsalgorithmboundary.h"
+#include "qgsvectorlayer.h"
 
 ///@cond PRIVATE
 
@@ -60,6 +61,11 @@ QString QgsBoundaryAlgorithm::shortHelpString() const
 QList<int> QgsBoundaryAlgorithm::inputLayerTypes() const
 {
   return QList<int>() << QgsProcessing::TypeVectorLine << QgsProcessing::TypeVectorPolygon;
+}
+
+bool QgsBoundaryAlgorithm::supportInPlaceEdit( const QgsMapLayer * ) const
+{
+  return false;
 }
 
 QgsBoundaryAlgorithm *QgsBoundaryAlgorithm::createInstance() const

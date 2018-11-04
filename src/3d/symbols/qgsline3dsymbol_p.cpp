@@ -85,6 +85,7 @@ void QgsLine3DSymbolEntity::addEntityForNotSelectedLines( const Qgs3DMapSettings
 
   // build the entity
   QgsLine3DSymbolEntityNode *entity = new QgsLine3DSymbolEntityNode( map, layer, symbol, req );
+  entity->findChild<Qt3DRender::QGeometryRenderer *>()->setObjectName( QStringLiteral( "main" ) ); // temporary measure to distinguish between "selected" and "main"
   entity->addComponent( mat );
   entity->setParent( this );
 }
@@ -106,6 +107,7 @@ Qt3DRender::QGeometryRenderer *QgsLine3DSymbolEntityNode::renderer( const Qgs3DM
   double mitreLimit = 0;
 
   QList<QgsPolygon *> polygons;
+  QList<QgsFeatureId> fids;
   QgsFeature f;
   QgsFeatureIterator fi = layer->getFeatures( request );
   while ( fi.nextFeature( f ) )
@@ -129,6 +131,7 @@ Qt3DRender::QGeometryRenderer *QgsLine3DSymbolEntityNode::renderer( const Qgs3DM
       QgsPolygon *polyBuffered = static_cast<QgsPolygon *>( buffered );
       Qgs3DUtils::clampAltitudes( polyBuffered, symbol.altitudeClamping(), symbol.altitudeBinding(), symbol.height(), map );
       polygons.append( polyBuffered );
+      fids.append( f.id() );
     }
     else if ( QgsWkbTypes::flatType( buffered->wkbType() ) == QgsWkbTypes::MultiPolygon )
     {
@@ -140,13 +143,14 @@ Qt3DRender::QGeometryRenderer *QgsLine3DSymbolEntityNode::renderer( const Qgs3DM
         QgsPolygon *polyBuffered = static_cast<QgsPolygon *>( partBuffered )->clone(); // need to clone individual geometry parts
         Qgs3DUtils::clampAltitudes( polyBuffered, symbol.altitudeClamping(), symbol.altitudeBinding(), symbol.height(), map );
         polygons.append( polyBuffered );
+        fids.append( f.id() );
       }
       delete buffered;
     }
   }
 
   mGeometry = new QgsTessellatedPolygonGeometry;
-  mGeometry->setPolygons( polygons, origin, symbol.extrusionHeight() );
+  mGeometry->setPolygons( polygons, fids, origin, symbol.extrusionHeight() );
 
   Qt3DRender::QGeometryRenderer *renderer = new Qt3DRender::QGeometryRenderer;
   renderer->setGeometry( mGeometry );
@@ -170,7 +174,7 @@ Qt3DRender::QGeometryRenderer *QgsLine3DSymbolEntityNode::rendererSimple( const 
     if ( f.geometry().isNull() )
       continue;
 
-    if ( symbol.altitudeBinding() == AltBindCentroid )
+    if ( symbol.altitudeBinding() == Qgs3DTypes::AltBindCentroid )
       centroid = QgsPoint( f.geometry().centroid().asPoint() );
 
     QgsGeometry geom = f.geometry();
@@ -208,7 +212,7 @@ Qt3DRender::QGeometryRenderer *QgsLine3DSymbolEntityNode::rendererSimple( const 
   vertexBufferData.resize( vertices.size() * 3 * sizeof( float ) );
   float *rawVertexArray = reinterpret_cast<float *>( vertexBufferData.data() );
   int idx = 0;
-  for ( const auto &v : vertices )
+  for ( const auto &v : qgis::as_const( vertices ) )
   {
     rawVertexArray[idx++] = v.x();
     rawVertexArray[idx++] = v.y();
@@ -219,7 +223,7 @@ Qt3DRender::QGeometryRenderer *QgsLine3DSymbolEntityNode::rendererSimple( const 
   indexBufferData.resize( indexes.size() * sizeof( int ) );
   unsigned int *rawIndexArray = reinterpret_cast<unsigned int *>( indexBufferData.data() );
   idx = 0;
-  for ( unsigned int indexVal : indexes )
+  for ( unsigned int indexVal : qgis::as_const( indexes ) )
   {
     rawIndexArray[idx++] = indexVal;
   }

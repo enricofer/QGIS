@@ -26,7 +26,6 @@ only possible to read or write layer's current style.
 #include "qgsmaplayerstyle.h"
 %End
   public:
-
     QgsMapLayerStyle();
 %Docstring
 construct invalid style

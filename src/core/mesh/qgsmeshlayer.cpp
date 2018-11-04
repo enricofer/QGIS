@@ -27,6 +27,7 @@
 #include "qgsmeshlayer.h"
 #include "qgsmeshlayerrenderer.h"
 #include "qgsmeshlayerutils.h"
+#include "qgspainting.h"
 #include "qgsproviderregistry.h"
 #include "qgsreadwritecontext.h"
 #include "qgsstyle.h"
@@ -40,9 +41,12 @@ QgsMeshLayer::QgsMeshLayer( const QString &meshLayerPath,
   : QgsMapLayer( MeshLayer, baseName, meshLayerPath )
   , mProviderKey( providerKey )
 {
-  // load data
-  QgsDataProvider::ProviderOptions providerOptions;
-  setDataProvider( providerKey, providerOptions );
+  // if we’re given a provider type, try to create and bind one to this layer
+  if ( !meshLayerPath.isEmpty() && !providerKey.isEmpty() )
+  {
+    QgsDataProvider::ProviderOptions providerOptions;
+    setDataProvider( providerKey, providerOptions );
+  }
 
   setLegend( QgsMapLayerLegend::defaultMeshLegend( this ) );
 
@@ -103,6 +107,11 @@ QgsMesh *QgsMeshLayer::nativeMesh() SIP_SKIP
 QgsTriangularMesh *QgsMeshLayer::triangularMesh() SIP_SKIP
 {
   return mTriangularMesh.get();
+}
+
+QgsMeshLayerRendererCache *QgsMeshLayer::rendererCache()
+{
+  return mRendererCache.get();
 }
 
 QgsMeshRendererSettings QgsMeshLayer::rendererSettings() const
@@ -229,40 +238,69 @@ void QgsMeshLayer::assignDefaultStyleToDatasetGroup( int groupIndex )
 
 QgsMapLayerRenderer *QgsMeshLayer::createMapRenderer( QgsRenderContext &rendererContext )
 {
+  // Native mesh
   if ( !mNativeMesh )
   {
     // lazy loading of mesh data
     fillNativeMesh();
   }
 
+  // Triangular mesh
   if ( !mTriangularMesh )
     mTriangularMesh.reset( new QgsTriangularMesh() );
 
   mTriangularMesh->update( mNativeMesh.get(), &rendererContext );
+
+  // Cache
+  if ( !mRendererCache )
+    mRendererCache.reset( new QgsMeshLayerRendererCache() );
+
   return new QgsMeshLayerRenderer( this, rendererContext );
 }
 
-bool QgsMeshLayer::readSymbology( const QDomNode &node, QString &errorMessage, QgsReadWriteContext &context )
+bool QgsMeshLayer::readSymbology( const QDomNode &node, QString &errorMessage,
+                                  QgsReadWriteContext &context, QgsMapLayer::StyleCategories categories )
 {
   Q_UNUSED( errorMessage );
-  Q_UNUSED( context );
+  // TODO: implement categories for raster layer
 
   QDomElement elem = node.toElement();
+
+  readCommonStyle( elem, context, categories );
+
   QDomElement elemRendererSettings = elem.firstChildElement( "mesh-renderer-settings" );
   if ( !elemRendererSettings.isNull() )
     mRendererSettings.readXml( elemRendererSettings );
 
+  // get and set the blend mode if it exists
+  QDomNode blendModeNode = node.namedItem( QStringLiteral( "blendMode" ) );
+  if ( !blendModeNode.isNull() )
+  {
+    QDomElement e = blendModeNode.toElement();
+    setBlendMode( QgsPainting::getCompositionMode( static_cast< QgsPainting::BlendMode >( e.text().toInt() ) ) );
+  }
+
   return true;
 }
 
-bool QgsMeshLayer::writeSymbology( QDomNode &node, QDomDocument &doc, QString &errorMessage, const QgsReadWriteContext &context ) const
+bool QgsMeshLayer::writeSymbology( QDomNode &node, QDomDocument &doc, QString &errorMessage,
+                                   const QgsReadWriteContext &context, QgsMapLayer::StyleCategories categories ) const
 {
   Q_UNUSED( errorMessage );
-  Q_UNUSED( context );
+  // TODO: implement categories for raster layer
 
   QDomElement elem = node.toElement();
+
+  writeCommonStyle( elem, doc, context, categories );
+
   QDomElement elemRendererSettings = mRendererSettings.writeXml( doc );
   elem.appendChild( elemRendererSettings );
+
+  // add blend mode node
+  QDomElement blendModeElement  = doc.createElement( QStringLiteral( "blendMode" ) );
+  QDomText blendModeText = doc.createTextNode( QString::number( QgsPainting::getBlendModeEnum( blendMode() ) ) );
+  blendModeElement.appendChild( blendModeText );
+  node.appendChild( blendModeElement );
 
   return true;
 }
@@ -396,6 +434,8 @@ bool QgsMeshLayer::setDataProvider( QString const &provider, const QgsDataProvid
     QgsDebugMsgLevel( QStringLiteral( "Invalid mesh provider plugin %1" ).arg( QString( mDataSource.toUtf8() ) ), 2 );
     return false;
   }
+
+  setCrs( mDataProvider->crs() );
 
   if ( provider == QStringLiteral( "mesh_memory" ) )
   {

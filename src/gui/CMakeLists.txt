@@ -229,6 +229,7 @@ SET(QGIS_GUI_SRCS
   qgscodeeditorhtml.cpp
   qgscodeeditorpython.cpp
   qgscodeeditorsql.cpp
+  qgscodeeditorexpression.cpp
   qgscollapsiblegroupbox.cpp
   qgscolorbrewercolorrampdialog.cpp
   qgscolorbutton.cpp
@@ -242,7 +243,10 @@ SET(QGIS_GUI_SRCS
   qgscredentialdialog.cpp
   qgscustomdrophandler.cpp
   qgscurveeditorwidget.cpp
+  qgsdataitemguiprovider.cpp
+  qgsdataitemguiproviderregistry.cpp
   qgsdatumtransformdialog.cpp
+  qgsdatasourceselectdialog.cpp
   qgsdetaileditemdata.cpp
   qgsdetaileditemdelegate.cpp
   qgsdetaileditemwidget.cpp
@@ -358,6 +362,7 @@ SET(QGIS_GUI_SRCS
   qgsshortcutsmanager.cpp
   qgsslider.cpp
   qgssnapindicator.cpp
+  qgssnaptogridcanvasitem.cpp
   qgssublayersdialog.cpp
   qgssubstitutionlistwidget.cpp
   qgssqlcomposerdialog.cpp
@@ -405,6 +410,7 @@ SET(QGIS_GUI_MOC_HDRS
   qgscodeeditorhtml.h
   qgscodeeditorpython.h
   qgscodeeditorsql.h
+  qgscodeeditorexpression.h
   qgscollapsiblegroupbox.h
   qgscolorbrewercolorrampdialog.h
   qgscolorbutton.h
@@ -419,6 +425,7 @@ SET(QGIS_GUI_MOC_HDRS
   qgscurveeditorwidget.h
   qgscustomdrophandler.h
   qgsdatumtransformdialog.h
+  qgsdatasourceselectdialog.h
   qgsdetaileditemdelegate.h
   qgsdetaileditemwidget.h
   qgsdial.h
@@ -519,6 +526,7 @@ SET(QGIS_GUI_MOC_HDRS
   qgsrasterlayersaveasdialog.h
   qgsrasterpyramidsoptionswidget.h
   qgsrelationeditorwidget.h
+  qgsrubberband.h
   qgsscalecombobox.h
   qgsscalerangewidget.h
   qgsscalevisibilitydialog.h
@@ -527,6 +535,7 @@ SET(QGIS_GUI_MOC_HDRS
   qgssearchquerybuilder.h
   qgsshortcutsmanager.h
   qgsslider.h
+  qgssnaptogridcanvasitem.h
   qgssqlcomposerdialog.h
   qgsstatusbar.h
   qgssublayersdialog.h
@@ -547,6 +556,7 @@ SET(QGIS_GUI_MOC_HDRS
   qgsdatasourcemanagerdialog.h
   qgsabstractdatasourcewidget.h
   qgswidgetstatehelper_p.h
+  qgsattributeeditorcontext.h
 
   ogr/qgsnewogrconnection.h
   ogr/qgsvectorlayersaveasdialog.h
@@ -733,6 +743,17 @@ SET(QGIS_GUI_MOC_HDRS
   processing/qgsprocessingwidgetwrapper.h
   processing/qgsprocessingwidgetwrapperimpl.h
 )
+FIND_PACKAGE(Qt5Qml REQUIRED)
+FIND_PACKAGE(Qt5QuickWidgets REQUIRED)
+
+IF(Qt5Qml_FOUND)
+ADD_DEFINITIONS(-DWITH_QML)
+SET(QGIS_GUI_MOC_HDRS
+  ${QGIS_GUI_MOC_HDRS}
+  editorwidgets/qgsqmlwidgetwrapper.h
+)
+ENDIF(Qt5Qml_FOUND)
+
 SET_PROPERTY(GLOBAL PROPERTY QGIS_GUI_MOC_HDRS ${QGIS_GUI_MOC_HDRS})
 
 QT5_WRAP_CPP(QGIS_GUI_MOC_SRCS ${QGIS_GUI_MOC_HDRS})
@@ -746,9 +767,10 @@ ENDIF(MSVC)
 # for installing headers
 
 SET(QGIS_GUI_HDRS
-  qgsattributeeditorcontext.h
   qgsattributeforminterface.h
   qgsattributeformlegacyinterface.h
+  qgsdataitemguiprovider.h
+  qgsdataitemguiproviderregistry.h
   qgsdetaileditemdata.h
   qgsexpressionbuilderdialog.h
   qgsgeometryrubberband.h
@@ -763,7 +785,6 @@ SET(QGIS_GUI_HDRS
   qgsmaplayerconfigwidgetfactory.h
   qgsmapmouseevent.h
   qgsmaptip.h
-  qgsrubberband.h
   qgssnapindicator.h
   qgssqlcomposerdialog.h
   qgstablewidgetitem.h
@@ -772,10 +793,12 @@ SET(QGIS_GUI_HDRS
   qgsbrowserdockwidget_p.h
   qgsvertexmarker.h
   qgsdatasourcemanagerdialog.h
+  qgsdatasourceselectdialog.h
   qgsabstractdatasourcewidget.h
   qgswidgetstatehelper_p.h
   qgssourceselectprovider.h
   qgssourceselectproviderregistry.h
+  qgswindowmanagerinterface.h
 
   ogr/qgsogrhelperfunctions.h
   ogr/qgsnewogrconnection.h
@@ -838,6 +861,15 @@ SET(QGIS_GUI_HDRS
 
   symbology/qgssymbolwidgetcontext.h
 )
+
+IF(Qt5Qml_FOUND)
+
+SET(QGIS_GUI_SRCS
+  ${QGIS_GUI_SRCS}
+  editorwidgets/qgsqmlwidgetwrapper.cpp
+)
+ENDIF(Qt5Qml_FOUND)
+
 SET_PROPERTY(GLOBAL PROPERTY QGIS_GUI_HDRS ${QGIS_GUI_HDRS})
 
 
@@ -1010,6 +1042,7 @@ TARGET_LINK_LIBRARIES(qgis_gui
   ${Qt5UiTools_LIBRARIES}
   ${QWT_LIBRARY}
   ${QSCINTILLA_LIBRARY}
+  ${Qt5QuickWidgets_LIBRARIES}
 )
 
 IF(ENABLE_MODELTEST)

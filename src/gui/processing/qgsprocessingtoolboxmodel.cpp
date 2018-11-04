@@ -15,6 +15,7 @@
 
 #include "qgsprocessingtoolboxmodel.h"
 #include "qgsapplication.h"
+#include "qgsvectorlayer.h"
 #include "qgsprocessingregistry.h"
 #include "qgsprocessingrecentalgorithmlog.h"
 #include <functional>
@@ -655,6 +656,13 @@ void QgsProcessingToolboxProxyModel::setFilters( QgsProcessingToolboxProxyModel:
   invalidateFilter();
 }
 
+void QgsProcessingToolboxProxyModel::setInPlaceLayer( QgsVectorLayer *layer )
+{
+  mInPlaceLayer = layer;
+  invalidateFilter();
+}
+
+
 void QgsProcessingToolboxProxyModel::setFilterString( const QString &filter )
 {
   mFilterString = filter;
@@ -708,6 +716,18 @@ bool QgsProcessingToolboxProxyModel::filterAcceptsRow( int sourceRow, const QMod
       }
     }
 
+    if ( mFilters & FilterInPlace )
+    {
+      const bool supportsInPlace = sourceModel()->data( sourceIndex, QgsProcessingToolboxModel::RoleAlgorithmFlags ).toInt() & QgsProcessingAlgorithm::FlagSupportsInPlaceEdits;
+      if ( !supportsInPlace )
+        return false;
+
+      const QgsProcessingAlgorithm *alg = mModel->algorithmForIndex( sourceIndex );
+      if ( !( mInPlaceLayer && alg && alg->supportInPlaceEdit( mInPlaceLayer ) ) )
+      {
+        return false;
+      }
+    }
     if ( mFilters & FilterModeler )
     {
       bool isHiddenFromModeler = sourceModel()->data( sourceIndex, QgsProcessingToolboxModel::RoleAlgorithmFlags ).toInt() & QgsProcessingAlgorithm::FlagHideFromModeler;
@@ -722,8 +742,7 @@ bool QgsProcessingToolboxProxyModel::filterAcceptsRow( int sourceRow, const QMod
   }
 
   bool hasChildren = false;
-  // groups are shown only if they have visible children
-  // but providers are shown if they have visible children, OR the filter string is empty
+  // groups/providers are shown only if they have visible children
   int count = sourceModel()->rowCount( sourceIndex );
   for ( int i = 0; i < count; ++i )
   {
@@ -734,15 +753,7 @@ bool QgsProcessingToolboxProxyModel::filterAcceptsRow( int sourceRow, const QMod
     }
   }
 
-  if ( QgsProcessingProvider *provider = mModel->providerForIndex( sourceIndex ) )
-  {
-    return ( hasChildren || mFilterString.trimmed().isEmpty() ) && provider->isActive();
-  }
-  else
-  {
-    // group
-    return hasChildren; // || isRecentNode;
-  }
+  return hasChildren;
 }
 
 bool QgsProcessingToolboxProxyModel::lessThan( const QModelIndex &left, const QModelIndex &right ) const

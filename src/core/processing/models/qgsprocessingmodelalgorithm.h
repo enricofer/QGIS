@@ -51,6 +51,7 @@ class CORE_EXPORT QgsProcessingModelAlgorithm : public QgsProcessingAlgorithm
     QIcon icon() const override;
     QString svgIconPath() const override;
     QString shortHelpString() const override;
+    QString shortDescription() const override;
     QString helpUrl() const override;
     Flags flags() const override;
 
@@ -415,6 +416,11 @@ class CORE_EXPORT QgsProcessingModelAlgorithm : public QgsProcessingAlgorithm
      * if there's doubt then we default to returning true.
      */
     static bool vectorOutputIsCompatibleType( const QList<int> &acceptableDataTypes, QgsProcessing::SourceType outputType );
+
+    /**
+     * Tries to reattach all child algorithms to their linked algorithms.
+     */
+    void reattachAlgorithms() const;
 
     friend class TestQgsProcessing;
 };

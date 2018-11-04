@@ -20,8 +20,49 @@
 #include "qgsprocessingparameters.h"
 #include "qgsprocessingmodelerparameterwidget.h"
 #include "qgspropertyoverridebutton.h"
+#include "qgsexpressioncontext.h"
+#include "models/qgsprocessingmodelalgorithm.h"
 #include <QLabel>
 #include <QHBoxLayout>
+
+//
+// QgsProcessingParameterWidgetContext
+//
+
+void QgsProcessingParameterWidgetContext::setMapCanvas( QgsMapCanvas *canvas )
+{
+  mMapCanvas = canvas;
+}
+
+QgsMapCanvas *QgsProcessingParameterWidgetContext::mapCanvas() const
+{
+  return mMapCanvas;
+}
+
+QString QgsProcessingParameterWidgetContext::modelChildAlgorithmId() const
+{
+  return mModelChildAlgorithmId;
+}
+
+void QgsProcessingParameterWidgetContext::setModelChildAlgorithmId( const QString &modelChildAlgorithmId )
+{
+  mModelChildAlgorithmId = modelChildAlgorithmId;
+}
+
+QgsProcessingModelAlgorithm *QgsProcessingParameterWidgetContext::model() const
+{
+  return mModel;
+}
+
+void QgsProcessingParameterWidgetContext::setModel( QgsProcessingModelAlgorithm *model )
+{
+  mModel = model;
+}
+
+
+//
+// QgsAbstractProcessingParameterWidgetWrapper
+//
 
 QgsAbstractProcessingParameterWidgetWrapper::QgsAbstractProcessingParameterWidgetWrapper( const QgsProcessingParameterDefinition *parameter, QgsProcessingGui::WidgetType type, QObject *parent )
   : QObject( parent )
@@ -33,6 +74,16 @@ QgsAbstractProcessingParameterWidgetWrapper::QgsAbstractProcessingParameterWidge
 QgsProcessingGui::WidgetType QgsAbstractProcessingParameterWidgetWrapper::type() const
 {
   return mType;
+}
+
+void QgsAbstractProcessingParameterWidgetWrapper::setWidgetContext( const QgsProcessingParameterWidgetContext &context )
+{
+  mWidgetContext = context;
+}
+
+const QgsProcessingParameterWidgetContext &QgsAbstractProcessingParameterWidgetWrapper::widgetContext() const
+{
+  return mWidgetContext;
 }
 
 QWidget *QgsAbstractProcessingParameterWidgetWrapper::createWrappedWidget( QgsProcessingContext &context )
@@ -52,6 +103,7 @@ QWidget *QgsAbstractProcessingParameterWidgetWrapper::createWrappedWidget( QgsPr
     hLayout->addWidget( mPropertyButton );
     mPropertyButton->init( 0, QgsProperty(), mParameterDefinition->dynamicPropertyDefinition() );
     mPropertyButton->registerEnabledWidget( mWidget, false );
+    mPropertyButton->registerExpressionContextGenerator( this );
 
     wrappedWidget = new QWidget();
     wrappedWidget->setLayout( hLayout );
@@ -124,7 +176,10 @@ QLabel *QgsAbstractProcessingParameterWidgetWrapper::createLabel()
     case QgsProcessingGui::Standard:
     case QgsProcessingGui::Modeler:
     {
-      std::unique_ptr< QLabel > label = qgis::make_unique< QLabel >( mParameterDefinition->description() );
+      QString description = mParameterDefinition->description();
+      if ( parameterDefinition()->flags() & QgsProcessingParameterDefinition::FlagOptional )
+        description = QObject::tr( "%1 [optional]" ).arg( description );
+      std::unique_ptr< QLabel > label = qgis::make_unique< QLabel >( description );
       label->setToolTip( mParameterDefinition->toolTip() );
       return label.release();
     }
@@ -157,6 +212,47 @@ void QgsAbstractProcessingParameterWidgetWrapper::postInitialize( const QList<Qg
     case QgsProcessingGui::Modeler:
       break;
   }
+}
+
+QgsExpressionContext QgsAbstractProcessingParameterWidgetWrapper::createExpressionContext() const
+{
+  // Get a processing context to start with
+  QgsProcessingContext *context = nullptr;
+  std::unique_ptr< QgsProcessingContext > tmpContext;
+  if ( mProcessingContextGenerator )
+    context = mProcessingContextGenerator->processingContext();
+
+  if ( !context )
+  {
+    tmpContext = qgis::make_unique< QgsProcessingContext >();
+    context = tmpContext.get();
+  }
+
+  QgsExpressionContext c = context->expressionContext();
+
+  if ( mPropertyButton->vectorLayer() )
+    c << QgsExpressionContextUtils::layerScope( mPropertyButton->vectorLayer() );
+
+  if ( mWidgetContext.model() )
+  {
+    const QgsProcessingAlgorithm *alg = nullptr;
+    if ( mWidgetContext.model()->childAlgorithms().contains( mWidgetContext.modelChildAlgorithmId() ) )
+      alg = mWidgetContext.model()->childAlgorithm( mWidgetContext.modelChildAlgorithmId() ).algorithm();
+
+    QgsExpressionContextScope *algorithmScope = QgsExpressionContextUtils::processingAlgorithmScope( alg, QVariantMap(), *context );
+    c << algorithmScope;
+    QgsExpressionContextScope *childScope = mWidgetContext.model()->createExpressionContextScopeForChildAlgorithm( mWidgetContext.modelChildAlgorithmId(), *context, QVariantMap(), QVariantMap() );
+    c << childScope;
+
+    QStringList highlightedVariables = childScope->variableNames();
+    QStringList highlightedFunctions = childScope->functionNames();
+    highlightedVariables += algorithmScope->variableNames();
+    highlightedFunctions += algorithmScope->functionNames();
+    c.setHighlightedVariables( highlightedVariables );
+    c.setHighlightedFunctions( highlightedFunctions );
+  }
+
+  return c;
 }
 
 void QgsAbstractProcessingParameterWidgetWrapper::parentLayerChanged( QgsAbstractProcessingParameterWidgetWrapper *wrapper )
@@ -219,3 +315,4 @@ QString QgsProcessingParameterWidgetFactoryInterface::modelerExpressionFormatStr
 {
   return QString();
 }
+

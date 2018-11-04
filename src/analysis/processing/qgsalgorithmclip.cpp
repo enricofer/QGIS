@@ -18,12 +18,20 @@
 #include "qgsalgorithmclip.h"
 #include "qgsgeometryengine.h"
 #include "qgsoverlayutils.h"
+#include "qgsvectorlayer.h"
 
 ///@cond PRIVATE
 
 QString QgsClipAlgorithm::name() const
 {
   return QStringLiteral( "clip" );
+}
+
+QgsProcessingAlgorithm::Flags QgsClipAlgorithm::flags() const
+{
+  Flags f = QgsProcessingAlgorithm::flags();
+  f |= QgsProcessingAlgorithm::FlagSupportsInPlaceEdits;
+  return f;
 }
 
 QString QgsClipAlgorithm::displayName() const
@@ -67,6 +75,15 @@ QString QgsClipAlgorithm::shortHelpString() const
 QgsClipAlgorithm *QgsClipAlgorithm::createInstance() const
 {
   return new QgsClipAlgorithm();
+}
+
+bool QgsClipAlgorithm::supportInPlaceEdit( const QgsMapLayer *l ) const
+{
+  const QgsVectorLayer *layer = qobject_cast< const QgsVectorLayer * >( l );
+  if ( !layer )
+    return false;
+
+  return layer->isSpatial();
 }
 
 QVariantMap QgsClipAlgorithm::processAlgorithm( const QVariantMap &parameters, QgsProcessingContext &context, QgsProcessingFeedback *feedback )
@@ -134,7 +151,6 @@ QVariantMap QgsClipAlgorithm::processAlgorithm( const QVariantMap &parameters, Q
     {
       break;
     }
-
     QgsFeatureIterator inputIt = featureSource->getFeatures( QgsFeatureRequest().setFilterRect( clipGeom.boundingBox() ) );
     QgsFeatureList inputFeatures;
     QgsFeature f;

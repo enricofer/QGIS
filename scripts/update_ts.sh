@@ -39,6 +39,7 @@ cleanup() {
 		python/plugins/*/python-i18n.{ts,cpp} \
 		python/plugins/processing/processing-i18n.{ts,cpp} \
 		src/plugins/grass/grasslabels-i18n.cpp \
+		src/app/appinfo-i18n.cpp \
 		i18n/backup.tar \
 		qgis_ts.pro
 	do
@@ -121,6 +122,7 @@ if [ $action = push ]; then
 		exit 1
 	fi
 	cp i18n/qgis_en.ts /tmp/qgis_en.ts-downloaded
+	perl scripts/ts-clear.pl  # reset English translations
 elif [ $action = pull ]; then
 	rm i18n/qgis_*.ts
 
@@ -165,13 +167,16 @@ perl scripts/qgm2cpp.pl >src/plugins/grass/grasslabels-i18n.cpp
 echo Updating processing translations
 perl scripts/processing2cpp.pl python/plugins/processing/processing-i18n.cpp
 
+echo Updating appinfo files
+python scripts/appinfo2cpp.py >src/app/appinfo-i18n.cpp
+
 echo Creating qmake project file
 $QMAKE -project -o qgis_ts.pro -nopwd $PWD/src $PWD/python $PWD/i18n $textcpp
 
 echo "TR_EXCLUDE = $(qmake -query QT_INSTALL_HEADERS)/*" >>qgis_ts.pro
 
 echo Updating translations
-$LUPDATE -locations absolute -verbose qgis_ts.pro
+$LUPDATE -no-obsolete -locations absolute -verbose qgis_ts.pro
 
 perl -i.bak -ne 'print unless /^\s+<location.*qgs(expression|contexthelp)_texts\.cpp.*$/;' i18n/qgis_*.ts
 

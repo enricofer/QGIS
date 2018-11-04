@@ -141,8 +141,6 @@ QList<QgsMapToolIdentify::IdentifyResult> QgsMapToolIdentify::identify( const Qg
   {
     QApplication::setOverrideCursor( Qt::WaitCursor );
 
-    QStringList noIdentifyLayerIdList = QgsProject::instance()->readListEntry( QStringLiteral( "Identify" ), QStringLiteral( "/disabledLayers" ) );
-
     int layerCount;
     if ( layerList.isEmpty() )
       layerCount = mCanvas->layerCount();
@@ -162,7 +160,7 @@ QList<QgsMapToolIdentify::IdentifyResult> QgsMapToolIdentify::identify( const Qg
       emit identifyProgress( i, mCanvas->layerCount() );
       emit identifyMessage( tr( "Identifying on %1…" ).arg( layer->name() ) );
 
-      if ( noIdentifyLayerIdList.contains( layer->id() ) )
+      if ( !layer->flags().testFlag( QgsMapLayer::Identifiable ) )
         continue;
 
       if ( identifyLayer( &results, layer,  mLastGeometry, mLastExtent, mLastMapUnitsPerPixel, layerType ) )
@@ -179,6 +177,16 @@ QList<QgsMapToolIdentify::IdentifyResult> QgsMapToolIdentify::identify( const Qg
   QApplication::restoreOverrideCursor();
 
   return results;
+}
+
+void QgsMapToolIdentify::setCanvasPropertiesOverrides( double searchRadiusMapUnits )
+{
+  mOverrideCanvasSearchRadius = searchRadiusMapUnits;
+}
+
+void QgsMapToolIdentify::restoreCanvasPropertiesOverrides()
+{
+  mOverrideCanvasSearchRadius = -1;
 }
 
 void QgsMapToolIdentify::activate()
@@ -217,6 +225,16 @@ bool QgsMapToolIdentify::identifyVectorLayer( QList<QgsMapToolIdentify::Identify
   return identifyVectorLayer( results, layer, QgsGeometry::fromPointXY( point ) );
 }
 
+QMap<QString, QString> QgsMapToolIdentify::derivedAttributesForPoint( const QgsPoint &point )
+{
+  QMap< QString, QString > derivedAttributes;
+  derivedAttributes.insert( tr( "(clicked coordinate X)" ), formatXCoordinate( point ) );
+  derivedAttributes.insert( tr( "(clicked coordinate Y)" ), formatYCoordinate( point ) );
+  if ( point.is3D() )
+    derivedAttributes.insert( tr( "(clicked coordinate Z)" ), QString::number( point.z(), 'f' ) );
+  return derivedAttributes;
+}
+
 bool QgsMapToolIdentify::identifyVectorLayer( QList<QgsMapToolIdentify::IdentifyResult> *results, QgsVectorLayer *layer, const QgsGeometry &geometry )
 {
   if ( !layer || !layer->isSpatial() )
@@ -241,8 +259,7 @@ bool QgsMapToolIdentify::identifyVectorLayer( QList<QgsMapToolIdentify::Identify
     isPointOrRectangle = true;
     point = selectionGeom.asPoint();
 
-    commonDerivedAttributes.insert( tr( "(clicked coordinate X)" ), formatXCoordinate( point ) );
-    commonDerivedAttributes.insert( tr( "(clicked coordinate Y)" ), formatYCoordinate( point ) );
+    commonDerivedAttributes = derivedAttributesForPoint( QgsPoint( point ) );
   }
   else
   {
@@ -263,7 +280,7 @@ bool QgsMapToolIdentify::identifyVectorLayer( QList<QgsMapToolIdentify::Identify
     QgsRectangle r;
     if ( isSingleClick )
     {
-      double sr = searchRadiusMU( mCanvas );
+      double sr = mOverrideCanvasSearchRadius < 0 ? searchRadiusMU( mCanvas ) : mOverrideCanvasSearchRadius;
       r = toLayerCoordinates( layer, QgsRectangle( point.x() - sr, point.y() - sr, point.x() + sr, point.y() + sr ) );
     }
     else
@@ -651,8 +668,7 @@ bool QgsMapToolIdentify::identifyRasterLayer( QList<IdentifyResult> *results, Qg
     identifyResult = dprovider->identify( point, format, viewExtent, width, height );
   }
 
-  derivedAttributes.insert( tr( "(clicked coordinate X)" ), formatXCoordinate( pointInCanvasCrs ) );
-  derivedAttributes.insert( tr( "(clicked coordinate Y)" ), formatYCoordinate( pointInCanvasCrs ) );
+  derivedAttributes.unite( derivedAttributesForPoint( QgsPoint( pointInCanvasCrs ) ) );
 
   if ( identifyResult.isValid() )
   {

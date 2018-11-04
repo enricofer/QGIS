@@ -99,7 +99,8 @@
 #include <cstdlib>
 
 #define QOCISPATIAL_DYNAMIC_CHUNK_SIZE 65535
-#define QOCISPATIAL_PREFETCH_MEM  10240
+#define QOCISPATIAL_PREFETCH_ROWS 10000
+#define QOCISPATIAL_PREFETCH_MEM 8388608 // 8MB
 
 // setting this define will allow using a query from a different
 // thread than its database connection.
@@ -341,8 +342,8 @@ class QOCISpatialDriverPrivate : public QSqlDriverPrivate
     OCIError *err = nullptr;
     bool transaction = false;
     int serverVersion = -1;
-    ub4 prefetchRows = 0xffffffff;
-    ub2 prefetchMem = QOCISPATIAL_PREFETCH_MEM;
+    ub4 prefetchRows = QOCISPATIAL_PREFETCH_ROWS;
+    ub4 prefetchMem = QOCISPATIAL_PREFETCH_MEM;
     QString user;
 
     OCIType *geometryTDO = nullptr;
@@ -429,7 +430,7 @@ class QOCISpatialResultPrivate: public QSqlCachedResultPrivate
     QList<QOCISDOGeometryInd *> sdoind;
     bool transaction;
     int serverVersion;
-    int prefetchRows, prefetchMem;
+    ub4 prefetchRows, prefetchMem;
     OCIType *geometryTDO = nullptr;
     QOCISDOGeometryObj *geometryObj = nullptr;
     QOCISDOGeometryInd *geometryInd = nullptr;
@@ -489,29 +490,23 @@ void QOCISpatialResultPrivate::setStatementAttributes()
 
   int r = OCI_SUCCESS;
 
-  if ( prefetchRows >= 0 )
-  {
-    r = OCIAttrSet( sql,
-                    OCI_HTYPE_STMT,
-                    &prefetchRows,
-                    0,
-                    OCI_ATTR_PREFETCH_ROWS,
-                    err );
-    if ( r != OCI_SUCCESS )
-      qOraWarning( "Couldn't set OCI_ATTR_PREFETCH_ROWS: ", err );
-  }
-  if ( prefetchMem >= 0 )
-  {
-    r = OCIAttrSet( sql,
-                    OCI_HTYPE_STMT,
-                    &prefetchMem,
-                    0,
-                    OCI_ATTR_PREFETCH_MEMORY,
-                    err );
-    if ( r != OCI_SUCCESS )
-      qOraWarning( "QOCISpatialResultPrivate::setStatementAttributes:"
-                   " Couldn't set OCI_ATTR_PREFETCH_MEMORY: ", err );
-  }
+  r = OCIAttrSet( sql,
+                  OCI_HTYPE_STMT,
+                  &prefetchRows,
+                  0,
+                  OCI_ATTR_PREFETCH_ROWS,
+                  err );
+  if ( r != OCI_SUCCESS )
+    qOraWarning( "Couldn't set OCI_ATTR_PREFETCH_ROWS: ", err );
+  r = OCIAttrSet( sql,
+                  OCI_HTYPE_STMT,
+                  &prefetchMem,
+                  0,
+                  OCI_ATTR_PREFETCH_MEMORY,
+                  err );
+  if ( r != OCI_SUCCESS )
+    qOraWarning( "QOCISpatialResultPrivate::setStatementAttributes:"
+                 " Couldn't set OCI_ATTR_PREFETCH_MEMORY: ", err );
 }
 
 int QOCISpatialResultPrivate::bindValue( OCIStmt *sql, OCIBind **hbnd, OCIError *err, int pos,
@@ -2066,7 +2061,7 @@ bool QOCISpatialCols::execBatch( QOCISpatialResultPrivate *d, QVector<QVariant> 
             bindColumn.maxLen, bindColumn.bindAs, bindColumn.indicators, bindColumn.lengths,
             arrayBind ? bindColumn.maxarr_len : 0, arrayBind ? &bindColumn.curelep : 0 );
 
-    for ( int ii = 0; ii < ( int )bindColumn.recordCount; ++ii )
+    for ( int ii = 0; ii < static_cast<int>( bindColumn.recordCount ); ++ii )
     {
       qDebug( " record %d: indicator %d, length %d", ii, bindColumn.indicators[ii],
               bindColumn.lengths[ii] );
@@ -3831,15 +3826,19 @@ static void qParseOpts( const QString &options, QOCISpatialDriverPrivate *d )
     bool ok;
     if ( opt == QLatin1String( "OCI_ATTR_PREFETCH_ROWS" ) )
     {
-      d->prefetchRows = val.toInt( &ok );
+      int intVal = val.toInt( &ok );
       if ( !ok )
-        d->prefetchRows = 0xffffffff;
+        d->prefetchRows = QOCISPATIAL_PREFETCH_ROWS;
+      else if ( intVal >= 0 )
+        d->prefetchRows = static_cast<ub4>( intVal );
     }
     else if ( opt == QLatin1String( "OCI_ATTR_PREFETCH_MEMORY" ) )
     {
-      d->prefetchMem = val.toInt( &ok );
+      int intVal = val.toInt( &ok );
       if ( !ok )
-        d->prefetchMem = 0xffff;
+        d->prefetchMem = QOCISPATIAL_PREFETCH_MEM;
+      else if ( intVal >= 0 )
+        d->prefetchMem = static_cast<ub4>( intVal );
     }
     else
     {

@@ -36,7 +36,6 @@ from qgis.PyQt.QtWidgets import (QDialog, QDialogButtonBox, QLabel, QLineEdit,
                                  QHBoxLayout, QWidget)
 
 from qgis.core import (Qgis,
-                       QgsApplication,
                        QgsProcessingParameterDefinition,
                        QgsProcessingParameterPoint,
                        QgsProcessingParameterExtent,
@@ -58,12 +57,16 @@ from qgis.gui import (QgsGui,
                       QgsScrollArea,
                       QgsFilterLineEdit,
                       QgsHelp,
-                      QgsProcessingModelerParameterWidget)
+                      QgsProcessingContextGenerator,
+                      QgsProcessingModelerParameterWidget,
+                      QgsProcessingParameterWidgetContext)
+from qgis.utils import iface
 
 from processing.gui.wrappers import WidgetWrapperFactory
 from processing.gui.wrappers import InvalidParameterValue
 from processing.gui.MultipleInputPanel import MultipleInputPanel
 from processing.tools.dataobjects import createContext
+from processing.gui.wrappers import WidgetWrapper
 
 
 class ModelerParametersDialog(QDialog):
@@ -78,8 +81,22 @@ class ModelerParametersDialog(QDialog):
         self.configuration = configuration
         self.context = createContext()
 
+        self.widget_labels = {}
+
+        class ContextGenerator(QgsProcessingContextGenerator):
+
+            def __init__(self, context):
+                super().__init__()
+                self.processing_context = context
+
+            def processingContext(self):
+                return self.processing_context
+
+        self.context_generator = ContextGenerator(self.context)
+
         self.setupUi()
         self.params = None
+
         settings = QgsSettings()
         self.restoreGeometry(settings.value("/Processing/modelParametersDialogGeometry", QByteArray()))
 
@@ -128,6 +145,12 @@ class ModelerParametersDialog(QDialog):
             self.algorithmItem.setConfiguration(self.configuration)
         self.verticalLayout.addWidget(self.algorithmItem)
 
+        widget_context = QgsProcessingParameterWidgetContext()
+        if iface is not None:
+            widget_context.setMapCanvas(iface.mapCanvas())
+        widget_context.setModel(self.model)
+        widget_context.setModelChildAlgorithmId(self.childId)
+
         for param in self._alg.parameterDefinitions():
             if param.flags() & QgsProcessingParameterDefinition.FlagAdvanced:
                 self.advancedButton = QPushButton()
@@ -147,6 +170,8 @@ class ModelerParametersDialog(QDialog):
             self.wrappers[param.name()] = wrapper
 
             if issubclass(wrapper.__class__, QgsProcessingModelerParameterWidget):
+                wrapper.setWidgetContext(widget_context)
+                wrapper.registerProcessingContextGenerator(self.context_generator)
                 widget = wrapper
             else:
                 widget = wrapper.widget
@@ -159,6 +184,7 @@ class ModelerParametersDialog(QDialog):
                     tooltip = param.description()
                     widget.setToolTip(tooltip)
                     label = wrapper.label
+                self.widget_labels[param.name()] = label
 
                 if param.flags() & QgsProcessingParameterDefinition.FlagAdvanced:
                     label.setVisible(self.showAdvanced)
@@ -231,8 +257,13 @@ class ModelerParametersDialog(QDialog):
             self.advancedButton.setText(self.tr('Show advanced parameters'))
         for param in self._alg.parameterDefinitions():
             if param.flags() & QgsProcessingParameterDefinition.FlagAdvanced:
-                self.wrappers[param.name()].widget.setVisible(self.showAdvanced)
-                self.wrappers[param.name()].label.setVisible(self.showAdvanced)
+                wrapper = self.wrappers[param.name()]
+                if issubclass(wrapper.__class__, QgsProcessingModelerParameterWidget):
+                    wrapper.setVisible(self.showAdvanced)
+                else:
+                    wrapper.widget.setVisible(self.showAdvanced)
+
+                self.widget_labels[param.name()].setVisible(self.showAdvanced)
 
     def getAvailableValuesOfType(self, paramType, outTypes=[], dataTypes=[]):
         # upgrade paramType to list
@@ -277,19 +308,23 @@ class ModelerParametersDialog(QDialog):
                         value = value[0]
                     elif isinstance(value, list) and len(value) == 0:
                         value = None
-                if value is None:
-                    value = param.defaultValue()
 
                 wrapper = self.wrappers[param.name()]
                 if issubclass(wrapper.__class__, QgsProcessingModelerParameterWidget):
+                    if value is None:
+                        value = QgsProcessingModelChildParameterSource.fromStaticValue(param.defaultValue())
+
                     wrapper.setWidgetValue(value)
                 else:
+                    if value is None:
+                        value = param.defaultValue()
+
                     if isinstance(value,
                                   QgsProcessingModelChildParameterSource) and value.source() == QgsProcessingModelChildParameterSource.StaticValue:
                         value = value.staticValue()
                     wrapper.setValue(value)
 
-            for name, out in list(alg.modelOutputs().items()):
+            for name, out in alg.modelOutputs().items():
                 if out.childOutputName() in self.valueItems:
                     self.valueItems[out.childOutputName()].setText(out.name())
 
@@ -315,7 +350,11 @@ class ModelerParametersDialog(QDialog):
             if param.isDestination() or param.flags() & QgsProcessingParameterDefinition.FlagHidden:
                 continue
             try:
-                val = self.wrappers[param.name()].value()
+                wrapper = self.wrappers[param.name()]
+                if issubclass(wrapper.__class__, QgsProcessingModelerParameterWidget):
+                    val = wrapper.value()
+                else:
+                    val = wrapper.parameterValue()
             except InvalidParameterValue:
                 self.bar.pushMessage(self.tr("Error"),
                                      self.tr("Wrong or missing value for parameter '{}'").format(param.description()),

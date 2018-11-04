@@ -259,10 +259,10 @@ class GdalUtils:
         return helpPath if helpPath is not None else 'http://www.gdal.org/'
 
     @staticmethod
-    def ogrConnectionString(uri, context):
-        """Generates OGR connection string from layer source
+    def ogrConnectionStringFromLayer(layer):
+        """Generates OGR connection string from a layer
         """
-        return GdalUtils.ogrConnectionStringAndFormat(uri, context)[0]
+        return GdalUtils.ogrConnectionStringAndFormatFromLayer(layer)[0]
 
     @staticmethod
     def ogrConnectionStringAndFormat(uri, context):
@@ -447,5 +447,5 @@ class GdalUtils:
         if crs.authid().upper().startswith('EPSG:'):
             return crs.authid()
 
-        # fallback to proj4 string
-        return crs.toProj4()
+        # fallback to proj4 string, stripping out newline characters
+        return crs.toProj4().replace('\n', ' ').replace('\r', ' ')

@@ -87,7 +87,7 @@ QgsProcessingAlgorithmDialogBase::QgsProcessingAlgorithmDialogBase( QWidget *par
   handleLayout->addStretch();
   splitterHandle->setLayout( handleLayout );
 
-  QgsGui::instance()->enableAutoGeometryRestore( this );
+  QgsGui::enableAutoGeometryRestore( this );
 
   QgsSettings settings;
   splitter->restoreState( settings.value( QStringLiteral( "/Processing/dialogBaseSplitter" ), QByteArray() ).toByteArray() );
@@ -123,10 +123,14 @@ void QgsProcessingAlgorithmDialogBase::setAlgorithm( QgsProcessingAlgorithm *alg
 {
   mAlgorithm = algorithm;
   QString title;
-  if ( algorithm->flags() & QgsProcessingAlgorithm::FlagDisplayNameIsLiteral )
-    title = mAlgorithm->displayName();
-  else
+  if ( ( QgsGui::higFlags() & QgsGui::HigDialogTitleIsTitleCase ) && !( algorithm->flags() & QgsProcessingAlgorithm::FlagDisplayNameIsLiteral ) )
+  {
     title = QgsStringUtils::capitalize( mAlgorithm->displayName(), QgsStringUtils::TitleCase );
+  }
+  else
+  {
+    title = mAlgorithm->displayName();
+  }
   setWindowTitle( title );
 
   QString algHelp = formatHelp( algorithm );
@@ -142,6 +146,11 @@ void QgsProcessingAlgorithmDialogBase::setAlgorithm( QgsProcessingAlgorithm *alg
         "dl dd { margin - bottom: 5px; }" ) );
     textShortHelp->setHtml( algHelp );
     connect( textShortHelp, &QTextBrowser::anchorClicked, this, &QgsProcessingAlgorithmDialogBase::linkClicked );
+  }
+
+  if ( algorithm->helpUrl().isEmpty() && algorithm->provider()->helpId().isEmpty() )
+  {
+    mButtonBox->removeButton( mButtonBox->button( QDialogButtonBox::Help ) );
   }
 }
 
@@ -374,7 +383,7 @@ void QgsProcessingAlgorithmDialogBase::pushDebugInfo( const QString &message )
 
 void QgsProcessingAlgorithmDialogBase::pushConsoleInfo( const QString &info )
 {
-  txtLog->append( QStringLiteral( "<code><span style=\"color:blue\">%1</darkgray></code>" ).arg( formatStringForLog( info.toHtmlEscaped() ) ) );
+  txtLog->append( QStringLiteral( "<code style=\"color:#777\">%1</code>" ).arg( formatStringForLog( info.toHtmlEscaped() ) ) );
   scrollToBottomOfLog();
   processEvents();
 }
@@ -384,6 +393,7 @@ QDialog *QgsProcessingAlgorithmDialogBase::createProgressDialog()
   QgsProcessingAlgorithmProgressDialog *dialog = new QgsProcessingAlgorithmProgressDialog( this );
   dialog->setWindowModality( Qt::ApplicationModal );
   dialog->setWindowTitle( windowTitle() );
+  dialog->setGeometry( geometry() ); // match size/position to this dialog
   connect( progressBar, &QProgressBar::valueChanged, dialog->progressBar(), &QProgressBar::setValue );
   connect( dialog->cancelButton(), &QPushButton::clicked, buttonCancel, &QPushButton::click );
   dialog->logTextEdit()->setHtml( txtLog->toHtml() );
@@ -575,7 +585,6 @@ QgsProcessingAlgorithmProgressDialog::QgsProcessingAlgorithmProgressDialog( QWid
   : QDialog( parent )
 {
   setupUi( this );
-  QgsGui::enableAutoGeometryRestore( this );
 }
 
 QProgressBar *QgsProcessingAlgorithmProgressDialog::progressBar()

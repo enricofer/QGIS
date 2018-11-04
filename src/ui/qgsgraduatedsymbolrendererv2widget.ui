@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>442</width>
-    <height>554</height>
+    <width>482</width>
+    <height>618</height>
    </rect>
   </property>
   <layout class="QGridLayout" name="gridLayout">
@@ -30,12 +30,6 @@
       <size>
        <width>10</width>
        <height>0</height>
-      </size>
-     </property>
-     <property name="maximumSize">
-      <size>
-       <width>500</width>
-       <height>16777215</height>
       </size>
      </property>
      <property name="focusPolicy">
@@ -62,14 +56,14 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string>Change...</string>
+      <string>Change…</string>
      </property>
     </widget>
    </item>
    <item row="2" column="0">
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>Legend Format</string>
+      <string>Legend format</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -206,7 +200,7 @@ Negative rounds to powers of 10</string>
        <property name="value">
         <double>1.000000000000000</double>
        </property>
-       <property name="showClearButton">
+       <property name="showClearButton" stdset="0">
         <bool>false</bool>
        </property>
       </widget>
@@ -238,7 +232,7 @@ Negative rounds to powers of 10</string>
        <property name="value">
         <double>10.000000000000000</double>
        </property>
-       <property name="showClearButton">
+       <property name="showClearButton" stdset="0">
         <bool>false</bool>
        </property>
       </widget>
@@ -316,32 +310,13 @@ Negative rounds to powers of 10</string>
          </item>
          <item>
           <widget class="QComboBox" name="cboGraduatedMode">
-           <item>
-            <property name="text">
-             <string>Equal Interval</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Quantile (Equal Count)</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Natural Breaks (Jenks)</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Standard Deviation</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Pretty Breaks</string>
-            </property>
-           </item>
+           <property name="editable">
+            <bool>false</bool>
+           </property>
           </widget>
+         </item>
+         <item>
+          <widget class="QWidget" name="widget" native="true"/>
          </item>
          <item>
           <spacer name="horizontalSpacer_4">
@@ -388,6 +363,54 @@ Negative rounds to powers of 10</string>
         </layout>
        </item>
        <item>
+        <widget class="QgsCollapsibleGroupBoxBasic" name="mGroupBoxSymmetric">
+         <property name="title">
+          <string>Symmetric Classification</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_2" columnstretch="0,1">
+          <item row="0" column="1">
+           <widget class="QgsDoubleSpinBox" name="spinSymmetryPointForOtherMethods">
+            <property name="specialValueText">
+             <string/>
+            </property>
+            <property name="minimum">
+             <double>-99999999999999995164818811802792197885196090803013355167206819763650035712.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>99999999999999995164818811802792197885196090803013355167206819763650035712.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>100.000000000000000</double>
+            </property>
+            <property name="showClearButton" stdset="0">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_2">
+            <property name="text">
+             <string>Around</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QComboBox" name="cboSymmetryPointForPretty"/>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QCheckBox" name="cbxAstride">
+            <property name="text">
+             <string>Create class astride symmetry value</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <layout class="QHBoxLayout" name="horizontalLayout_3">
          <item>
           <widget class="QPushButton" name="btnGraduatedClassify">
@@ -421,7 +444,7 @@ Negative rounds to powers of 10</string>
          <item>
           <widget class="QPushButton" name="btnDeleteAllClasses">
            <property name="text">
-            <string>Delete all</string>
+            <string>Delete All</string>
            </property>
           </widget>
          </item>
@@ -484,15 +507,15 @@ Negative rounds to powers of 10</string>
    <header>qgsdoublespinbox.h</header>
   </customwidget>
   <customwidget>
-   <class>QgsFieldExpressionWidget</class>
-   <extends>QWidget</extends>
-   <header>qgsfieldexpressionwidget.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>QgsUnitSelectionWidget</class>
    <extends>QWidget</extends>
    <header>qgsunitselectionwidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsFieldExpressionWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsfieldexpressionwidget.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -505,6 +528,12 @@ Negative rounds to powers of 10</string>
    <class>QgsGraduatedHistogramWidget</class>
    <extends>QWidget</extends>
    <header>qgsgraduatedhistogramwidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsCollapsibleGroupBoxBasic</class>
+   <extends>QGroupBox</extends>
+   <header>qgscollapsiblegroupbox.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

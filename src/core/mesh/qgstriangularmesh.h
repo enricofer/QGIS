@@ -27,8 +27,11 @@
 #include "qgsgeometry.h"
 #include "qgsfeatureid.h"
 #include "qgsspatialindex.h"
+#include "qgsfeatureiterator.h"
 
 class QgsRenderContext;
+class QgsCoordinateTransform;
+class QgsRectangle;
 
 //! Mesh - vertices and faces
 struct CORE_EXPORT QgsMesh
@@ -38,6 +41,36 @@ struct CORE_EXPORT QgsMesh
   //! faces
   QVector<QgsMeshFace> faces;
 };
+
+///@cond PRIVATE
+
+/**
+ * Delivers mesh faces as features
+ */
+class CORE_NO_EXPORT QgsMeshFeatureIterator : public QgsAbstractFeatureIterator
+{
+  public:
+
+    /**
+     * This constructor creates a feature iterator, that delivers all features
+     *
+     * \param mesh The mesh to use
+     */
+    QgsMeshFeatureIterator( QgsMesh *mesh );
+    ~QgsMeshFeatureIterator() override;
+
+    bool rewind() override;
+    bool close() override;
+
+  protected:
+    bool fetchFeature( QgsFeature &f ) override;
+
+  private:
+    QgsMesh *mMesh = nullptr;
+    int it = 0;
+};
+
+///@endcond
 
 /**
  * \ingroup core
@@ -92,6 +125,17 @@ class CORE_EXPORT QgsTriangularMesh
      */
     int faceIndexForPoint( const QgsPointXY &point ) const ;
 
+    /**
+     * Finds indexes of triangles intersecting given bounding box
+     * It uses spatial indexing
+     *
+     * \param rectangle bounding box in map coordinate system
+     * \returns triangle indexes that intersect the rectangle
+     *
+     * \since QGIS 3.4
+     */
+    QList<int> faceIndexesForRectangle( const QgsRectangle &rectangle ) const ;
+
   private:
     // vertices: map CRS; 0-N ... native vertices, N+1 - len ... extra vertices
     // faces are derived triangles
@@ -102,12 +146,19 @@ class CORE_EXPORT QgsTriangularMesh
     QVector<QgsMeshVertex> mNativeMeshFaceCentroids;
 
     QgsSpatialIndex mSpatialIndex;
+    QgsCoordinateTransform mCoordinateTransform; //coordinate transform used to convert native mesh vertices to map vertices
 };
 
 namespace QgsMeshUtils
 {
   //! Returns face as polygon geometry
   QgsGeometry toGeometry( const QgsMeshFace &face, const QVector<QgsMeshVertex> &vertices );
+
+  /**
+   * Returns unique native faces indexes from list of triangle indexes
+   * \since QGIS 3.4
+   */
+  QList<int> nativeFacesFromTriangles( const QList<int> &triangleIndexes, const QVector<int> &trianglesToNativeFaces );
 };
 
 #endif // QGSTRIANGULARMESH_H

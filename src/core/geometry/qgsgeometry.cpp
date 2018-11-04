@@ -748,6 +748,7 @@ QgsGeometry QgsGeometry::removeInteriorRings( double minimumRingArea ) const
   {
     const QVector<QgsGeometry> parts = asGeometryCollection();
     QVector<QgsGeometry> results;
+    results.reserve( parts.count() );
     for ( const QgsGeometry &part : parts )
     {
       QgsGeometry result = part.removeInteriorRings( minimumRingArea );
@@ -2363,6 +2364,12 @@ bool QgsGeometry::isGeosValid() const
   if ( !d->geometry )
   {
     return false;
+  }
+
+  // avoid calling geos for trivial point geometries
+  if ( QgsWkbTypes::geometryType( d->geometry->wkbType() ) == QgsWkbTypes::PointGeometry )
+  {
+    return true;
   }
 
   QgsGeos geos( d->geometry.get() );

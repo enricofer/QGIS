@@ -86,6 +86,7 @@ void QgsLocationBasedAlgorithm::process( const QgsProcessingContext &context, Qg
   // we actually test the reverse of what the user wants (allowing us
   // to prepare geometries and optimise the algorithm)
   QList< Predicate > predicates;
+  predicates.reserve( selectedPredicates.count() );
   for ( int i : selectedPredicates )
   {
     predicates << reversePredicate( static_cast< Predicate >( i ) );
@@ -96,7 +97,7 @@ void QgsLocationBasedAlgorithm::process( const QgsProcessingContext &context, Qg
     disjointSet = targetSource->allFeatureIds();
 
   QgsFeatureIds foundSet;
-  QgsFeatureRequest request = QgsFeatureRequest().setSubsetOfAttributes( QgsAttributeList() ).setDestinationCrs( targetSource->sourceCrs(), context.transformContext() );
+  QgsFeatureRequest request = QgsFeatureRequest().setNoAttributes().setDestinationCrs( targetSource->sourceCrs(), context.transformContext() );
   QgsFeatureIterator fIt = intersectSource->getFeatures( request );
   double step = intersectSource->featureCount() > 0 ? 100.0 / intersectSource->featureCount() : 1;
   int current = 0;
@@ -115,7 +116,7 @@ void QgsLocationBasedAlgorithm::process( const QgsProcessingContext &context, Qg
     QgsRectangle bbox = f.geometry().boundingBox();
     request = QgsFeatureRequest().setFilterRect( bbox );
     if ( onlyRequireTargetIds )
-      request.setSubsetOfAttributes( QgsAttributeList() );
+      request.setNoAttributes();
 
     QgsFeatureIterator testFeatureIt = targetSource->getFeatures( request );
     QgsFeature testFeature;
@@ -192,7 +193,7 @@ void QgsLocationBasedAlgorithm::process( const QgsProcessingContext &context, Qg
     disjointSet = disjointSet.subtract( foundSet );
     QgsFeatureRequest disjointReq = QgsFeatureRequest().setFilterFids( disjointSet );
     if ( onlyRequireTargetIds )
-      disjointReq.setSubsetOfAttributes( QgsAttributeList() ).setFlags( QgsFeatureRequest::NoGeometry );
+      disjointReq.setNoAttributes().setFlags( QgsFeatureRequest::NoGeometry );
     QgsFeatureIterator disjointIt = targetSource->getFeatures( disjointReq );
     QgsFeature f;
     while ( disjointIt.nextFeature( f ) )

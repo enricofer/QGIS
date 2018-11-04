@@ -73,6 +73,12 @@ if no algorithm is currently selected.
 Sets ``filters`` controlling the view's contents.
 %End
 
+
+    void setInPlaceLayer( QgsVectorLayer *layer );
+%Docstring
+Sets the vector ``layer`` for the in-place algorithms
+%End
+
   public slots:
 
     void setFilterString( const QString &filter );

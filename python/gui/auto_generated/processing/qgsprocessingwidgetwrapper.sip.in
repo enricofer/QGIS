@@ -36,7 +36,80 @@ return a pointer to a context which they have already created and own.
     virtual ~QgsProcessingContextGenerator();
 };
 
-class QgsAbstractProcessingParameterWidgetWrapper : QObject
+class QgsProcessingParameterWidgetContext
+{
+%Docstring
+Contains settings which reflect the context in which a Processing parameter widget is shown, e.g., the
+parent model algorithm, a linked map canvas, and other relevant information which allows the widget
+to fine-tune its behavior.
+
+.. versionadded:: 3.4
+%End
+
+%TypeHeaderCode
+#include "qgsprocessingwidgetwrapper.h"
+%End
+  public:
+
+    QgsProcessingParameterWidgetContext();
+%Docstring
+Constructor for QgsProcessingParameterWidgetContext.
+%End
+
+    void setMapCanvas( QgsMapCanvas *canvas );
+%Docstring
+Sets the map ``canvas`` associated with the widget. This allows the widget to retrieve the current
+map scale and other properties from the canvas.
+
+.. seealso:: :py:func:`mapCanvas`
+%End
+
+    QgsMapCanvas *mapCanvas() const;
+%Docstring
+Returns the map canvas associated with the widget.
+
+.. seealso:: :py:func:`setMapCanvas`
+%End
+
+    QgsProcessingModelAlgorithm *model() const;
+%Docstring
+Returns the model which the parameter widget is associated with.
+
+.. seealso:: :py:func:`setModel`
+
+.. seealso:: :py:func:`modelChildAlgorithmId`
+%End
+
+    void setModel( QgsProcessingModelAlgorithm *model );
+%Docstring
+Sets the ``model`` which the parameter widget is associated with.
+
+.. seealso:: :py:func:`model`
+
+.. seealso:: :py:func:`setModelChildAlgorithmId`
+%End
+
+    QString modelChildAlgorithmId() const;
+%Docstring
+Returns the child algorithm ID within the model which the parameter widget is associated with.
+
+.. seealso:: :py:func:`setModelChildAlgorithmId`
+
+.. seealso:: :py:func:`model`
+%End
+
+    void setModelChildAlgorithmId( const QString &id );
+%Docstring
+Sets the child algorithm ``id`` within the model which the parameter widget is associated with.
+
+.. seealso:: :py:func:`modelChildAlgorithmId`
+
+.. seealso:: :py:func:`setModel`
+%End
+
+};
+
+class QgsAbstractProcessingParameterWidgetWrapper : QObject, QgsExpressionContextGenerator
 {
 %Docstring
 
@@ -71,6 +144,26 @@ Constructor for QgsAbstractProcessingParameterWidgetWrapper, for the specified
     QgsProcessingGui::WidgetType type() const;
 %Docstring
 Returns the dialog type for which widgets and labels will be created by this wrapper.
+%End
+
+    virtual void setWidgetContext( const QgsProcessingParameterWidgetContext &context );
+%Docstring
+Sets the ``context`` in which the Processing parameter widget is shown, e.g., the
+parent model algorithm, a linked map canvas, and other relevant information which allows the widget
+to fine-tune its behavior.
+
+Subclasses should take care to call the base class method when reimplementing this method.
+
+.. seealso:: :py:func:`widgetContext`
+%End
+
+    const QgsProcessingParameterWidgetContext &widgetContext() const;
+%Docstring
+Returns the context in which the Processing parameter widget is shown, e.g., the
+parent model algorithm, a linked map canvas, and other relevant information which allows the widget
+to fine-tune its behavior.
+
+.. seealso:: :py:func:`setWidgetContext`
 %End
 
     QWidget *createWrappedWidget( QgsProcessingContext &context ) /Factory/;
@@ -118,6 +211,8 @@ Returns the current wrapped label, if any.
 Returns the parameter definition associated with this wrapper.
 %End
 
+%Property( name = param, get = parameterDefinition )
+
     void setParameterValue( const QVariant &value, QgsProcessingContext &context );
 %Docstring
 Sets the current ``value`` for the parameter.
@@ -137,7 +232,7 @@ Returns the current value of the parameter.
 
     void registerProcessingContextGenerator( QgsProcessingContextGenerator *generator );
 %Docstring
-Register a Processing context generator class that will be used to retrieve
+Registers a Processing context ``generator`` class that will be used to retrieve
 a Processing context for the wrapper when required.
 %End
 
@@ -146,6 +241,9 @@ a Processing context for the wrapper when required.
 Called after all wrappers have been created within a particular dialog or context,
 allowing the wrapper to connect to the wrappers of other, related parameters.
 %End
+
+    virtual QgsExpressionContext createExpressionContext() const;
+
 
   signals:
 
@@ -194,6 +292,9 @@ Returns the current value of the parameter.
 
 .. seealso:: :py:func:`setWidgetValue`
 %End
+
+  protected:
+
 
 };
 

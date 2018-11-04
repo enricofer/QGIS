@@ -22,6 +22,7 @@
 #include <QSortFilterProxyModel>
 #include <QPointer>
 
+class QgsVectorLayer;
 class QgsProcessingRegistry;
 class QgsProcessingProvider;
 class QgsProcessingAlgorithm;
@@ -423,6 +424,7 @@ class GUI_EXPORT QgsProcessingToolboxProxyModel: public QSortFilterProxyModel
     {
       FilterToolbox = 1 << 1, //!< Filters out any algorithms and content which should not be shown in the toolbox
       FilterModeler = 1 << 2, //!< Filters out any algorithms and content which should not be shown in the modeler
+      FilterInPlace = 1 << 3, //!< Only show algorithms which support in-place edits
     };
     Q_DECLARE_FLAGS( Filters, Filter )
     Q_FLAG( Filters )
@@ -460,6 +462,11 @@ class GUI_EXPORT QgsProcessingToolboxProxyModel: public QSortFilterProxyModel
     Filters filters() const { return mFilters; }
 
     /**
+     * Sets the vector \a layer for in-place algorithm filter
+     */
+    void setInPlaceLayer( QgsVectorLayer *layer );
+
+    /**
      * Sets a \a filter string, such that only algorithms matching the
      * specified string will be shown.
      *
@@ -485,6 +492,7 @@ class GUI_EXPORT QgsProcessingToolboxProxyModel: public QSortFilterProxyModel
     QgsProcessingToolboxModel *mModel = nullptr;
     Filters mFilters = nullptr;
     QString mFilterString;
+    QPointer<QgsVectorLayer> mInPlaceLayer;
 };
 
 

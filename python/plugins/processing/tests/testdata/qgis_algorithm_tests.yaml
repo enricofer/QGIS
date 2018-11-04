@@ -2045,6 +2045,22 @@ tests:
         name: expected/snap_internal.gml
         type: vector
 
+  - algorithm: qgis:snapgeometries
+    name: Test Snap Geometries (to each other)
+    params:
+      BEHAVIOR: '7'
+      INPUT:
+        name: custom/snap_geometries.geojson
+        type: vector
+      REFERENCE_LAYER:
+        name: custom/snap_geometries.geojson
+        type: vector
+      TOLERANCE: 0.5
+    results:
+      OUTPUT:
+        name: expected/snap_geometries.gml
+        type: vector
+
   - algorithm: qgis:poleofinaccessibility
     name: Pole of inaccessibility (polygons)
     params:
@@ -5388,6 +5404,80 @@ tests:
         name: expected/concave_hull_points_07.gml
         type: vector
 
+  - algorithm: qgis:knearestconcavehull
+    name: K-nearest Neighbor Concave Hull - Points (k=7)
+    params:
+      KNEIGHBORS: 7
+      INPUT:
+        name: points.gml
+        type: vector
+    results:
+      OUTPUT:
+        name: expected/knearest_concave_hull_points_7.gml
+        type: vector
+
+  - algorithm: qgis:knearestconcavehull
+    name: K-nearest Neighbor Concave Hull - Group by field
+    params:
+      FIELD: id2
+      INPUT:
+        name: points.gml
+        type: vector
+      KNEIGHBORS: 3
+    results:
+      OUTPUT:
+        name: expected/knearest_concave_hull_points_id2.gml
+        type: vector
+
+  - algorithm: qgis:knearestconcavehull
+    name: K-nearest Neighbor Concave Hull - Lines (k=3)
+    params:
+      INPUT:
+        name: lines.gml
+        type: vector
+      KNEIGHBORS: 3
+    results:
+      OUTPUT:
+        name: expected/knearest_concave_hull_lines.gml
+        type: vector
+
+  - algorithm: qgis:knearestconcavehull
+    name: K-nearest Neighbor Concave Hull - Polys (k=3)
+    params:
+      INPUT:
+        name: polys.gml
+        type: vector
+      KNEIGHBORS: 3
+    results:
+      OUTPUT:
+        name: expected/knearest_concave_hull_polys.gml
+        type: vector
+
+  - algorithm: qgis:knearestconcavehull
+    name: K-nearest Neighbor Concave Hull - MultiPoints (k=3)
+    params:
+      INPUT:
+        name: multipoints.gml
+        type: vector
+      KNEIGHBORS: 3
+    results:
+      OUTPUT:
+        name: expected/knearest_concave_hull_multipoints.gml
+        type: vector
+
+  - algorithm: qgis:knearestconcavehull
+    name: K-nearest Neighbor Concave Hull - Duplicate Points
+    params:
+      INPUT:
+        name: custom/points_duplicate.gml
+        type: vector
+      KNEIGHBORS: 3
+    results:
+      OUTPUT:
+        name: expected/failure.gml
+        type: vector
+    expectedException: true
+
   - algorithm: native:swapxy
     name: Swap XY coordinates
     params:
@@ -6005,7 +6095,7 @@ tests:
         name: expected/filter_by_z.shp
         type: vector
 
-  - algorithm: native:arrayfeatures
+  - algorithm: native:arraytranslatedfeatures
     name: Array of point features
     params:
       COUNT: 3
@@ -6021,8 +6111,8 @@ tests:
         name: expected/feature_array.shp
         type: vector
 
-  - algorithm: native:parallellines
-    name: Create parallel lines
+  - algorithm: native:arrayoffsetlines
+    name: Array of offset (parallel) lines
     params:
       COUNT: 3
       INPUT:
@@ -6142,5 +6232,71 @@ tests:
         name: expected/interpolate_point_polys.gml
         type: vector
 
+  - algorithm: native:mergevectorlayers
+    name: Merge vector layers with conflicting feature ids
+    params:
+      LAYERS:
+        params:
+        - name: custom/pol.gpkg|layername=pol1
+          type: vector
+        - name: custom/pol.gpkg|layername=pol2
+          type: vector
+        - name: custom/pol.gpkg|layername=pol3
+          type: vector
+        type: multi
+    results:
+      OUTPUT:
+        # If you ever run into this test producing Polygons instead of MultiPolygons as output
+        # that is totally expected and you are invited to replace the file merged_pol.gpkg with
+        # a single polygon version.
+        name: ogr:dbname='expected/merged_pol.gpkg' table="output" (geom) sql=
+        uri: expected/merged_pol.gpkg|layername=merged_pol
+        type: vector
+        compare:
+          fields:
+            path: skip
+
+  - algorithm: native:removeduplicatesbyattribute
+    name: Remove dupes by attribute 1
+    params:
+      FIELDS:
+      - num_field1
+      INPUT:
+        name: custom/duplicate_attributes.gml
+        type: vector
+    results:
+      OUTPUT:
+        name: expected/remove_duplicates1.gml
+        type: vector
+
+  - algorithm: native:removeduplicatesbyattribute
+    name: Remove dupes by attribute 2
+    params:
+      FIELDS:
+      - num_field2
+      INPUT:
+        name: custom/duplicate_attributes.gml
+        type: vector
+    results:
+      OUTPUT:
+        name: expected/remove_duplicates2.gml
+        type: vector
+
+  - algorithm: native:removeduplicatesbyattribute
+    name: Remove dupes by attribute 3
+    params:
+      FIELDS:
+      - num_field2
+      - text_field
+      INPUT:
+        name: custom/duplicate_attributes.gml
+        type: vector
+    results:
+      DUPLICATES:
+        name: expected/remove_duplicates_dupes.gml
+        type: vector
+      OUTPUT:
+        name: expected/remove_duplicates3.gml
+        type: vector
 
 # See ../README.md for a description of the file format

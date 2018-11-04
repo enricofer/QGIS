@@ -22,6 +22,7 @@
 #include <QImage>
 #include <QVariant>
 #include <vector>
+#include <QObject>
 
 class QString;
 class QWindow;
@@ -33,14 +34,17 @@ class QWindow;
  * are implemented in subclasses to provide platform abstraction.
  * \since QGIS 3.0
  */
-class NATIVE_EXPORT QgsNative
+class NATIVE_EXPORT QgsNative : public QObject
 {
+    Q_OBJECT
+
   public:
 
     //! Native interface capabilities
     enum Capability
     {
       NativeDesktopNotifications = 1 << 1, //!< Native desktop notifications are supported. See showDesktopNotification().
+      NativeFilePropertiesDialog = 1 << 2, //!< Platform can show a native "file" (or folder) properties dialog.
     };
     Q_DECLARE_FLAGS( Capabilities, Capability )
 
@@ -89,6 +93,16 @@ class NATIVE_EXPORT QgsNative
     virtual void openFileExplorerAndSelectFile( const QString &path );
 
     /**
+     * Opens the desktop explorer file (or folder) properties dialog, for the given \a path.
+     *
+     * The default implementation does nothing. Platforms which implement this interface should
+     * return the QgsNative::NativeFilePropertiesDialog capability.
+     *
+     * \since QGIS 3.6
+     */
+    virtual void showFileProperties( const QString &path );
+
+    /**
      * Shows the application progress report, using an "undefined" total
      * type progress (i.e. the platform's way of showing that a task
      * is occurring with an unknown progress).
@@ -131,6 +145,12 @@ class NATIVE_EXPORT QgsNative
      * \since QGIS 3.4
      */
     virtual void setApplicationBadgeCount( int count );
+
+    /**
+     * Returns true if the operating system is set to utilize a "dark" theme.
+     * \since QGIS 3.4
+     */
+    virtual bool hasDarkTheme() {return false;}
 
     /**
      * Notification settings, for use with showDesktopNotification().
@@ -215,6 +235,21 @@ class NATIVE_EXPORT QgsNative
      * \since QGIS 3.4
      */
     virtual void onRecentProjectsChanged( const std::vector< RecentProjectProperties > &recentProjects );
+
+  signals:
+
+    /**
+     * Emitted whenever a USB storage device has been inserted or removed.
+     *
+     * The \a path argument gives the file path to the device (if available).
+     *
+     * If \a inserted is true then the device was inserted. If \a inserted is false then
+     * the device was removed.
+     *
+     * \since QGIS 3.4
+     */
+    void usbStorageNotification( const QString &path, bool inserted );
+
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( QgsNative::Capabilities )
