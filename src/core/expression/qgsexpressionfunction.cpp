@@ -2692,6 +2692,13 @@ static QVariant fcnBuffer( const QVariantList &values, const QgsExpressionContex
   return result;
 }
 
+static QVariant fcnForceRHR( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  const QgsGeometry fGeom = QgsExpressionUtils::getGeometry( values.at( 0 ), parent );
+  const QgsGeometry reoriented = fGeom.forceRHR();
+  return !reoriented.isNull() ? QVariant::fromValue( reoriented ) : QVariant();
+}
+
 static QVariant fcnWedgeBuffer( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
   QgsGeometry fGeom = QgsExpressionUtils::getGeometry( values.at( 0 ), parent );
@@ -4687,6 +4694,8 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
         << new QgsStaticExpressionFunction( QStringLiteral( "within" ), 2, fcnWithin, QStringLiteral( "GeometryGroup" ) )
         << new QgsStaticExpressionFunction( QStringLiteral( "translate" ), 3, fcnTranslate, QStringLiteral( "GeometryGroup" ) )
         << new QgsStaticExpressionFunction( QStringLiteral( "buffer" ), -1, fcnBuffer, QStringLiteral( "GeometryGroup" ) )
+        << new QgsStaticExpressionFunction( QStringLiteral( "force_rhr" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "geometry" ) ),
+                                            fcnForceRHR, QStringLiteral( "GeometryGroup" ) )
         << new QgsStaticExpressionFunction( QStringLiteral( "wedge_buffer" ), QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( QStringLiteral( "center" ) )
                                             << QgsExpressionFunction::Parameter( QStringLiteral( "azimuth" ) )
                                             << QgsExpressionFunction::Parameter( QStringLiteral( "width" ) )

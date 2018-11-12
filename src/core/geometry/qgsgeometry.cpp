@@ -729,7 +729,7 @@ QgsGeometry::OperationResult QgsGeometry::addPart( const QgsGeometry &newPart )
   {
     return QgsGeometry::InvalidBaseGeometry;
   }
-  if ( !newPart || !newPart.d->geometry )
+  if ( newPart.isNull() || !newPart.d->geometry )
   {
     return QgsGeometry::AddPartNotMultiGeometry;
   }
@@ -752,7 +752,7 @@ QgsGeometry QgsGeometry::removeInteriorRings( double minimumRingArea ) const
     for ( const QgsGeometry &part : parts )
     {
       QgsGeometry result = part.removeInteriorRings( minimumRingArea );
-      if ( result )
+      if ( !result.isNull() )
         results << result;
     }
     if ( results.isEmpty() )
@@ -1729,7 +1729,7 @@ QgsGeometry QgsGeometry::offsetCurve( double distance, int segments, JoinStyle j
     for ( const QgsGeometry &part : parts )
     {
       QgsGeometry result = part.offsetCurve( distance, segments, joinStyle, miterLimit );
-      if ( result )
+      if ( !result.isNull() )
         results << result;
     }
     if ( results.isEmpty() )
@@ -1746,14 +1746,26 @@ QgsGeometry QgsGeometry::offsetCurve( double distance, int segments, JoinStyle j
   {
     QgsGeos geos( d->geometry.get() );
     mLastError.clear();
-    QgsAbstractGeometry *offsetGeom = geos.offsetCurve( distance, segments, joinStyle, miterLimit, &mLastError );
+
+    // GEOS can flip the curve orientation in some circumstances. So record previous orientation and correct if required
+    const QgsCurve::Orientation prevOrientation = qgsgeometry_cast< const QgsCurve * >( d->geometry.get() )->orientation();
+
+    std::unique_ptr< QgsAbstractGeometry > offsetGeom( geos.offsetCurve( distance, segments, joinStyle, miterLimit, &mLastError ) );
     if ( !offsetGeom )
     {
       QgsGeometry result;
       result.mLastError = mLastError;
       return result;
     }
-    return QgsGeometry( offsetGeom );
+
+    const QgsCurve::Orientation newOrientation = qgsgeometry_cast< const QgsCurve * >( offsetGeom.get() )->orientation();
+    if ( newOrientation != prevOrientation )
+    {
+      // GEOS has flipped line orientation, flip it back
+      std::unique_ptr< QgsAbstractGeometry > flipped( qgsgeometry_cast< const QgsCurve * >( offsetGeom.get() )->reversed() );
+      offsetGeom = std::move( flipped );
+    }
+    return QgsGeometry( std::move( offsetGeom ) );
   }
 }
 
@@ -1772,7 +1784,7 @@ QgsGeometry QgsGeometry::singleSidedBuffer( double distance, int segments, Buffe
     for ( const QgsGeometry &part : parts )
     {
       QgsGeometry result = part.singleSidedBuffer( distance, segments, side, joinStyle, miterLimit );
-      if ( result )
+      if ( !result.isNull() )
         results << result;
     }
     if ( results.isEmpty() )
@@ -1830,7 +1842,7 @@ QgsGeometry QgsGeometry::extendLine( double startDistance, double endDistance ) 
     for ( const QgsGeometry &part : parts )
     {
       QgsGeometry result = part.extendLine( startDistance, endDistance );
-      if ( result )
+      if ( !result.isNull() )
         results << result;
     }
     if ( results.isEmpty() )
@@ -2353,6 +2365,47 @@ QgsGeometry QgsGeometry::makeValid() const
   return result;
 }
 
+QgsGeometry QgsGeometry::forceRHR() const
+{
+  if ( !d->geometry )
+    return QgsGeometry();
+
+  if ( isMultipart() )
+  {
+    const QgsGeometryCollection *collection = qgsgeometry_cast< const QgsGeometryCollection * >( d->geometry.get() );
+    std::unique_ptr< QgsGeometryCollection > newCollection( collection->createEmptyWithSameType() );
+    for ( int i = 0; i < collection->numGeometries(); ++i )
+    {
+      const QgsAbstractGeometry *g = collection->geometryN( i );
+      if ( const QgsCurvePolygon *cp = qgsgeometry_cast< const QgsCurvePolygon * >( g ) )
+      {
+        std::unique_ptr< QgsCurvePolygon > corrected( cp->clone() );
+        corrected->forceRHR();
+        newCollection->addGeometry( corrected.release() );
+      }
+      else
+      {
+        newCollection->addGeometry( g->clone() );
+      }
+    }
+    return QgsGeometry( std::move( newCollection ) );
+  }
+  else
+  {
+    if ( const QgsCurvePolygon *cp = qgsgeometry_cast< const QgsCurvePolygon * >( d->geometry.get() ) )
+    {
+      std::unique_ptr< QgsCurvePolygon > corrected( cp->clone() );
+      corrected->forceRHR();
+      return QgsGeometry( std::move( corrected ) );
+    }
+    else
+    {
+      // not a curve polygon, so return unchanged
+      return *this;
+    }
+  }
+}
+
 
 void QgsGeometry::validateGeometry( QVector<QgsGeometry::Error> &errors, ValidationMethod method ) const
 {
@@ -2673,11 +2726,6 @@ void QgsGeometry::convertPointList( const QgsPointSequence &input, QVector<QgsPo
   {
     output.append( QgsPointXY( p.x(), p.y() ) );
   }
-}
-
-QgsGeometry::operator bool() const
-{
-  return d->geometry.get();
 }
 
 void QgsGeometry::convertToPolyline( const QgsPointSequence &input, QgsPolylineXY &output )

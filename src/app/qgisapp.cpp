@@ -101,6 +101,7 @@
 
 #include "qgsgui.h"
 #include "qgsnative.h"
+#include "qgsdatasourceselectdialog.h"
 
 #ifdef HAVE_OPENCL
 #include "qgsopenclutils.h"
@@ -712,9 +713,7 @@ QgisApp::QgisApp( QSplashScreen *splash, bool restorePlugins, bool skipVersionCh
   this->addAction( mActionToggleMapOnly );
   endProfile();
 
-#if QT_VERSION >= 0x050600
   setDockOptions( dockOptions() | QMainWindow::GroupedDragging );
-#endif
 
   //////////
 
@@ -2971,8 +2970,9 @@ void QgisApp::createToolBars()
       break;
   };
   moveFeatureButton->setDefaultAction( defAction );
+  QAction *moveToolAction = mAdvancedDigitizeToolBar->insertWidget( mActionRotateFeature, moveFeatureButton );
+  moveToolAction->setObjectName( QStringLiteral( "ActionMoveFeatureTool" ) );
   connect( moveFeatureButton, &QToolButton::triggered, this, &QgisApp::toolButtonActionTriggered );
-  mAdvancedDigitizeToolBar->insertWidget( mActionRotateFeature, moveFeatureButton );
 
   // vertex tool button
   QToolButton *vertexToolButton = qobject_cast<QToolButton *>( mDigitizeToolBar->widgetForAction( mActionVertexTool ) );
@@ -3943,7 +3943,8 @@ void QgisApp::initLayerTreeView()
   new QgsLayerTreeViewFilterIndicatorProvider( mLayerTreeView );  // gets parented to the layer view
   new QgsLayerTreeViewEmbeddedIndicatorProvider( mLayerTreeView );  // gets parented to the layer view
   new QgsLayerTreeViewMemoryIndicatorProvider( mLayerTreeView );  // gets parented to the layer view
-  new QgsLayerTreeViewBadLayerIndicatorProvider( mLayerTreeView );  // gets parented to the layer view
+  QgsLayerTreeViewBadLayerIndicatorProvider *badLayerIndicatorProvider = new QgsLayerTreeViewBadLayerIndicatorProvider( mLayerTreeView );  // gets parented to the layer view
+  connect( badLayerIndicatorProvider, &QgsLayerTreeViewBadLayerIndicatorProvider::requestChangeDataSource, this, &QgisApp::changeDataSource );
   new QgsLayerTreeViewNonRemovableIndicatorProvider( mLayerTreeView );  // gets parented to the layer view
 
   setupLayerTreeViewFromSettings();
@@ -6937,6 +6938,77 @@ void QgisApp::refreshFeatureActions()
   updateDefaultFeatureAction( mFeatureActionMenu->activeAction() );
 }
 
+void QgisApp::changeDataSource( QgsMapLayer *layer )
+{
+  // Get provider type
+  QString providerType( layer->providerType() );
+  QgsMapLayer::LayerType layerType( layer->type() );
+
+  QgsDataSourceSelectDialog dlg( mBrowserModel, true, layerType );
+
+  if ( dlg.exec() == QDialog::Accepted )
+  {
+    QgsMimeDataUtils::Uri uri( dlg.uri() );
+    if ( uri.isValid() )
+    {
+      bool layerIsValid( layer->isValid() );
+      // Store subset string form vlayer if we are fixing a bad layer
+      QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer );
+      QString subsetString;
+      // Get the subset string directly from the data provider because
+      // layer's method will return a null string from invalid layers
+      if ( !layerIsValid && vlayer && vlayer->dataProvider() &&
+           vlayer->dataProvider()->supportsSubsetString() &&
+           !vlayer->dataProvider()->subsetString( ).isEmpty() )
+      {
+        subsetString = vlayer->dataProvider()->subsetString();
+      }
+      layer->setDataSource( uri.uri, layer->name(), uri.providerKey, QgsDataProvider::ProviderOptions() );
+      // Re-apply original style and subset string  when fixing bad layers
+      if ( !( layerIsValid || layer->originalXmlProperties().isEmpty() ) )
+      {
+        if ( ! subsetString.isEmpty() )
+        {
+          vlayer->setSubsetString( subsetString );
+        }
+        QgsReadWriteContext context;
+        context.setPathResolver( QgsProject::instance()->pathResolver() );
+        context.setProjectTranslator( QgsProject::instance() );
+        QString errorMsg;
+        QDomDocument doc;
+        if ( doc.setContent( layer->originalXmlProperties() ) )
+        {
+          QDomNode layer_node( doc.firstChild( ) );
+          if ( ! layer->readSymbology( layer_node, errorMsg, context ) )
+          {
+            QgsDebugMsg( QStringLiteral( "Failed to restore original layer style from stored XML for layer %1: %2" )
+                         .arg( layer->name( ) )
+                         .arg( errorMsg ) );
+          }
+        }
+        else
+        {
+          QgsDebugMsg( QStringLiteral( "Failed to create XML QDomDocument for layer %1: %2" )
+                       .arg( layer->name( ) )
+                       .arg( errorMsg ) );
+        }
+      }
+
+      // All the following code is necessary to refresh the layer
+      QgsLayerTreeModel *model = qobject_cast<QgsLayerTreeModel *>( mLayerTreeView->model() );
+      if ( model )
+      {
+        QgsLayerTreeLayer *tl( model->rootGroup()->findLayer( layer->id() ) );
+        if ( tl && tl->itemVisibilityChecked() )
+        {
+          tl->setItemVisibilityChecked( false );
+          tl->setItemVisibilityChecked( true );
+        }
+      }
+    }
+  }
+}
+
 void QgisApp::measure()
 {
   mMapCanvas->setMapTool( mMapTools.mMeasureDist );
@@ -8205,7 +8277,15 @@ QList<QgsMapCanvasAnnotationItem *> QgisApp::annotationItems()
 
 QList<QgsMapCanvas *> QgisApp::mapCanvases()
 {
-  return findChildren< QgsMapCanvas * >();
+  // filter out browser canvases -- they are children of app, but a different
+  // kind of beast, and here we only want the main canvas or dock canvases
+  auto canvases = findChildren< QgsMapCanvas * >();
+  canvases.erase( std::remove_if( canvases.begin(), canvases.end(),
+                                  []( QgsMapCanvas * canvas )
+  {
+    return !canvas || canvas->property( "browser_canvas" ).toBool();
+  } ), canvases.end() );
+  return canvases;
 }
 
 void QgisApp::removeAnnotationItems()
@@ -11218,7 +11298,7 @@ bool QgisApp::checkUnsavedLayerEdits()
       {
         // note that we skip the unsaved edits check for memory layers -- it's misleading, because their contents aren't actually
         // saved if this is part of a project close operation. Instead we let these get picked up by checkMemoryLayers()
-        if ( vl->dataProvider()->name() == QLatin1String( "memory" ) )
+        if ( ! vl->dataProvider() || vl->dataProvider()->name() == QLatin1String( "memory" ) )
           continue;
 
         const bool hasUnsavedEdits = ( vl->isEditable() && vl->isModified() );

@@ -19,9 +19,11 @@
 #include "qgsarcgisrestutils.h"
 #include "qgsafsfeatureiterator.h"
 #include "qgsdatasourceuri.h"
+#include "qgsafsdataitems.h"
 #include "qgslogger.h"
 #include "geometry/qgsgeometry.h"
 #include "qgsnetworkaccessmanager.h"
+#include "qgsdataitemprovider.h"
 
 #ifdef HAVE_GUI
 #include "qgsafssourceselect.h"
@@ -333,4 +335,27 @@ QGISEXTERN QList<QgsSourceSelectProvider *> *sourceSelectProviders()
 
   return providers;
 }
+
+QGISEXTERN QList<QgsDataItemProvider *> *dataItemProviders()
+{
+  QList<QgsDataItemProvider *> *providers = new QList<QgsDataItemProvider *>();
+
+  *providers
+      << new QgsAfsDataItemProvider;
+
+  return providers;
+}
+
+#ifdef HAVE_GUI
+QGISEXTERN QList<QgsDataItemGuiProvider *> *dataItemGuiProviders()
+{
+  QList<QgsDataItemGuiProvider *> *providers = new QList<QgsDataItemGuiProvider *>();
+
+  *providers
+      << new QgsAfsItemGuiProvider();
+
+  return providers;
+}
+#endif
+
 #endif

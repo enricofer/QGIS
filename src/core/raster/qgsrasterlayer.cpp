@@ -116,29 +116,14 @@ QgsRasterLayer::QgsRasterLayer( const QString &uri,
     // Constant that signals property not used.
   , QSTRING_NOT_SET( QStringLiteral( "Not Set" ) )
   , TRSTRING_NOT_SET( tr( "Not Set" ) )
-  , mProviderKey( providerKey )
 {
   QgsDebugMsgLevel( QStringLiteral( "Entered" ), 4 );
-  init();
+  setProviderType( providerKey );
 
   QgsDataProvider::ProviderOptions providerOptions;
-  setDataProvider( providerKey, providerOptions );
-  if ( !mValid ) return;
 
-  // load default style
-  bool defaultLoadedFlag = false;
-  if ( mValid && options.loadDefaultStyle )
-  {
-    loadDefaultStyle( defaultLoadedFlag );
-  }
-  if ( !defaultLoadedFlag )
-  {
-    setDefaultContrastEnhancement();
-  }
+  setDataSource( uri, baseName, providerKey, providerOptions, options.loadDefaultStyle );
 
-  // TODO: Connect signals from the dataprovider to the qgisapp
-
-  emit statusChanged( tr( "QgsRasterLayer created" ) );
 } // QgsRasterLayer ctor
 
 QgsRasterLayer::~QgsRasterLayer()
@@ -323,6 +308,11 @@ QString QgsRasterLayer::htmlMetadata() const
     path = uriComponents[QStringLiteral( "path" )].toString();
     if ( QFile::exists( path ) )
       myMetadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Path" ) + QStringLiteral( "</td><td>%1" ).arg( QStringLiteral( "<a href=\"%1\">%2</a>" ).arg( QUrl::fromLocalFile( path ).toString(), QDir::toNativeSeparators( path ) ) ) + QStringLiteral( "</td></tr>\n" );
+  }
+  if ( uriComponents.contains( QStringLiteral( "url" ) ) )
+  {
+    const QString url = uriComponents[QStringLiteral( "url" )].toString();
+    myMetadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "URL" ) + QStringLiteral( "</td><td>%1" ).arg( QStringLiteral( "<a href=\"%1\">%2</a>" ).arg( QUrl( url ).toString(), url ) ) + QStringLiteral( "</td></tr>\n" );
   }
 
   // data source
@@ -797,7 +787,81 @@ void QgsRasterLayer::setDataProvider( QString const &provider, const QgsDataProv
   mValid = true;
 
   QgsDebugMsgLevel( QStringLiteral( "exiting." ), 4 );
-} // QgsRasterLayer::setDataProvider
+}
+
+void QgsRasterLayer::setDataSource( const QString &dataSource, const QString &baseName, const QString &provider, const QgsDataProvider::ProviderOptions &options, bool loadDefaultStyleFlag )
+{
+
+  bool wasValid( isValid() );
+
+  QDomImplementation domImplementation;
+  QDomDocumentType documentType;
+  QDomDocument doc;
+  QString errorMsg;
+  QDomElement rootNode;
+
+  // Store the original style
+  if ( wasValid && ! loadDefaultStyleFlag )
+  {
+    documentType = domImplementation.createDocumentType(
+                     QStringLiteral( "qgis" ), QStringLiteral( "http://mrcc.com/qgis.dtd" ), QStringLiteral( "SYSTEM" ) );
+    doc = QDomDocument( documentType );
+    rootNode = doc.createElement( QStringLiteral( "qgis" ) );
+    rootNode.setAttribute( QStringLiteral( "version" ), Qgis::QGIS_VERSION );
+    doc.appendChild( rootNode );
+    QgsReadWriteContext writeContext;
+    if ( ! writeSymbology( rootNode, doc, errorMsg, writeContext ) )
+    {
+      QgsDebugMsg( QStringLiteral( "Could not store symbology for layer %1: %2" )
+                   .arg( name() )
+                   .arg( errorMsg ) );
+    }
+  }
+
+  if ( mDataProvider )
+    closeDataProvider();
+
+  init();
+
+  for ( int i = mPipe.size() - 1; i >= 0; --i )
+  {
+    mPipe.remove( i );
+  }
+
+  mDataSource = dataSource;
+  mLayerName = baseName;
+
+  setDataProvider( provider, options );
+
+  if ( mValid )
+  {
+    // load default style
+    bool defaultLoadedFlag = false;
+    if ( loadDefaultStyleFlag )
+    {
+      loadDefaultStyle( defaultLoadedFlag );
+    }
+    else if ( wasValid && errorMsg.isEmpty() )  // Restore the style
+    {
+      QgsReadWriteContext readContext;
+      if ( ! readSymbology( rootNode, errorMsg, readContext ) )
+      {
+        QgsDebugMsg( QStringLiteral( "Could not restore symbology for layer %1: %2" )
+                     .arg( name() )
+                     .arg( errorMsg ) );
+
+      }
+    }
+
+    if ( !defaultLoadedFlag )
+    {
+      setDefaultContrastEnhancement();
+    }
+    emit statusChanged( tr( "QgsRasterLayer created" ) );
+  }
+  emit dataSourceChanged();
+  emit dataChanged();
+}
 
 void QgsRasterLayer::closeDataProvider()
 {
@@ -1251,8 +1315,12 @@ QImage QgsRasterLayer::previewAsImage( QSize size, const QColor &bgColor, QImage
 {
   QImage myQImage( size, format );
 
+  if ( ! isValid( ) )
+    return  QImage();
+
   myQImage.setColor( 0, bgColor.rgba() );
   myQImage.fill( 0 );  //defaults to white, set to transparent for rendering on a map
+
 
   QgsRasterViewPort *myRasterViewPort = new QgsRasterViewPort();
 
@@ -1474,7 +1542,12 @@ bool QgsRasterLayer::readXml( const QDomNode &layer_node, QgsReadWriteContext &c
 
   QgsDataProvider::ProviderOptions providerOptions;
   setDataProvider( mProviderKey, providerOptions );
-  if ( !mValid ) return false;
+
+  if ( ! mDataProvider )
+  {
+    QgsDebugMsg( QStringLiteral( "Raster data provider could not be created for %1" ).arg( mDataSource ) );
+    return false;
+  }
 
   QString error;
   bool res = readSymbology( layer_node, error, context );
@@ -1646,6 +1719,32 @@ bool QgsRasterLayer::writeXml( QDomNode &layer_node,
   return writeSymbology( layer_node, document, errorMsg, context );
 }
 
+// TODO: this should ideally go to gdal provider (together with most of encodedSource() + decodedSource())
+static bool _parseGpkgColons( const QString &src, QString &filename, QString &tablename )
+{
+  // GDAL accepts the following input format:  GPKG:filename:table
+  // (GDAL won't accept quoted filename)
+
+  QStringList lst = src.split( ':' );
+  if ( lst.count() != 3 && lst.count() != 4 )
+    return false;
+
+  tablename = lst.last();
+  if ( lst.count() == 3 )
+  {
+    filename = lst[1];
+    return true;
+  }
+  else if ( lst.count() == 4 && lst[1].count() == 1 && ( lst[2][0] == '/' || lst[2][0] == '\\' ) )
+  {
+    // a bit of handling to make sure that filename C:\hello.gpkg is parsed correctly
+    filename = lst[1] + ":" + lst[2];
+    return true;
+  }
+  return false;
+}
+
+
 QString QgsRasterLayer::encodedSource( const QString &source, const QgsReadWriteContext &context ) const
 {
   QString src( source );
@@ -1665,6 +1764,17 @@ QString QgsRasterLayer::encodedSource( const QString &source, const QgsReadWrite
         if ( filename.startsWith( '"' ) && filename.endsWith( '"' ) )
           filename = filename.mid( 1, filename.length() - 2 );
         src = "NETCDF:\"" + context.pathResolver().writePath( filename ) + "\":" + r.cap( 2 );
+        handled = true;
+      }
+    }
+    else if ( src.startsWith( QLatin1String( "GPKG:" ) ) )
+    {
+      // GPKG:filename:table
+      QString filename, tablename;
+      if ( _parseGpkgColons( src, filename, tablename ) )
+      {
+        filename = context.pathResolver().writePath( filename );
+        src = QStringLiteral( "GPKG:%1:%2" ).arg( filename, tablename );
         handled = true;
       }
     }
@@ -1814,6 +1924,17 @@ QString QgsRasterLayer::decodedSource( const QString &source, const QString &pro
           if ( filename.startsWith( '"' ) && filename.endsWith( '"' ) )
             filename = filename.mid( 1, filename.length() - 2 );
           src = "NETCDF:\"" + context.pathResolver().readPath( filename ) + "\":" + r.cap( 2 );
+          handled = true;
+        }
+      }
+      else if ( src.startsWith( QLatin1String( "GPKG:" ) ) )
+      {
+        // GPKG:filename:table
+        QString filename, tablename;
+        if ( _parseGpkgColons( src, filename, tablename ) )
+        {
+          filename = context.pathResolver().readPath( filename );
+          src = QStringLiteral( "GPKG:%1:%2" ).arg( filename, tablename );
           handled = true;
         }
       }

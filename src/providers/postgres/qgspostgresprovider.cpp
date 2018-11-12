@@ -373,17 +373,6 @@ QString QgsPostgresProvider::storageType() const
   return QStringLiteral( "PostgreSQL database with PostGIS extension" );
 }
 
-#if QT_VERSION < 0x050600
-#include <algorithm>
-template <typename T>
-bool operator<( const QList<T> &lhs, const QList<T> &rhs )
-{
-  return std::lexicographical_compare( lhs.begin(), lhs.end(),
-                                       rhs.begin(), rhs.end() );
-}
-#endif
-
-
 QgsFeatureIterator QgsPostgresProvider::getFeatures( const QgsFeatureRequest &request ) const
 {
   if ( !mValid )
@@ -2750,7 +2739,7 @@ void QgsPostgresProvider::appendGeomParam( const QgsGeometry &geom, QStringList 
   QString param;
 
   QgsGeometry convertedGeom( convertToProviderType( geom ) );
-  QByteArray wkb( convertedGeom ? convertedGeom.asWkb() : geom.asWkb() );
+  QByteArray wkb( !convertedGeom.isNull() ? convertedGeom.asWkb() : geom.asWkb() );
   const unsigned char *buf = reinterpret_cast< const unsigned char * >( wkb.constData() );
   int wkbSize = wkb.length();
 

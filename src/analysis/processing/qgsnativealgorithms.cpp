@@ -33,6 +33,7 @@
 #include "qgsalgorithmdropgeometry.h"
 #include "qgsalgorithmdropmzvalues.h"
 #include "qgsalgorithmexplode.h"
+#include "qgsalgorithmexplodehstore.h"
 #include "qgsalgorithmextendlines.h"
 #include "qgsalgorithmextenttolayer.h"
 #include "qgsalgorithmextractbyattribute.h"
@@ -44,6 +45,7 @@
 #include "qgsalgorithmfilter.h"
 #include "qgsalgorithmfiltervertices.h"
 #include "qgsalgorithmfixgeometries.h"
+#include "qgsalgorithmforcerhr.h"
 #include "qgsalgorithmjoinbyattribute.h"
 #include "qgsalgorithmjoinwithlines.h"
 #include "qgsalgorithmimportphotos.h"
@@ -158,6 +160,7 @@ void QgsNativeAlgorithms::loadAlgorithms()
   addAlgorithm( new QgsDropGeometryAlgorithm() );
   addAlgorithm( new QgsDropMZValuesAlgorithm() );
   addAlgorithm( new QgsExplodeAlgorithm() );
+  addAlgorithm( new QgsExplodeHstoreAlgorithm() );
   addAlgorithm( new QgsExtendLinesAlgorithm() );
   addAlgorithm( new QgsExtentToLayerAlgorithm() );
   addAlgorithm( new QgsExtractByAttributeAlgorithm() );
@@ -170,6 +173,7 @@ void QgsNativeAlgorithms::loadAlgorithms()
   addAlgorithm( new QgsFilterVerticesByM() );
   addAlgorithm( new QgsFilterVerticesByZ() );
   addAlgorithm( new QgsFixGeometriesAlgorithm() );
+  addAlgorithm( new QgsForceRHRAlgorithm() );
   addAlgorithm( new QgsImportPhotosAlgorithm() );
   addAlgorithm( new QgsInterpolatePointAlgorithm() );
   addAlgorithm( new QgsIntersectionAlgorithm() );

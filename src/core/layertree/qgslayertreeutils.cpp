@@ -306,6 +306,54 @@ void QgsLayerTreeUtils::removeInvalidLayers( QgsLayerTreeGroup *group )
     group->removeChildNode( node );
 }
 
+void QgsLayerTreeUtils::storeOriginalLayersProperties( QgsLayerTreeGroup *group,  const QDomDocument *doc )
+{
+  const QDomNodeList mlNodeList( doc->documentElement()
+                                 .firstChildElement( QStringLiteral( "projectlayers" ) )
+                                 .elementsByTagName( QStringLiteral( "maplayer" ) ) );
+
+  std::function<void ( QgsLayerTreeNode * )> _store = [ & ]( QgsLayerTreeNode * node )
+  {
+    if ( QgsLayerTree::isLayer( node ) )
+    {
+      QgsMapLayer *l( QgsLayerTree::toLayer( node )->layer() );
+      if ( l )
+      {
+        for ( int i = 0; i < mlNodeList.count(); i++ )
+        {
+          QDomNode mlNode( mlNodeList.at( i ) );
+          QString id( mlNode.firstChildElement( QStringLiteral( "id" ) ).firstChild().nodeValue() );
+          if ( id == l->id() )
+          {
+            QDomImplementation DomImplementation;
+            QDomDocumentType documentType = DomImplementation.createDocumentType( QStringLiteral( "qgis" ), QStringLiteral( "http://mrcc.com/qgis.dtd" ), QStringLiteral( "SYSTEM" ) );
+            QDomDocument document( documentType );
+            QDomElement element = mlNode.toElement();
+            document.appendChild( element );
+            QString str;
+            QTextStream stream( &str );
+            document.save( stream, 4 /*indent*/ );
+            l->setOriginalXmlProperties( str );
+          }
+        }
+      }
+    }
+    else if ( QgsLayerTree::isGroup( node ) )
+    {
+      const QList<QgsLayerTreeNode *> constChildren( node->children( ) );
+      for ( const auto &childNode : constChildren )
+      {
+        _store( childNode );
+      }
+    }
+  };
+
+  for ( QgsLayerTreeNode *node : group->children() )
+  {
+    _store( node );
+  }
+}
+
 QStringList QgsLayerTreeUtils::invisibleLayerList( QgsLayerTreeNode *node )
 {
   QStringList list;

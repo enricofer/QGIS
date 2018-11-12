@@ -38,6 +38,7 @@ SET(QGIS_ANALYSIS_SRCS
   processing/qgsalgorithmdropgeometry.cpp
   processing/qgsalgorithmdropmzvalues.cpp
   processing/qgsalgorithmexplode.cpp
+  processing/qgsalgorithmexplodehstore.cpp
   processing/qgsalgorithmextendlines.cpp
   processing/qgsalgorithmextenttolayer.cpp
   processing/qgsalgorithmextractbyattribute.cpp
@@ -49,6 +50,7 @@ SET(QGIS_ANALYSIS_SRCS
   processing/qgsalgorithmfilter.cpp
   processing/qgsalgorithmfiltervertices.cpp
   processing/qgsalgorithmfixgeometries.cpp
+  processing/qgsalgorithmforcerhr.cpp
   processing/qgsalgorithmimportphotos.cpp
   processing/qgsalgorithminterpolatepoint.cpp
   processing/qgsalgorithmintersection.cpp

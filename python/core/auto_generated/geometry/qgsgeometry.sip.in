@@ -1470,6 +1470,15 @@ by calling `error()` on the returned geometry.
 .. versionadded:: 3.0
 %End
 
+    QgsGeometry forceRHR() const;
+%Docstring
+Forces geometries to respect the Right-Hand-Rule, in which the area that is bounded by a polygon
+is to the right of the boundary. In particular, the exterior ring is oriented in a clockwise direction
+and the interior rings in a counter-clockwise direction.
+
+.. versionadded:: 3.6
+%End
+
     class Error
 {
 
@@ -1823,8 +1832,6 @@ Downgrades a point list from QgsPoint to :py:class:`QgsPointXY`
 %End
 
     operator QVariant() const;
-
-    operator bool() const;
 
 }; // class QgsGeometry
 

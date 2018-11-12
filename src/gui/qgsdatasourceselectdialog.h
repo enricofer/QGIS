@@ -50,25 +50,39 @@ class GUI_EXPORT QgsDataSourceSelectDialog: public QDialog, private Ui::QgsDataS
     /**
      * Constructs a QgsDataSourceSelectDialog, optionally filtering by layer type
      *
+     * \param browserModel an existing browser model (typically from app), if null an instance will be created
      * \param setFilterByLayerType activates filtering by layer type
      * \param layerType sets the layer type filter, this is in effect only if filtering by layer type is also active
      * \param parent the object
      */
-    QgsDataSourceSelectDialog( bool setFilterByLayerType = false,
+    QgsDataSourceSelectDialog( QgsBrowserModel *browserModel = nullptr,
+                               bool setFilterByLayerType = false,
                                const QgsMapLayer::LayerType &layerType = QgsMapLayer::LayerType::VectorLayer,
                                QWidget *parent = nullptr );
+
 
     ~QgsDataSourceSelectDialog() override;
 
     /**
      * Sets layer type filter to \a layerType and activates the filtering
      */
-    void setLayerTypeFilter( const QgsMapLayer::LayerType &layerType );
+    void setLayerTypeFilter( QgsMapLayer::LayerType layerType );
 
     /**
      * Returns the (possibly invalid) uri of the selected data source
      */
     QgsMimeDataUtils::Uri uri() const;
+
+    //! Show/hide filter widget
+    void showFilterWidget( bool visible );
+    //! Sets filter syntax
+    void setFilterSyntax( QAction * );
+    //! Sets filter case sensitivity
+    void setCaseSensitive( bool caseSensitive );
+    //! Apply filter to the model
+    void setFilter();
+    //! Scroll to last selected index and expand it's children
+    void showEvent( QShowEvent *e ) override;
 
   private slots:
 
@@ -77,8 +91,12 @@ class GUI_EXPORT QgsDataSourceSelectDialog: public QDialog, private Ui::QgsDataS
 
   private:
 
-    QgsBrowserModel mBrowserModel;
+    //! Refresh the model
+    void refreshModel( const QModelIndex &index );
+
     QgsBrowserProxyModel mBrowserProxyModel;
+    std::unique_ptr<QgsBrowserModel> mBrowserModel;
+    bool mOwnModel = true;
     QgsMimeDataUtils::Uri mUri;
 
 };

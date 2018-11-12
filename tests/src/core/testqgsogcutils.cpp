@@ -35,12 +35,7 @@ class TestQgsOgcUtils : public QObject
     void initTestCase()
     {
       // Needed on Qt 5 so that the serialization of XML is consistent among all executions
-#if QT_VERSION >= 0x50600
       qSetGlobalQHashSeed( 0 );
-#else
-      extern Q_CORE_EXPORT QBasicAtomicInt qt_qhash_seed;
-      qt_qhash_seed.store( 0 );
-#endif
 
       //
       // Runs once before any tests are run
@@ -82,23 +77,23 @@ void TestQgsOgcUtils::testGeometryFromGML()
 {
   // Test GML2
   QgsGeometry geom( QgsOgcUtils::geometryFromGML( QStringLiteral( "<Point><coordinates>123,456</coordinates></Point>" ) ) );
-  QVERIFY( geom );
+  QVERIFY( !geom.isNull() );
   QVERIFY( geom.wkbType() == QgsWkbTypes::Point );
   QVERIFY( geom.asPoint() == QgsPointXY( 123, 456 ) );
 
   QgsGeometry geomBox( QgsOgcUtils::geometryFromGML( QStringLiteral( "<gml:Box srsName=\"foo\"><gml:coordinates>135.2239,34.4879 135.8578,34.8471</gml:coordinates></gml:Box>" ) ) );
-  QVERIFY( geomBox );
+  QVERIFY( !geomBox.isNull() );
   QVERIFY( geomBox.wkbType() == QgsWkbTypes::Polygon );
 
 
   // Test GML3
   geom = QgsOgcUtils::geometryFromGML( QStringLiteral( "<Point><pos>123 456</pos></Point>" ) );
-  QVERIFY( geom );
+  QVERIFY( !geom.isNull() );
   QVERIFY( geom.wkbType() == QgsWkbTypes::Point );
   QVERIFY( geom.asPoint() == QgsPointXY( 123, 456 ) );
 
   geomBox = QgsOgcUtils::geometryFromGML( QStringLiteral( "<gml:Envelope srsName=\"foo\"><gml:lowerCorner>135.2239 34.4879</gml:lowerCorner><gml:upperCorner>135.8578 34.8471</gml:upperCorner></gml:Envelope>" ) );
-  QVERIFY( geomBox );
+  QVERIFY( !geomBox.isNull() );
   QVERIFY( geomBox.wkbType() == QgsWkbTypes::Polygon );
 }
 

@@ -850,6 +850,9 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
     //! pastes group or layer from the clipboard to layer tree
     void pasteLayer();
 
+    //! Apply the same style to selected layers or to current legend group
+    void applyStyleToGroup();
+
     //! Sets CRS of a layer
     void setLayerCrs();
     //! Assign layer CRS to project
@@ -891,9 +894,23 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
     //! layer selection changed
     void legendLayerSelectionChanged();
 
+    /**
+     * Zooms so that the pixels of the raster layer occupies exactly one screen pixel.
+        Only works on raster layers*/
+    void legendLayerZoomNative();
+
+    /**
+     * Stretches the raster layer, if stretching is active, based on the min and max of the current extent.
+        Only works on raster layers*/
+    void legendLayerStretchUsingCurrentExtent();
+
     //! Watch for QFileOpenEvent.
     bool event( QEvent *event ) override;
 
+    //! Sets the CRS of the current legend group
+    void legendGroupSetCrs();
+    //! Sets the WMS data of the current legend group
+    void legendGroupSetWmsData();
 
     /**
      * \brief dataSourceManager Open the DataSourceManager dialog
@@ -902,10 +919,38 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
      */
     void dataSourceManager( const QString &pageName = QString() );
 
+    //! Add a virtual layer
+    void addVirtualLayer();
+
+    //! Remove a layer from the map and legend
+    void removeLayer();
+
+    //! Duplicate map layer(s) in legend
+    void duplicateLayers( const QList<QgsMapLayer *> &lyrList = QList<QgsMapLayer *>() );
+
+    //! change layer subset of current vector layer
+    void layerSubsetString();
+
+    //! Sets scale visibility of selected layers
+    void setLayerScaleVisibility();
+
+    //! Zoom to nearest scale such that current layer is visible
+    void zoomToLayerScale();
+
     /**
      * Returns the shared application browser model.
      */
     QgsBrowserModel *browserModel();
+
+    /*
+     * Change data source for \a layer, a data source selection dialog
+     * will be opened and if accepted the data selected source will be
+     * applied.
+     *
+     * In case the layer was originally invalid and it had the original
+     * XML layer properties, the properties will be applied.
+     */
+    void changeDataSource( QgsMapLayer *layer );
 
     /**
      * Add a raster layer directly without prompting user for location
@@ -936,9 +981,9 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
     /**
      * \brief overloaded version of the private addLayer method that takes a list of
      * file names instead of prompting user with a dialog.
-     \param enc encoding type for the layer
-    \param dataSourceType type of ogr datasource
-     \returns true if successfully added layer
+     * \param enc encoding type for the layer
+     * \param dataSourceType type of ogr datasource
+     * \returns true if successfully added layer
      */
     bool addVectorLayers( const QStringList &layerQStringList, const QString &enc, const QString &dataSourceType );
 
@@ -1061,8 +1106,7 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
     void addSelectedVectorLayer( const QString &uri, const QString &layerName, const QString &provider );
     //! Replace the selected layer by a vector layer defined by uri, layer name, data source uri
     void replaceSelectedVectorLayer( const QString &oldId, const QString &uri, const QString &layerName, const QString &provider );
-    //! Add a virtual layer
-    void addVirtualLayer();
+
     //! toggles whether the current selected layer is in overview or not
     void isInOverview();
     //! Store the position for map tool tip
@@ -1075,32 +1119,6 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
      * \since QGIS 2.8
      */
     void userRotation();
-    //! Remove a layer from the map and legend
-    void removeLayer();
-    //! Duplicate map layer(s) in legend
-    void duplicateLayers( const QList<QgsMapLayer *> &lyrList = QList<QgsMapLayer *>() );
-    //! Sets scale visibility of selected layers
-    void setLayerScaleVisibility();
-    //! Zoom to nearest scale such that current layer is visible
-    void zoomToLayerScale();
-
-    /**
-     * Zooms so that the pixels of the raster layer occupies exactly one screen pixel.
-        Only works on raster layers*/
-    void legendLayerZoomNative();
-
-    /**
-     * Stretches the raster layer, if stretching is active, based on the min and max of the current extent.
-        Only workds on raster layers*/
-    void legendLayerStretchUsingCurrentExtent();
-
-    //! Apply the same style to selected layers or to current legend group
-    void applyStyleToGroup();
-
-    //! Sets the CRS of the current legend group
-    void legendGroupSetCrs();
-    //! Sets the WMS data of the current legend group
-    void legendGroupSetWmsData();
 
     //! zoom to extent of layer
     void zoomToLayerExtent();
@@ -1458,9 +1476,6 @@ class APP_EXPORT QgisApp : public QMainWindow, private Ui::MainWindow
 
     //! Update gui actions/menus when layers are modified
     void updateLayerModifiedActions();
-
-    //! change layer subset of current vector layer
-    void layerSubsetString();
 
     //! map tool changed
     void mapToolChanged( QgsMapTool *newTool, QgsMapTool *oldTool );

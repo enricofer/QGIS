@@ -315,14 +315,7 @@ IF(WITH_CORE)
   ENDIF(WITH_QTWEBKIT)
   #############################################################
   # search for Qt5
-  IF (WITH_3D)
-    # for 3D support we strictly require Qt >= 5.9
-    # (Qt 3D was introduced in 5.7 but it is not stable enough in that branch)
-    # Qt 5.8 is missing some classes, https://github.com/qgis/QGIS/pull/5203#discussion_r142319862
-    SET(QT_MIN_VERSION 5.9.0)
-  ELSE ()
-    SET(QT_MIN_VERSION 5.4.0)
-  ENDIF()
+  SET(QT_MIN_VERSION 5.9.0)
   FIND_PACKAGE(Qt5Core QUIET)
   FIND_PACKAGE(Qt5Gui REQUIRED)
   FIND_PACKAGE(Qt5Widgets REQUIRED)
@@ -932,6 +925,6 @@ IF (WITH_CORE)
   INCLUDE(CPack)
 ENDIF (WITH_CORE)
 
-IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+IF (UNIX AND NOT APPLE)
   ADD_SUBDIRECTORY(linux)
-ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+ENDIF (UNIX AND NOT APPLE)

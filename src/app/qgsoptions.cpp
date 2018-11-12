@@ -101,7 +101,7 @@ QgsOptions::QgsOptions( QWidget *parent, Qt::WindowFlags fl, const QList<QgsOpti
   connect( mCustomVariablesChkBx, &QCheckBox::toggled, this, &QgsOptions::mCustomVariablesChkBx_toggled );
   connect( mCurrentVariablesQGISChxBx, &QCheckBox::toggled, this, &QgsOptions::mCurrentVariablesQGISChxBx_toggled );
   connect( buttonBox, &QDialogButtonBox::helpRequested, this, &QgsOptions::showHelp );
-  connect( cboGlobalLocale, qgis::overload< int >::of( &QComboBox::currentIndexChanged ), [ = ]( int ) { updateSampleLocaleText( ); } );
+  connect( cboGlobalLocale, qgis::overload< int >::of( &QComboBox::currentIndexChanged ), this, [ = ]( int ) { updateSampleLocaleText( ); } );
   connect( cbShowGroupSeparator, &QCheckBox::toggled, this, [ = ]( bool ) { updateSampleLocaleText(); } );
 
   // QgsOptionsDialogBase handles saving/restoring of geometry, splitter and current tab states,
@@ -1608,13 +1608,7 @@ void QgsOptions::saveOptions()
   mSettings->setValue( QStringLiteral( "/qgis/digitizing/disable_enter_attribute_values_dialog" ), chkDisableAttributeValuesDlg->isChecked() );
   mSettings->setValue( QStringLiteral( "/qgis/digitizing/validate_geometries" ), mValidateGeometries->currentIndex() );
 
-#if QT_VERSION <= 0x050601
-  // in Qt 5.6.1 and former, QVariant does not correctly convert enum using value
-  // see https://bugreports.qt.io/browse/QTBUG-53384
-  mSettings->setEnumValue( QStringLiteral( "/qgis/digitizing/offset_join_style" ), static_cast<QgsGeometry::JoinStyle>( mOffsetJoinStyleComboBox->currentData().toInt() ) );
-#else
   mSettings->setEnumValue( QStringLiteral( "/qgis/digitizing/offset_join_style" ), mOffsetJoinStyleComboBox->currentData().value<QgsGeometry::JoinStyle>() );
-#endif
   mSettings->setValue( QStringLiteral( "/qgis/digitizing/offset_quad_seg" ), mOffsetQuadSegSpinBox->value() );
   mSettings->setValue( QStringLiteral( "/qgis/digitizing/offset_miter_limit" ), mCurveOffsetMiterLimitComboBox->value() );
 
