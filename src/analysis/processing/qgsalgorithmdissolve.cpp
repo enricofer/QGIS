@@ -89,7 +89,8 @@ QVariantMap QgsCollectorAlgorithm::processCollection( const QVariantMap &paramet
   else
   {
     QList< int > fieldIndexes;
-    Q_FOREACH ( const QString &field, fields )
+    const auto constFields = fields;
+    for ( const QString &field : constFields )
     {
       int index = source->fields().lookupField( field );
       if ( index >= 0 )
@@ -107,7 +108,8 @@ QVariantMap QgsCollectorAlgorithm::processCollection( const QVariantMap &paramet
       }
 
       QVariantList indexAttributes;
-      Q_FOREACH ( int index, fieldIndexes )
+      const auto constFieldIndexes = fieldIndexes;
+      for ( int index : constFieldIndexes )
       {
         indexAttributes << f.attribute( index );
       }
@@ -215,6 +217,8 @@ QVariantMap QgsDissolveAlgorithm::processAlgorithm( const QVariantMap &parameter
   return processCollection( parameters, context, feedback, [ & ]( const QVector< QgsGeometry > &parts )->QgsGeometry
   {
     QgsGeometry result( QgsGeometry::unaryUnion( parts ) );
+    if ( QgsWkbTypes::geometryType( result.wkbType() ) == QgsWkbTypes::LineGeometry )
+      result = result.mergeLines();
     // Geos may fail in some cases, let's try a slower but safer approach
     // See: https://issues.qgis.org/issues/20591 - Dissolve tool failing to produce outputs
     if ( ! result.lastError().isEmpty() && parts.count() >  2 )
@@ -227,6 +231,8 @@ QVariantMap QgsDissolveAlgorithm::processAlgorithm( const QVariantMap &parameter
       for ( const auto &p : parts )
       {
         result = QgsGeometry::unaryUnion( QVector< QgsGeometry >() << result << p );
+        if ( QgsWkbTypes::geometryType( result.wkbType() ) == QgsWkbTypes::LineGeometry )
+          result = result.mergeLines();
         if ( feedback->isCanceled() )
           return result;
       }

@@ -133,18 +133,13 @@ QLineEdit, QTextEdit, QPlainTextEdit
 
 QPushButton 
 {
-    padding: 0.12em;
+    padding: 0.21em;
     border-width: 1px;
     border-color: @itemdarkbackground;
     border-style: solid;
     border-radius: 0.2em;
     background-color:@lightgradient;
     color:@text;
-}
-
-QPushButton[text^=""]
-{
-    min-width: 2.5em;
 }
 
 QToolButton
@@ -471,6 +466,10 @@ QTabBar::tab {
     padding-top: 0.1em;
     padding-bottom: 0.1em;
     margin-right: -0.05em;
+}
+
+QTabBar::tab:disabled {
+    color: @itemalternativebackground
 }
 
 QTabBar::tab:last
@@ -853,4 +852,8 @@ QListWidget#mOptionsListWidget::item {
 QWidget#QgsTextFormatWidgetBase QTabWidget#mOptionsTab QTabBar::tab,
 QWidget#QgsRendererMeshPropsWidgetBase QTabWidget#mStyleOptionsTab QTabBar::tab {
     width: 1.2em;
+}
+
+QWidget#QgsRasterCalcDialogBase QWidget#mOperatorsGroupBox QPushButton {
+    min-width:2.3em;
 }

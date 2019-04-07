@@ -28,7 +28,7 @@ class QRubberBand;
 
 class QgsGeometryValidator;
 class QgsVertexEditor;
-class QgsSelectedFeature;
+class QgsLockedFeature;
 class QgsSnapIndicator;
 class QgsVertexMarker;
 
@@ -69,7 +69,7 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
       ActiveLayer,
       AllLayers
     };
-    Q_ENUM( VertexToolMode );
+    Q_ENUM( VertexToolMode )
 
     QgsVertexTool( QgsMapCanvas *canvas, QgsAdvancedDigitizingDockWidget *cadDock, VertexToolMode mode = QgsVertexTool::AllLayers );
 
@@ -117,6 +117,8 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
 
     void cleanEditor( QgsFeatureId id );
 
+    void lockedFeatureSelectionChanged();
+
   private:
 
     void buildDragBandsForVertices( const QSet<Vertex> &movingVertices, const QgsPointXY &dragVertexMapPoint );
@@ -138,6 +140,8 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
     void removeTemporaryRubberBands();
 
     void cleanupVertexEditor();
+
+    void cleanupLockedFeature();
 
     /**
      * Temporarily override snapping config and snap to vertices and edges
@@ -290,6 +294,9 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
 
     void stopRangeVertexSelection();
 
+    //! update the highlight of vertices from the locked feature
+    void updateLockedFeatureVertices();
+
   private:
 
     // members used for temporary highlight of stuff
@@ -304,7 +311,7 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
     QgsVertexMarker *mEdgeCenterMarker = nullptr;
     //! rubber band for highlight of a whole feature on mouse over and not dragging anything
     QgsRubberBand *mFeatureBand = nullptr;
-    //! rubber band for highlight of all vertices of a feature on mouse over and not dragging anything
+    //! rubber band for highlight of all vertices of a feature on mouse over and not dragging anything, also used for locked feature vertices
     QgsRubberBand *mFeatureBandMarkers = nullptr;
     //! source layer for mFeatureBand (null if mFeatureBand is null)
     const QgsVectorLayer *mFeatureBandLayer = nullptr;
@@ -314,6 +321,8 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
     QgsRubberBand *mVertexBand = nullptr;
     //! highlight of an edge while mouse pointer is close to an edge and not dragging anything
     QgsRubberBand *mEdgeBand = nullptr;
+    //! highlight of locked feature vertices (but not selected)
+    QList<QgsVertexMarker *> mLockedFeatureVerticesMarkers;
 
     // members for dragging operation
 
@@ -435,8 +444,8 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
 
     // support for vertex editor
 
-    //! Selected feature for the vertex editor
-    std::unique_ptr<QgsSelectedFeature> mSelectedFeature;
+    //! Locked feature for the vertex editor
+    std::unique_ptr<QgsLockedFeature> mLockedFeature;
     //! Dock widget which allows editing vertices
     std::unique_ptr<QgsVertexEditor> mVertexEditor;
 
@@ -445,7 +454,7 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
      * This is used when user clicks with right mouse button multiple times in one location
      * to easily switch to the desired feature.
      */
-    struct SelectedFeatureAlternatives
+    struct LockedFeatureAlternatives
     {
       QPoint screenPoint;
       QList< QPair<QgsVectorLayer *, QgsFeatureId> > alternatives;
@@ -453,7 +462,7 @@ class APP_EXPORT QgsVertexTool : public QgsMapToolAdvancedDigitizing
     };
 
     //! Keeps information about other possible features to select with right click. Null if no info is currently held.
-    std::unique_ptr<SelectedFeatureAlternatives> mSelectedFeatureAlternatives;
+    std::unique_ptr<LockedFeatureAlternatives> mLockedFeatureAlternatives;
 
     // support for validation of geometries
 

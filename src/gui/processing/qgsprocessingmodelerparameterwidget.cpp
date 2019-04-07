@@ -180,6 +180,12 @@ QgsProcessingModelChildParameterSource QgsProcessingModelerParameterWidget::valu
   return QgsProcessingModelChildParameterSource();
 }
 
+void QgsProcessingModelerParameterWidget::setDialog( QDialog *dialog )
+{
+  if ( mStaticWidgetWrapper )
+    mStaticWidgetWrapper->setDialog( dialog );
+}
+
 QgsExpressionContext QgsProcessingModelerParameterWidget::createExpressionContext() const
 {
   QgsExpressionContext c = mContext.expressionContext();
@@ -198,6 +204,7 @@ QgsExpressionContext QgsProcessingModelerParameterWidget::createExpressionContex
     QStringList highlightedVariables = childScope->variableNames();
     QStringList highlightedFunctions = childScope->functionNames();
     highlightedVariables += algorithmScope->variableNames();
+    highlightedVariables += mModel->variables().keys();
     highlightedFunctions += algorithmScope->functionNames();
     c.setHighlightedVariables( highlightedVariables );
     c.setHighlightedFunctions( highlightedFunctions );

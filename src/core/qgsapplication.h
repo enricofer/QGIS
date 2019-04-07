@@ -638,7 +638,7 @@ class CORE_EXPORT QgsApplication : public QApplication
 
     /**
      * Returns the application's authentication manager instance
-     * \note this can be a null pointer if called before initQgis
+     * \note this can be NULLPTR if called before initQgis
      * \see initQgis
      * \since QGIS 3.0
      */
@@ -884,6 +884,8 @@ class CORE_EXPORT QgsApplication : public QApplication
     ApplicationMembers *mApplicationMembers = nullptr;
     // ... but in case QgsApplication is never instantiated (eg with custom designer widgets), we fall back to static members
     static ApplicationMembers *sApplicationMembers;
+
+    static QgsAuthManager *sAuthManager;
 
     static ApplicationMembers *members();
 };

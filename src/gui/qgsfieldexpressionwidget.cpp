@@ -27,6 +27,7 @@
 #include "qgsvectorlayer.h"
 #include "qgsproject.h"
 #include "qgsexpressioncontextutils.h"
+#include "qgsexpressioncontextgenerator.h"
 
 QgsFieldExpressionWidget::QgsFieldExpressionWidget( QWidget *parent )
   : QWidget( parent )
@@ -71,6 +72,8 @@ QgsFieldExpressionWidget::QgsFieldExpressionWidget( QWidget *parent )
                      << QgsExpressionContextUtils::projectScope( QgsProject::instance() );
 
   mCombo->installEventFilter( this );
+
+  mComboPalette = mCombo->lineEdit()->palette();
 }
 
 void QgsFieldExpressionWidget::setExpressionDialogTitle( const QString &title )
@@ -81,6 +84,17 @@ void QgsFieldExpressionWidget::setExpressionDialogTitle( const QString &title )
 void QgsFieldExpressionWidget::setFilters( QgsFieldProxyModel::Filters filters )
 {
   mFieldProxyModel->setFilters( filters );
+}
+
+void QgsFieldExpressionWidget::setAllowEmptyFieldName( bool allowEmpty )
+{
+  mCombo->lineEdit()->setClearButtonEnabled( allowEmpty );
+  mFieldProxyModel->sourceFieldModel()->setAllowEmptyFieldName( allowEmpty );
+}
+
+bool QgsFieldExpressionWidget::allowEmptyFieldName() const
+{
+  return mFieldProxyModel->sourceFieldModel()->allowEmptyFieldName();
 }
 
 void QgsFieldExpressionWidget::setLeftHandButtonStyle( bool isLeft )
@@ -326,7 +340,7 @@ void QgsFieldExpressionWidget::currentFieldChanged()
 
 void QgsFieldExpressionWidget::updateLineEditStyle( const QString &expression )
 {
-  QPalette palette = mCombo->lineEdit()->palette();
+  QPalette palette( mComboPalette );
   if ( !isEnabled() )
   {
     palette.setColor( QPalette::Text, Qt::gray );
@@ -350,10 +364,6 @@ void QgsFieldExpressionWidget::updateLineEditStyle( const QString &expression )
     if ( isExpression && !isValid )
     {
       palette.setColor( QPalette::Text, Qt::red );
-    }
-    else
-    {
-      palette.setColor( QPalette::Text, Qt::black );
     }
   }
   mCombo->lineEdit()->setPalette( palette );

@@ -114,7 +114,7 @@ QMenu::item:checked
 
 QWidget:disabled, QWidget:editable:disabled
 {
-    color: #404040;
+    color: @itemdarkbackground;
     background-color: @background;
 }
 
@@ -143,18 +143,13 @@ QTextEdit, QPlainTextEdit
 
 QPushButton 
 {
-    padding: 0.12em;
+    padding: 0.21em;
     border-width: 1px;
     border-color: @itembackground;
     border-style: solid;
     border-radius: 0px;
     background-color:@background;
     color:@text;
-}
-
-QPushButton[text^=""]
-{
-    min-width: 2.5em;
 }
 
 QToolButton
@@ -479,6 +474,10 @@ QTabBar::tab {
     padding-top: 0.1em;
     padding-bottom: 0.1em;
     margin-right: -0.05em;
+}
+
+QTabBar::tab:disabled {
+    color: @itemdarkbackground;
 }
 
 QTabBar::tab:last
@@ -863,4 +862,8 @@ QListWidget#mOptionsListWidget::item {
 QWidget#QgsTextFormatWidgetBase QTabWidget#mOptionsTab QTabBar::tab,
 QWidget#QgsRendererMeshPropsWidgetBase QTabWidget#mStyleOptionsTab QTabBar::tab {
     width: 1.2em;
+}
+
+QWidget#QgsRasterCalcDialogBase QWidget#mOperatorsGroupBox QPushButton {
+    min-width:2.3em;
 }

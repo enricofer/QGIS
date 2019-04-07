@@ -154,14 +154,14 @@ class CORE_EXPORT QgsSymbol
      * Ownership of \a layer is transferred to the symbol.
      * \param index The index at which the layer should be added
      * \param layer The symbol layer to add
-     * \returns True if the layer is added, False if the index or the layer is bad
+     * \returns TRUE if the layer is added, FALSE if the index or the layer is bad
      */
     bool insertSymbolLayer( int index, QgsSymbolLayer *layer SIP_TRANSFER );
 
     /**
      * Appends a symbol \a layer at the end of the current symbol layer list.
      * Ownership of \a layer is transferred to the symbol.
-     * \returns true if the layer was successfully added, false if the layer is not compatible with the
+     * \returns TRUE if the layer was successfully added, FALSE if the layer is not compatible with the
      * symbol's type().
      */
     bool appendSymbolLayer( QgsSymbolLayer *layer SIP_TRANSFER );
@@ -183,8 +183,8 @@ class CORE_EXPORT QgsSymbol
      * Deletes the current layer at the specified \a index and replaces it with \a layer.
      * Ownership of \a layer is transferred to the symbol.
      *
-     * Returns false if \a layer is not compatible with the symbol's type(), or
-     * true if the layer was successfully replaced.
+     * Returns FALSE if \a layer is not compatible with the symbol's type(), or
+     * TRUE if the layer was successfully replaced.
      */
     bool changeSymbolLayer( int index, QgsSymbolLayer *layer SIP_TRANSFER );
 
@@ -362,7 +362,7 @@ class CORE_EXPORT QgsSymbol
      * extent. If this option is enabled then features which are partially outside the extent
      * will be clipped. This speeds up rendering of the feature, but may have undesirable
      * side effects for certain symbol types.
-     * \param clipFeaturesToExtent set to true to enable clipping (defaults to true)
+     * \param clipFeaturesToExtent set to true to enable clipping (defaults to TRUE)
      * \see clipFeaturesToExtent
      * \since QGIS 2.9
      */
@@ -373,7 +373,7 @@ class CORE_EXPORT QgsSymbol
      * extent. If this option is enabled then features which are partially outside the extent
      * will be clipped. This speeds up rendering of the feature, but may have undesirable
      * side effects for certain symbol types.
-     * \returns true if features will be clipped
+     * \returns TRUE if features will be clipped
      * \see setClipFeaturesToExtent
      * \since QGIS 2.9
      */
@@ -391,7 +391,7 @@ class CORE_EXPORT QgsSymbol
     void setForceRHR( bool force ) { mForceRHR = force; }
 
     /**
-     * Returns true if polygon features drawn by the symbol will be reoriented to follow the
+     * Returns TRUE if polygon features drawn by the symbol will be reoriented to follow the
      * standard right-hand-rule orientation, in which the area that is
      * bounded by the polygon is to the right of the boundary. In particular, the exterior
      * ring is oriented in a clockwise direction and the interior rings in a counter-clockwise
@@ -415,7 +415,7 @@ class CORE_EXPORT QgsSymbol
     bool hasDataDefinedProperties() const;
 
     /**
-     * \note the layer will be NULL after stopRender
+     * \note the layer will be NULLPTR after stopRender
      * \deprecated Will be removed in QGIS 4.0
      */
     Q_DECL_DEPRECATED void setLayer( const QgsVectorLayer *layer ) SIP_DEPRECATED;
@@ -471,7 +471,7 @@ class CORE_EXPORT QgsSymbol
     /**
      * Creates a polygon ring in screen coordinates from a QgsCurve in map coordinates.
      *
-     * If \a correctRingOrientation is true then the ring will be oriented to match standard ring orientation, e.g.
+     * If \a correctRingOrientation is TRUE then the ring will be oriented to match standard ring orientation, e.g.
      * clockwise for exterior rings and counter-clockwise for interior rings.
      */
     static QPolygonF _getPolygonRing( QgsRenderContext &context, const QgsCurve &curve, bool clipToExtent, bool isExteriorRing = false, bool correctRingOrientation = false );
@@ -479,7 +479,7 @@ class CORE_EXPORT QgsSymbol
     /**
      * Creates a polygon in screen coordinates from a QgsPolygonXYin map coordinates
      *
-     * If \a correctRingOrientation is true then the ring will be oriented to match standard ring orientation, e.g.
+     * If \a correctRingOrientation is TRUE then the ring will be oriented to match standard ring orientation, e.g.
      * clockwise for exterior rings and counter-clockwise for interior rings.
      *
      */
@@ -526,7 +526,7 @@ class CORE_EXPORT QgsSymbol
 #endif
 
     /**
-     * True if render has already been started - guards against multiple calls to
+     * TRUE if render has already been started - guards against multiple calls to
      * startRender() (usually a result of not cloning a shared symbol instance before rendering).
      */
     bool mStarted = false;
@@ -550,12 +550,14 @@ class CORE_EXPORT QgsSymbolRenderContext
 {
   public:
 
+    //TODO QGIS 4.0 - remove mapUnitScale
+
     /**
      * Constructor for QgsSymbolRenderContext
      * \param c
      * \param u
      * \param opacity value between 0 (fully transparent) and 1 (fully opaque)
-     * \param selected set to true if symbol should be drawn in a "selected" state
+     * \param selected set to TRUE if symbol should be drawn in a "selected" state
      * \param renderHints flags controlling rendering behavior
      * \param f
      * \param fields
@@ -585,14 +587,27 @@ class CORE_EXPORT QgsSymbolRenderContext
      */
     void setOriginalValueVariable( const QVariant &value );
 
-    //! Returns the output unit for the context
-    QgsUnitTypes::RenderUnit outputUnit() const { return mOutputUnit; }
+    /**
+     * Returns the output unit for the context.
+     * \deprecated No longer used and will be removed in QGIS 4.0
+     */
+    Q_DECL_DEPRECATED QgsUnitTypes::RenderUnit outputUnit() const SIP_DEPRECATED { return mOutputUnit; }
 
-    //! Sets the output unit for the context
-    void setOutputUnit( QgsUnitTypes::RenderUnit u ) { mOutputUnit = u; }
+    /**
+     * Sets the output unit for the context.
+     * \deprecated No longer used and will be removed in QGIS 4.0
+     */
+    Q_DECL_DEPRECATED void setOutputUnit( QgsUnitTypes::RenderUnit u ) SIP_DEPRECATED { mOutputUnit = u; }
 
-    QgsMapUnitScale mapUnitScale() const { return mMapUnitScale; }
-    void setMapUnitScale( const QgsMapUnitScale &scale ) { mMapUnitScale = scale; }
+    /**
+     * \deprecated Will be removed in QGIS 4.0
+     */
+    Q_DECL_DEPRECATED QgsMapUnitScale mapUnitScale() const SIP_DEPRECATED { return mMapUnitScale; }
+
+    /**
+     * \deprecated Will be removed in QGIS 4.0
+     */
+    Q_DECL_DEPRECATED void setMapUnitScale( const QgsMapUnitScale &scale ) SIP_DEPRECATED { mMapUnitScale = scale; }
 
     /**
      * Returns the opacity for the symbol.
@@ -608,7 +623,16 @@ class CORE_EXPORT QgsSymbolRenderContext
      */
     void setOpacity( qreal opacity ) { mOpacity = opacity; }
 
+    /**
+     * Returns TRUE if symbols should be rendered using the selected symbol coloring and style.
+     * \see setSelected()
+     */
     bool selected() const { return mSelected; }
+
+    /**
+     * Sets whether symbols should be rendered using the selected symbol coloring and style.
+     * \see selected()
+     */
     void setSelected( bool selected ) { mSelected = selected; }
 
     /**
@@ -624,7 +648,10 @@ class CORE_EXPORT QgsSymbolRenderContext
     void setRenderHints( QgsSymbol::RenderHints hints ) { mRenderHints = hints; }
 
     void setFeature( const QgsFeature *f ) { mFeature = f; }
-    //! Current feature being rendered - may be null
+
+    /**
+     * Returns the current feature being rendered. This may be NULLPTR.
+     */
     const QgsFeature *feature() const { return mFeature; }
 
     /**
@@ -647,7 +674,7 @@ class CORE_EXPORT QgsSymbolRenderContext
     /**
      * Fields of the layer. Currently only available in startRender() calls
      * to allow symbols with data-defined properties prepare the expressions
-     * (other times fields() returns null)
+     * (other times fields() returns an empty QgsFields object).
      * \since QGIS 2.4
      */
     QgsFields fields() const { return mFields; }
@@ -676,8 +703,15 @@ class CORE_EXPORT QgsSymbolRenderContext
      */
     void setGeometryPartNum( int num ) { mGeometryPartNum = num; }
 
-    double outputLineWidth( double width ) const;
-    double outputPixelSize( double size ) const;
+    /**
+     * \deprecated Use the size conversion methods in QgsRenderContext instead.
+     */
+    Q_DECL_DEPRECATED double outputLineWidth( double width ) const SIP_DEPRECATED;
+
+    /**
+     * \deprecated Use the size conversion methods in QgsRenderContext instead.
+     */
+    Q_DECL_DEPRECATED double outputPixelSize( double size ) const SIP_DEPRECATED;
 
     // workaround for sip 4.7. Don't use assignment - will fail with assertion error
     QgsSymbolRenderContext &operator=( const QgsSymbolRenderContext & );
@@ -887,6 +921,18 @@ class CORE_EXPORT QgsMarkerSymbol : public QgsSymbol
     void setScaleMethod( QgsSymbol::ScaleMethod scaleMethod );
     ScaleMethod scaleMethod();
 
+    /**
+     * Renders the symbol at the specified \a point, using the given render \a context.
+     *
+     * The \a f argument is used to pass the feature currently being rendered (when available).
+     *
+     * If only a single symbol layer from the symbol should be rendered, it should be specified
+     * in the \a layer argument. A \a layer of -1 indicates that all symbol layers should be
+     * rendered.
+     *
+     * If \a selected is true then the symbol will be drawn using the "selected feature"
+     * style and colors instead of the symbol's normal style.
+     */
     void renderPoint( QPointF point, const QgsFeature *f, QgsRenderContext &context, int layer = -1, bool selected = false );
 
     /**
@@ -983,6 +1029,18 @@ class CORE_EXPORT QgsLineSymbol : public QgsSymbol
      */
     QgsProperty dataDefinedWidth() const;
 
+    /**
+     * Renders the symbol along the line joining \a points, using the given render \a context.
+     *
+     * The \a f argument is used to pass the feature currently being rendered (when available).
+     *
+     * If only a single symbol layer from the symbol should be rendered, it should be specified
+     * in the \a layer argument. A \a layer of -1 indicates that all symbol layers should be
+     * rendered.
+     *
+     * If \a selected is true then the symbol will be drawn using the "selected feature"
+     * style and colors instead of the symbol's normal style.
+     */
     void renderPolyline( const QPolygonF &points, const QgsFeature *f, QgsRenderContext &context, int layer = -1, bool selected = false );
 
     QgsLineSymbol *clone() const override SIP_FACTORY;
@@ -1017,6 +1075,22 @@ class CORE_EXPORT QgsFillSymbol : public QgsSymbol
      */
     QgsFillSymbol( const QgsSymbolLayerList &layers SIP_TRANSFER = QgsSymbolLayerList() );
     void setAngle( double angle );
+
+    /**
+     * Renders the symbol using the given render \a context.
+     *
+     * The \a points list dictates the exterior ring for the polygon to render, and
+     * interior rings are optionally specified via the \a rings argument.
+     *
+     * The \a f argument is used to pass the feature currently being rendered (when available).
+     *
+     * If only a single symbol layer from the symbol should be rendered, it should be specified
+     * in the \a layer argument. A \a layer of -1 indicates that all symbol layers should be
+     * rendered.
+     *
+     * If \a selected is true then the symbol will be drawn using the "selected feature"
+     * style and colors instead of the symbol's normal style.
+     */
     void renderPolygon( const QPolygonF &points, QList<QPolygonF> *rings, const QgsFeature *f, QgsRenderContext &context, int layer = -1, bool selected = false );
 
     QgsFillSymbol *clone() const override SIP_FACTORY;

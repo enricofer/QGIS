@@ -33,7 +33,13 @@ from qgis.PyQt.QtWidgets import QDialog, QWidget, QAction, QApplication, QInputD
 from qgis.PyQt.QtGui import QKeySequence, QCursor, QClipboard, QIcon, QStandardItemModel, QStandardItem
 from qgis.PyQt.Qsci import QsciAPIs
 
-from qgis.core import QgsProject, QgsApplication, QgsTask, QgsSettings
+from qgis.core import (
+    QgsProject,
+    QgsApplication,
+    QgsTask,
+    QgsSettings,
+    QgsMapLayerType
+)
 from qgis.utils import OverrideCursor
 
 from .db_plugins.plugin import BaseError
@@ -351,7 +357,7 @@ class DlgSqlWindow(QWidget, Ui_Dialog):
 
     def executeSql(self):
 
-        sql = self._getSqlQuery()
+        sql = self._getExecutableSqlQuery()
         if sql == "":
             return
 
@@ -393,7 +399,7 @@ class DlgSqlWindow(QWidget, Ui_Dialog):
         else:
             geomFieldName = None
 
-        query = self._getSqlQuery()
+        query = self._getExecutableSqlQuery()
         if query == "":
             return None
 
@@ -401,9 +407,7 @@ class DlgSqlWindow(QWidget, Ui_Dialog):
         if query.strip().endswith(';'):
             query = query.strip()[:-1]
 
-        from qgis.core import QgsMapLayer
-
-        layerType = QgsMapLayer.VectorLayer if self.vectorRadio.isChecked() else QgsMapLayer.RasterLayer
+        layerType = QgsMapLayerType.VectorLayer if self.vectorRadio.isChecked() else QgsMapLayerType.RasterLayer
 
         # get a new layer name
         names = []
@@ -438,7 +442,7 @@ class DlgSqlWindow(QWidget, Ui_Dialog):
             QgsProject.instance().addMapLayers([layer], True)
 
     def fillColumnCombos(self):
-        query = self._getSqlQuery()
+        query = self._getExecutableSqlQuery()
         if query == "":
             return
 
@@ -588,15 +592,26 @@ class DlgSqlWindow(QWidget, Ui_Dialog):
         name, ok = QInputDialog.getText(None, self.tr("View Name"), self.tr("View name"))
         if ok:
             try:
-                self.db.connector.createSpatialView(name, self._getSqlQuery())
+                self.db.connector.createSpatialView(name, self._getExecutableSqlQuery())
             except BaseError as e:
                 DlgDbError.showError(e, self)
 
     def _getSqlQuery(self):
         sql = self.editSql.selectedText()
         if len(sql) == 0:
-            sql = self.editSql.text().replace('\n', ' ').strip()
+            sql = self.editSql.text()
         return sql
+
+    def _getExecutableSqlQuery(self):
+        sql = self._getSqlQuery()
+
+        # Clean it up!
+        lines = []
+        for line in sql.split('\n'):
+            if not line.strip().startswith('--'):
+                lines.append(line)
+        sql = ' '.join(lines)
+        return sql.strip()
 
     def uniqueChanged(self):
         # when an item is (un)checked, simply trigger an update of the combobox text

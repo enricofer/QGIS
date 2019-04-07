@@ -466,7 +466,7 @@ QgsOptions::QgsOptions( QWidget *parent, Qt::WindowFlags fl, const QList<QgsOpti
   leProjectGlobalCrs->setCrs( mDefaultCrs );
   leProjectGlobalCrs->setOptionVisible( QgsProjectionSelectionWidget::DefaultCrs, false );
 
-  mShowDatumTransformDialogCheckBox->setChecked( mSettings->value( QStringLiteral( "/Projections/showDatumTransformDialog" ), false ).toBool() );
+  mShowDatumTransformDialogCheckBox->setChecked( mSettings->value( QStringLiteral( "/projections/promptWhenMultipleTransformsExist" ), false, QgsSettings::App ).toBool() );
 
   // Datum transforms
   QgsCoordinateTransformContext context;
@@ -572,6 +572,10 @@ QgsOptions::QgsOptions( QWidget *parent, Qt::WindowFlags fl, const QList<QgsOpti
   whileBlocking( cmbStyle )->setCurrentIndex( cmbStyle->findText( name, Qt::MatchFixedString ) );
 
   QString theme = mSettings->value( QStringLiteral( "UI/UITheme" ), QStringLiteral( "default" ) ).toString();
+  if ( !QgsApplication::uiThemes().contains( theme ) )
+  {
+    theme = QStringLiteral( "default" );
+  }
   whileBlocking( cmbUITheme )->setCurrentIndex( cmbUITheme->findText( theme, Qt::MatchFixedString ) );
 
   mNativeColorDialogsChkBx->setChecked( mSettings->value( QStringLiteral( "/qgis/native_color_dialogs" ), false ).toBool() );
@@ -1536,7 +1540,7 @@ void QgsOptions::saveOptions()
   mSettings->setValue( QStringLiteral( "/Projections/layerDefaultCrs" ), mLayerDefaultCrs.authid() );
   mSettings->setValue( QStringLiteral( "/Projections/projectDefaultCrs" ), mDefaultCrs.authid() );
 
-  mSettings->setValue( QStringLiteral( "/Projections/showDatumTransformDialog" ), mShowDatumTransformDialogCheckBox->isChecked() );
+  mSettings->setValue( QStringLiteral( "/projections/promptWhenMultipleTransformsExist" ), mShowDatumTransformDialogCheckBox->isChecked(), QgsSettings::App );
 
   //measurement settings
 

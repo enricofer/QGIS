@@ -19,6 +19,7 @@
 #include <QStringList>
 #include <QTextBoundaryFinder>
 #include <QRegularExpression>
+#include <cstdlib> // for std::abs
 
 QString QgsStringUtils::capitalize( const QString &string, QgsStringUtils::Capitalization capitalization )
 {
@@ -562,7 +563,8 @@ QgsStringReplacement QgsStringReplacement::fromProperties( const QgsStringMap &p
 QString QgsStringReplacementCollection::process( const QString &input ) const
 {
   QString result = input;
-  Q_FOREACH ( const QgsStringReplacement &r, mReplacements )
+  const auto constMReplacements = mReplacements;
+  for ( const QgsStringReplacement &r : constMReplacements )
   {
     result = r.process( result );
   }
@@ -571,7 +573,8 @@ QString QgsStringReplacementCollection::process( const QString &input ) const
 
 void QgsStringReplacementCollection::writeXml( QDomElement &elem, QDomDocument &doc ) const
 {
-  Q_FOREACH ( const QgsStringReplacement &r, mReplacements )
+  const auto constMReplacements = mReplacements;
+  for ( const QgsStringReplacement &r : constMReplacements )
   {
     QgsStringMap props = r.properties();
     QDomElement propEl = doc.createElement( QStringLiteral( "replacement" ) );

@@ -100,7 +100,7 @@ const QgsRasterMinMaxOrigin::Limits
 QgsRasterLayer::MULTIPLE_BAND_MULTI_BYTE_MIN_MAX_LIMITS = QgsRasterMinMaxOrigin::CumulativeCut;
 
 QgsRasterLayer::QgsRasterLayer()
-  : QgsMapLayer( RasterLayer )
+  : QgsMapLayer( QgsMapLayerType::RasterLayer )
   , QSTRING_NOT_SET( QStringLiteral( "Not Set" ) )
   , TRSTRING_NOT_SET( tr( "Not Set" ) )
 
@@ -113,7 +113,7 @@ QgsRasterLayer::QgsRasterLayer( const QString &uri,
                                 const QString &baseName,
                                 const QString &providerKey,
                                 const LayerOptions &options )
-  : QgsMapLayer( RasterLayer, baseName, uri )
+  : QgsMapLayer( QgsMapLayerType::RasterLayer, baseName, uri )
     // Constant that signals property not used.
   , QSTRING_NOT_SET( QStringLiteral( "Not Set" ) )
   , TRSTRING_NOT_SET( tr( "Not Set" ) )
@@ -975,7 +975,8 @@ void QgsRasterLayer::setContrastEnhancement( QgsContrastEnhancement::ContrastEnh
     return;
   }
 
-  Q_FOREACH ( int myBand, myBands )
+  const auto constMyBands = myBands;
+  for ( int myBand : constMyBands )
   {
     if ( myBand != -1 )
     {
@@ -1900,7 +1901,8 @@ bool QgsRasterLayer::writeXml( QDomNode &layer_node,
     noDataRangeList.setAttribute( QStringLiteral( "bandNo" ), bandNo );
     noDataRangeList.setAttribute( QStringLiteral( "useSrcNoData" ), mDataProvider->useSourceNoDataValue( bandNo ) );
 
-    Q_FOREACH ( QgsRasterRange range, mDataProvider->userNoDataValues( bandNo ) )
+    const auto constUserNoDataValues = mDataProvider->userNoDataValues( bandNo );
+    for ( QgsRasterRange range : constUserNoDataValues )
     {
       QDomElement noDataRange = document.createElement( QStringLiteral( "noDataRange" ) );
 

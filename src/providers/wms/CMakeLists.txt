@@ -1,6 +1,3 @@
-FIND_PACKAGE(Qt5XmlPatterns REQUIRED)
-
-
 SET (WMS_SRCS
   qgswmscapabilities.cpp
   qgswmsprovider.cpp
@@ -76,6 +73,8 @@ IF (WITH_GUI)
     qgis_gui
   )
 ENDIF ()
+
+TARGET_COMPILE_DEFINITIONS(wmsprovider PRIVATE "-DQT_NO_FOREACH")
 
 INSTALL (TARGETS wmsprovider
   RUNTIME DESTINATION ${QGIS_PLUGIN_DIR}
