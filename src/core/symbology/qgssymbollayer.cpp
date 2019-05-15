@@ -105,43 +105,43 @@ void QgsSymbolLayer::setDataDefinedProperty( QgsSymbolLayer::Property key, const
 
 bool QgsSymbolLayer::writeDxf( QgsDxfExport &e, double mmMapUnitScaleFactor, const QString &layerName, QgsSymbolRenderContext &context, QPointF shift ) const
 {
-  Q_UNUSED( e );
-  Q_UNUSED( mmMapUnitScaleFactor );
-  Q_UNUSED( layerName );
-  Q_UNUSED( context );
-  Q_UNUSED( shift );
+  Q_UNUSED( e )
+  Q_UNUSED( mmMapUnitScaleFactor )
+  Q_UNUSED( layerName )
+  Q_UNUSED( context )
+  Q_UNUSED( shift )
   return false;
 }
 
 double QgsSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
 {
-  Q_UNUSED( e );
-  Q_UNUSED( context );
+  Q_UNUSED( e )
+  Q_UNUSED( context )
   return 1.0;
 }
 
 double QgsSymbolLayer::dxfOffset( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
 {
-  Q_UNUSED( e );
-  Q_UNUSED( context );
+  Q_UNUSED( e )
+  Q_UNUSED( context )
   return 0.0;
 }
 
 QColor QgsSymbolLayer::dxfColor( QgsSymbolRenderContext &context ) const
 {
-  Q_UNUSED( context );
+  Q_UNUSED( context )
   return color();
 }
 
 double QgsSymbolLayer::dxfAngle( QgsSymbolRenderContext &context ) const
 {
-  Q_UNUSED( context );
+  Q_UNUSED( context )
   return 0.0;
 }
 
 QVector<qreal> QgsSymbolLayer::dxfCustomDashPattern( QgsUnitTypes::RenderUnit &unit ) const
 {
-  Q_UNUSED( unit );
+  Q_UNUSED( unit )
   return QVector<qreal>();
 }
 
@@ -152,7 +152,7 @@ Qt::PenStyle QgsSymbolLayer::dxfPenStyle() const
 
 QColor QgsSymbolLayer::dxfBrushColor( QgsSymbolRenderContext &context ) const
 {
-  Q_UNUSED( context );
+  Q_UNUSED( context )
   return color();
 }
 
@@ -176,7 +176,6 @@ QgsSymbolLayer::QgsSymbolLayer( QgsSymbol::SymbolType type, bool locked )
   : mType( type )
   , mEnabled( true )
   , mLocked( locked )
-  , mRenderingPass( 0 )
 
 {
   mPaintEffect = QgsPaintEffectRegistry::defaultStack();
@@ -216,6 +215,16 @@ bool QgsSymbolLayer::isCompatibleWithSymbol( QgsSymbol *symbol ) const
     return true;
 
   return symbol->type() == mType;
+}
+
+void QgsSymbolLayer::setRenderingPass( int renderingPass )
+{
+  mRenderingPass = renderingPass;
+}
+
+int QgsSymbolLayer::renderingPass() const
+{
+  return mRenderingPass;
 }
 
 QSet<QString> QgsSymbolLayer::usedAttributes( const QgsRenderContext &context ) const
@@ -414,12 +423,12 @@ QgsFillSymbolLayer::QgsFillSymbolLayer( bool locked )
 
 void QgsMarkerSymbolLayer::startRender( QgsSymbolRenderContext &context )
 {
-  Q_UNUSED( context );
+  Q_UNUSED( context )
 }
 
 void QgsMarkerSymbolLayer::stopRender( QgsSymbolRenderContext &context )
 {
-  Q_UNUSED( context );
+  Q_UNUSED( context )
 }
 
 void QgsMarkerSymbolLayer::drawPreviewIcon( QgsSymbolRenderContext &context, QSize size )
@@ -664,7 +673,7 @@ double QgsLineSymbolLayer::width( const QgsRenderContext &context ) const
 
 double QgsLineSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
 {
-  Q_UNUSED( context );
+  Q_UNUSED( context )
   return width() * e.mapUnitScaleFactor( e.symbologyScale(), widthUnit(), e.mapUnits(), context.renderContext().mapToPixel().mapUnitsPerPixel() );
 }
 

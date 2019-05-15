@@ -480,7 +480,7 @@ void QgsWMSSourceSelect::btnConnect_clicked()
     return;
   }
 
-  QgsWmsCapabilities caps;
+  QgsWmsCapabilities caps { QgsProject::instance()->transformContext()  };
   if ( !caps.parseResponse( capDownload.response(), wmsSettings.parserSettings() ) )
   {
     QMessageBox msgBox( QMessageBox::Warning, tr( "WMS Provider" ),
@@ -886,7 +886,7 @@ void QgsWMSSourceSelect::lstLayers_itemSelectionChanged()
 
 void QgsWMSSourceSelect::lstTilesets_itemClicked( QTableWidgetItem *item )
 {
-  Q_UNUSED( item );
+  Q_UNUSED( item )
 
   QTableWidgetItem *rowItem = lstTilesets->item( lstTilesets->currentRow(), 0 );
   bool wasSelected = mCurrentTileset == rowItem;

@@ -23,7 +23,9 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 
 DROP SCHEMA IF EXISTS qgis_test CASCADE;
 CREATE SCHEMA qgis_test;
-
+GRANT ALL ON SCHEMA qgis_test TO public;
+ALTER DEFAULT PRIVILEGES IN SCHEMA qgis_test GRANT ALL ON TABLES TO public;
+ALTER DEFAULT PRIVILEGES IN SCHEMA qgis_test GRANT ALL ON SEQUENCES TO public;
 
 SET default_tablespace = '';
 
@@ -467,6 +469,8 @@ INSERT INTO qgis_test.rename_table (field1,field2) VALUES ('a','b');
 -- Table for editor widget types
 --
 
+DROP TABLE IF EXISTS qgis_editor_widget_styles;
+
 CREATE TABLE qgis_editor_widget_styles
 (
   schema_name TEXT NOT NULL,
@@ -530,4 +534,43 @@ INSERT INTO qgis_test.check_constraints VALUES (
   1, -- id
   4, -- a
   3  -- b
+);
+
+
+---------------------------------------------
+--
+-- Table and view for tests on  checkPrimaryKeyUnicity
+--
+
+DROP TABLE IF EXISTS qgis_test.b21839_pk_unicity CASCADE;
+CREATE TABLE qgis_test.b21839_pk_unicity
+(
+  pk serial NOT NULL,
+  an_int integer NOT NULL,
+  a_unique_int integer NOT NULL,
+  geom geometry(Point),
+  CONSTRAINT b21839_pk_unicity_pkey PRIMARY KEY (pk)
 )
+WITH (
+  OIDS=FALSE
+);
+
+
+INSERT INTO qgis_test.b21839_pk_unicity(
+            pk, an_int, a_unique_int , geom)
+    VALUES (1, 1, 1, ST_GeomFromText('point( 1 1)'));
+
+
+INSERT INTO qgis_test.b21839_pk_unicity(
+            pk, an_int, a_unique_int, geom)
+    VALUES (2, 1, 2, ST_GeomFromText('point( 1 3)'));
+
+
+
+CREATE OR REPLACE VIEW qgis_test.b21839_pk_unicity_view AS
+ SELECT b21839_pk_unicity.pk,
+    b21839_pk_unicity.an_int,
+    b21839_pk_unicity.a_unique_int,
+    b21839_pk_unicity.geom
+   FROM qgis_test.b21839_pk_unicity;
+

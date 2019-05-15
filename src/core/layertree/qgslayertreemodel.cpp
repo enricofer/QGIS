@@ -91,7 +91,7 @@ int QgsLayerTreeModel::rowCount( const QModelIndex &parent ) const
 
 int QgsLayerTreeModel::columnCount( const QModelIndex &parent ) const
 {
-  Q_UNUSED( parent );
+  Q_UNUSED( parent )
   return 1;
 }
 
@@ -539,9 +539,12 @@ void QgsLayerTreeModel::refreshLayerLegend( QgsLayerTreeLayer *nodeLayer )
 
   // update children
   int oldNodeCount = rowCount( idx );
-  beginRemoveRows( idx, 0, std::max( oldNodeCount - 1, 0 ) );
-  removeLegendFromLayer( nodeLayer );
-  endRemoveRows();
+  if ( oldNodeCount > 0 )
+  {
+    beginRemoveRows( idx, 0, oldNodeCount - 1 );
+    removeLegendFromLayer( nodeLayer );
+    endRemoveRows();
+  }
 
   addLegendToLayer( nodeLayer );
   int newNodeCount = rowCount( idx );
@@ -775,7 +778,7 @@ void QgsLayerTreeModel::nodeVisibilityChanged( QgsLayerTreeNode *node )
 
 void QgsLayerTreeModel::nodeNameChanged( QgsLayerTreeNode *node, const QString &name )
 {
-  Q_UNUSED( name );
+  Q_UNUSED( name )
   Q_ASSERT( node );
 
   QModelIndex index = node2index( node );

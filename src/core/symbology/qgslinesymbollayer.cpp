@@ -194,12 +194,13 @@ void QgsSimpleLineSymbolLayer::startRender( QgsSymbolRenderContext &context )
   mPen.setColor( penColor );
   double scaledWidth = context.renderContext().convertToPainterUnits( mWidth, mWidthUnit, mWidthMapUnitScale );
   mPen.setWidthF( scaledWidth );
-  if ( mUseCustomDashPattern && !qgsDoubleNear( scaledWidth, 0 ) )
+  if ( mUseCustomDashPattern )
   {
     mPen.setStyle( Qt::CustomDashLine );
 
     //scale pattern vector
-    double dashWidthDiv = scaledWidth;
+    double dashWidthDiv = qgsDoubleNear( scaledWidth, 0 ) ? 1.0 : scaledWidth;
+
     //fix dash pattern width in Qt 4.8
     QStringList versionSplit = QString( qVersion() ).split( '.' );
     if ( versionSplit.size() > 1
@@ -233,7 +234,7 @@ void QgsSimpleLineSymbolLayer::startRender( QgsSymbolRenderContext &context )
 
 void QgsSimpleLineSymbolLayer::stopRender( QgsSymbolRenderContext &context )
 {
-  Q_UNUSED( context );
+  Q_UNUSED( context )
 }
 
 void QgsSimpleLineSymbolLayer::renderPolygonStroke( const QPolygonF &points, QList<QPolygonF> *rings, QgsSymbolRenderContext &context )
@@ -651,7 +652,7 @@ QColor QgsSimpleLineSymbolLayer::dxfColor( QgsSymbolRenderContext &context ) con
 
 double QgsSimpleLineSymbolLayer::dxfOffset( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
 {
-  Q_UNUSED( e );
+  Q_UNUSED( e )
   double offset = mOffset;
 
   if ( mDataDefinedProperties.isActive( QgsSymbolLayer::PropertyOffset ) )

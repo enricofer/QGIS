@@ -25,6 +25,7 @@
 #include "qgssettings.h"
 #include "qgsmessageoutput.h"
 #include "qgsapplication.h"
+#include "qgsproject.h"
 
 #ifdef HAVE_GUI
 #include "qgsdb2newconnection.h"
@@ -298,7 +299,7 @@ void QgsDb2ConnectionItem::refreshConnection()
 {
   QString errMsg;
   QSqlDatabase db = QgsDb2Provider::getDatabase( mConnInfo, errMsg );
-  Q_UNUSED( db );
+  Q_UNUSED( db )
   if ( errMsg.isEmpty() )
   {
     QgsDebugMsg( QStringLiteral( "successful get db2 connection on refresh" ) );
@@ -339,7 +340,8 @@ bool QgsDb2ConnectionItem::handleDrop( const QMimeData *data, const QString &toS
 
     QgsDebugMsg( QStringLiteral( "uri: %1; name: %2; key: %3" ).arg( u.uri, u.name, u.providerKey ) );
     // open the source layer
-    QgsVectorLayer *srcLayer = new QgsVectorLayer( u.uri, u.name, u.providerKey );
+    const QgsVectorLayer::LayerOptions options { QgsProject::instance()->transformContext() };
+    QgsVectorLayer *srcLayer = new QgsVectorLayer( u.uri, u.name, u.providerKey, options );
 
     if ( srcLayer->isValid() )
     {

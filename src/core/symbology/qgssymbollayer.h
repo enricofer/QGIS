@@ -175,6 +175,8 @@ class CORE_EXPORT QgsSymbolLayer
       PropertyArrowHeadThickness, //!< Arrow head thickness
       PropertyArrowHeadType, //!< Arrow head type
       PropertyArrowType, //!< Arrow type
+      PropertyOffsetX, //!< Horizontal offset
+      PropertyOffsetY, //!< Vertical offset
     };
 
     /**
@@ -214,7 +216,7 @@ class CORE_EXPORT QgsSymbolLayer
     /**
      * Set stroke color. Supported by marker and fill layers.
      * \since QGIS 2.1 */
-    virtual void setStrokeColor( const QColor &color ) { Q_UNUSED( color ); }
+    virtual void setStrokeColor( const QColor &color ) { Q_UNUSED( color ) }
 
     /**
      * Gets stroke color. Supported by marker and fill layers.
@@ -224,7 +226,7 @@ class CORE_EXPORT QgsSymbolLayer
     /**
      * Set fill color. Supported by marker and fill layers.
      * \since QGIS 2.1 */
-    virtual void setFillColor( const QColor &color ) { Q_UNUSED( color ); }
+    virtual void setFillColor( const QColor &color ) { Q_UNUSED( color ) }
 
     /**
      * Gets fill color. Supported by marker and fill layers.
@@ -246,9 +248,9 @@ class CORE_EXPORT QgsSymbolLayer
     virtual QgsSymbolLayer *clone() const = 0 SIP_FACTORY;
 
     virtual void toSld( QDomDocument &doc, QDomElement &element, const QgsStringMap &props ) const
-    { Q_UNUSED( props ); element.appendChild( doc.createComment( QStringLiteral( "SymbolLayerV2 %1 not implemented yet" ).arg( layerType() ) ) ); }
+    { Q_UNUSED( props ) element.appendChild( doc.createComment( QStringLiteral( "SymbolLayerV2 %1 not implemented yet" ).arg( layerType() ) ) ); }
 
-    virtual QString ogrFeatureStyle( double mmScaleFactor, double mapUnitScaleFactor ) const { Q_UNUSED( mmScaleFactor ); Q_UNUSED( mapUnitScaleFactor ); return QString(); }
+    virtual QString ogrFeatureStyle( double mmScaleFactor, double mapUnitScaleFactor ) const { Q_UNUSED( mmScaleFactor ) Q_UNUSED( mapUnitScaleFactor ); return QString(); }
 
     /**
      * Should be reimplemented by subclasses to return a string map that
@@ -281,7 +283,7 @@ class CORE_EXPORT QgsSymbolLayer
       drawn with an stroke will draw half the width
       of the stroke outside of the polygon. This amount is estimated, since it may
       be affected by data defined symbology rules.*/
-    virtual double estimateMaxBleed( const QgsRenderContext &context ) const { Q_UNUSED( context ); return 0; }
+    virtual double estimateMaxBleed( const QgsRenderContext &context ) const { Q_UNUSED( context ) return 0; }
 
     /**
      * Sets the units to use for sizes and widths within the symbol layer. Individual
@@ -291,7 +293,7 @@ class CORE_EXPORT QgsSymbolLayer
      * \param unit output units
      * \see outputUnit()
      */
-    virtual void setOutputUnit( QgsUnitTypes::RenderUnit unit ) { Q_UNUSED( unit ); }
+    virtual void setOutputUnit( QgsUnitTypes::RenderUnit unit ) { Q_UNUSED( unit ) }
 
     /**
      * Returns the units to use for sizes and widths within the symbol layer. Individual
@@ -303,12 +305,24 @@ class CORE_EXPORT QgsSymbolLayer
      */
     virtual QgsUnitTypes::RenderUnit outputUnit() const { return QgsUnitTypes::RenderUnknownUnit; }
 
-    virtual void setMapUnitScale( const QgsMapUnitScale &scale ) { Q_UNUSED( scale ); }
+    virtual void setMapUnitScale( const QgsMapUnitScale &scale ) { Q_UNUSED( scale ) }
     virtual QgsMapUnitScale mapUnitScale() const { return QgsMapUnitScale(); }
 
-    // used only with rending with symbol levels is turned on (0 = first pass, 1 = second, ...)
-    void setRenderingPass( int renderingPass ) { mRenderingPass = renderingPass; }
-    int renderingPass() const { return mRenderingPass; }
+    /**
+     * Specifies the rendering pass in which this symbol layer should be rendered.
+     * The lower the number, the lower the symbol will be rendered.
+     * 0: first pass, 1: second pass, ...
+     * Defaults to 0
+     */
+    void setRenderingPass( int renderingPass );
+
+    /**
+     * Specifies the rendering pass in which this symbol layer should be rendered.
+     * The lower the number, the lower the symbol will be rendered.
+     * 0: first pass, 1: second pass, ...
+     * Defaults to 0
+     */
+    int renderingPass() const;
 
     /**
      * Returns the set of attributes referenced by the layer. This includes attributes
@@ -417,7 +431,7 @@ class CORE_EXPORT QgsSymbolLayer
 
     bool mLocked;
     QColor mColor;
-    int mRenderingPass;
+    int mRenderingPass = 0;
 
     QgsPropertyCollection mDataDefinedProperties;
 
@@ -532,7 +546,7 @@ class CORE_EXPORT QgsMarkerSymbolLayer : public QgsSymbolLayer
      * \see setSizeUnit()
      * \see setSizeMapUnitScale()
      */
-    void setSize( double size ) { mSize = size; }
+    virtual void setSize( double size ) { mSize = size; }
 
     /**
      * Returns the symbol size. Units are specified by sizeUnit().
@@ -685,7 +699,7 @@ class CORE_EXPORT QgsMarkerSymbolLayer : public QgsSymbolLayer
      * \param props symbol layer definition (see properties())
      */
     virtual void writeSldMarker( QDomDocument &doc, QDomElement &element, const QgsStringMap &props ) const
-    { Q_UNUSED( props ); element.appendChild( doc.createComment( QStringLiteral( "QgsMarkerSymbolLayer %1 not implemented yet" ).arg( layerType() ) ) ); }
+    { Q_UNUSED( props ) element.appendChild( doc.createComment( QStringLiteral( "QgsMarkerSymbolLayer %1 not implemented yet" ).arg( layerType() ) ) ); }
 
     void setOutputUnit( QgsUnitTypes::RenderUnit unit ) override;
     QgsUnitTypes::RenderUnit outputUnit() const override;

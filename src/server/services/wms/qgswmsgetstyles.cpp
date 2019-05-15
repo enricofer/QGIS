@@ -51,7 +51,7 @@ namespace QgsWms
   QDomDocument getStyles( QgsServerInterface *serverIface, const QgsProject *project, const QString &version,
                           const QgsServerRequest &request )
   {
-    Q_UNUSED( version );
+    Q_UNUSED( version )
 
     QgsServerRequest::Parameters parameters = request.parameters();
 
@@ -59,14 +59,14 @@ namespace QgsWms
 
     if ( layersName.isEmpty() )
     {
-      throw QgsBadRequestException( QgsServiceException::QGIS_MISSING_PARAMETER_VALUE,
+      throw QgsBadRequestException( QgsServiceException::QGIS_MissingParameterValue,
                                     QgsWmsParameter::LAYERS );
     }
 
     QStringList layerList = layersName.split( ',', QString::SkipEmptyParts );
     if ( layerList.isEmpty() )
     {
-      throw QgsBadRequestException( QgsServiceException::QGIS_MISSING_PARAMETER_VALUE,
+      throw QgsBadRequestException( QgsServiceException::QGIS_MissingParameterValue,
                                     QgsWmsParameter::LAYERS );
     }
 
@@ -85,7 +85,7 @@ namespace QgsWms
   QDomDocument getStyle( QgsServerInterface *serverIface, const QgsProject *project, const QString &version,
                          const QgsServerRequest &request )
   {
-    Q_UNUSED( version );
+    Q_UNUSED( version )
 
     QgsServerRequest::Parameters parameters = request.parameters();
 
@@ -96,13 +96,13 @@ namespace QgsWms
 
     if ( styleName.isEmpty() )
     {
-      throw QgsBadRequestException( QgsServiceException::QGIS_MISSING_PARAMETER_VALUE,
+      throw QgsBadRequestException( QgsServiceException::QGIS_MissingParameterValue,
                                     QgsWmsParameter::STYLE );
     }
 
     if ( layerName.isEmpty() )
     {
-      throw QgsBadRequestException( QgsServiceException::QGIS_MISSING_PARAMETER_VALUE,
+      throw QgsBadRequestException( QgsServiceException::QGIS_MissingParameterValue,
                                     QgsWmsParameter::LAYERS );
     }
 
@@ -132,7 +132,11 @@ namespace QgsWms
       myDocument.appendChild( root );
 
       // access control
+#ifdef HAVE_SERVER_PYTHON_PLUGINS
       QgsAccessControl *accessControl = serverIface->accessControls();
+#else
+      ( void )serverIface;
+#endif
       // Use layer ids
       bool useLayerIds = QgsServerProjectUtils::wmsUseLayerIds( *project );
       // WMS restricted layers

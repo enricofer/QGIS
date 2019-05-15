@@ -345,7 +345,31 @@ bool QgsProcessingParameters::parameterAsBool( const QgsProcessingParameterDefin
   return parameterAsBool( definition, parameters.value( definition->name() ), context );
 }
 
+bool QgsProcessingParameters::parameterAsBoolean( const QgsProcessingParameterDefinition *definition, const QVariantMap &parameters, const QgsProcessingContext &context )
+{
+  if ( !definition )
+    return false;
+
+  return parameterAsBoolean( definition, parameters.value( definition->name() ), context );
+}
+
 bool QgsProcessingParameters::parameterAsBool( const QgsProcessingParameterDefinition *definition, const QVariant &value, const QgsProcessingContext &context )
+{
+  if ( !definition )
+    return false;
+
+  QVariant def = definition->defaultValue();
+
+  QVariant val = value;
+  if ( val.canConvert<QgsProperty>() )
+    return val.value< QgsProperty >().valueAsBool( context.expressionContext(), def.toBool() );
+  else if ( val.isValid() )
+    return val.toBool();
+  else
+    return def.toBool();
+}
+
+bool QgsProcessingParameters::parameterAsBoolean( const QgsProcessingParameterDefinition *definition, const QVariant &value, const QgsProcessingContext &context )
 {
   if ( !definition )
     return false;
@@ -5087,7 +5111,7 @@ bool QgsProcessingParameterBand::checkValueIsAcceptable( const QVariant &input, 
   {
     bool ok = false;
     double res = input.toInt( &ok );
-    Q_UNUSED( res );
+    Q_UNUSED( res )
     if ( !ok )
       return mFlags & FlagOptional;
   }

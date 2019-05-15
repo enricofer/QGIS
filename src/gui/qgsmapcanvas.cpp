@@ -334,7 +334,8 @@ void QgsMapCanvas::setLayersPrivate( const QList<QgsMapLayer *> &layers )
   if ( layers == oldLayers )
     return;
 
-  Q_FOREACH ( QgsMapLayer *layer, oldLayers )
+  const auto constOldLayers = oldLayers;
+  for ( QgsMapLayer *layer : constOldLayers )
   {
     disconnect( layer, &QgsMapLayer::repaintRequested, this, &QgsMapCanvas::layerRepaintRequested );
     disconnect( layer, &QgsMapLayer::autoRefreshIntervalChanged, this, &QgsMapCanvas::updateAutoRefreshTimer );
@@ -346,7 +347,8 @@ void QgsMapCanvas::setLayersPrivate( const QList<QgsMapLayer *> &layers )
 
   mSettings.setLayers( layers );
 
-  Q_FOREACH ( QgsMapLayer *layer, layers )
+  const auto constLayers = layers;
+  for ( QgsMapLayer *layer : constLayers )
   {
     if ( !layer )
       continue;
@@ -387,7 +389,7 @@ void QgsMapCanvas::setDestinationCrs( const QgsCoordinateReferenceSystem &crs )
     }
     catch ( QgsCsException &e )
     {
-      Q_UNUSED( e );
+      Q_UNUSED( e )
       QgsDebugMsg( QStringLiteral( "Transform error caught: %1" ).arg( e.what() ) );
     }
   }
@@ -598,7 +600,8 @@ void QgsMapCanvas::rendererJobFinished()
   mMapUpdateTimer.stop();
 
   // TODO: would be better to show the errors in message bar
-  Q_FOREACH ( const QgsMapRendererJob::Error &error, mJob->errors() )
+  const auto constErrors = mJob->errors();
+  for ( const QgsMapRendererJob::Error &error : constErrors )
   {
     QgsMessageLog::logMessage( error.layerID + " :: " + error.message, tr( "Rendering" ) );
   }
@@ -1873,7 +1876,7 @@ void QgsMapCanvas::setRenderFlag( bool flag )
 #if 0
 void QgsMapCanvas::connectNotify( const char *signal )
 {
-  Q_UNUSED( signal );
+  Q_UNUSED( signal )
   QgsDebugMsg( "QgsMapCanvas connected to " + QString( signal ) );
 } //connectNotify
 #endif
@@ -1959,7 +1962,7 @@ void QgsMapCanvas::panActionEnd( QPoint releasePoint )
 
 void QgsMapCanvas::panAction( QMouseEvent *e )
 {
-  Q_UNUSED( e );
+  Q_UNUSED( e )
 
   // move all map canvas items
   moveCanvasContents();
@@ -2117,7 +2120,13 @@ void QgsMapCanvas::writeProject( QDomDocument &doc )
 
   // store canvas expression context
   QDomElement scopeElement = doc.createElement( QStringLiteral( "expressionContextScope" ) );
-  mExpressionContextScope.writeXml( scopeElement, doc, QgsReadWriteContext() );
+  QgsExpressionContextScope tmpScope( mExpressionContextScope );
+  tmpScope.removeVariable( QStringLiteral( "atlas_featurenumber" ) );
+  tmpScope.removeVariable( QStringLiteral( "atlas_pagename" ) );
+  tmpScope.removeVariable( QStringLiteral( "atlas_feature" ) );
+  tmpScope.removeVariable( QStringLiteral( "atlas_featureid" ) );
+  tmpScope.removeVariable( QStringLiteral( "atlas_geometry" ) );
+  tmpScope.writeXml( scopeElement, doc, QgsReadWriteContext() );
   mapcanvasNode.appendChild( scopeElement );
 
   // TODO: store only units, extent, projections, dest CRS

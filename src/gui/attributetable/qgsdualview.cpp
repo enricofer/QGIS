@@ -131,7 +131,8 @@ void QgsDualView::columnBoxInit()
   mFeatureListPreviewButton->addAction( mActionExpressionPreview );
   mFeatureListPreviewButton->addAction( mActionPreviewColumnsMenu );
 
-  Q_FOREACH ( const QgsField &field, fields )
+  const auto constFields = fields;
+  for ( const QgsField &field : constFields )
   {
     int fieldIndex = mLayer->fields().lookupField( field.name() );
     if ( fieldIndex == -1 )
@@ -564,7 +565,8 @@ void QgsDualView::viewWillShowContextMenu( QMenu *menu, const QModelIndex &atInd
     QAction *a = menu->addAction( tr( "Run Layer Action" ) );
     a->setEnabled( false );
 
-    Q_FOREACH ( const QgsAction &action, actions )
+    const auto constActions = actions;
+    for ( const QgsAction &action : constActions )
     {
       if ( !action.runable() )
         continue;
@@ -584,7 +586,8 @@ void QgsDualView::viewWillShowContextMenu( QMenu *menu, const QModelIndex &atInd
     //add a separator between user defined and standard actions
     menu->addSeparator();
 
-    Q_FOREACH ( QgsMapLayerAction *action, registeredActions )
+    const auto constRegisteredActions = registeredActions;
+    for ( QgsMapLayerAction *action : constRegisteredActions )
     {
       QgsAttributeTableMapLayerAction *a = new QgsAttributeTableMapLayerAction( action->text(), this, action, sourceIndex );
       menu->addAction( action->text(), a, &QgsAttributeTableMapLayerAction::execute );
@@ -872,8 +875,8 @@ void QgsDualView::extentChanged()
 
 void QgsDualView::featureFormAttributeChanged( const QString &attribute, const QVariant &value, bool attributeChanged )
 {
-  Q_UNUSED( attribute );
-  Q_UNUSED( value );
+  Q_UNUSED( attribute )
+  Q_UNUSED( value )
   if ( attributeChanged )
     mFeatureList->setCurrentFeatureEdited( true );
 }

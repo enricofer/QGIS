@@ -89,7 +89,7 @@ namespace QgsWfs
                         const QString &version, const QgsServerRequest &request,
                         QgsServerResponse &response )
   {
-    Q_UNUSED( version );
+    Q_UNUSED( version )
 
     mRequestParameters = request.parameters();
     mWfsParameters = QgsWfsParameters( QUrlQuery( request.url() ) );
@@ -170,19 +170,20 @@ namespace QgsWfs
           }
           catch ( QgsException &cse )
           {
-            Q_UNUSED( cse );
+            Q_UNUSED( cse )
             requestRect = QgsRectangle( -180.0, -90.0, 180.0, 90.0 );
           }
         }
       }
     }
 
-    QgsAccessControl *accessControl = serverIface->accessControls();
-
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
+    QgsAccessControl *accessControl = serverIface->accessControls();
     //scoped pointer to restore all original layer filters (subsetStrings) when pointer goes out of scope
     //there's LOTS of potential exit paths here, so we avoid having to restore the filters manually
     std::unique_ptr< QgsOWSServerFilterRestorer > filterRestorer( new QgsOWSServerFilterRestorer() );
+#else
+    ( void )serverIface;
 #endif
 
     // features counters
@@ -366,7 +367,7 @@ namespace QgsWfs
         }
         catch ( QgsException &cse )
         {
-          Q_UNUSED( cse );
+          Q_UNUSED( cse )
         }
         if ( onlyOneLayer )
         {
@@ -722,7 +723,7 @@ namespace QgsWfs
             }
             catch ( QgsException &cse )
             {
-              Q_UNUSED( cse );
+              Q_UNUSED( cse )
             }
           }
         }
@@ -1064,7 +1065,7 @@ namespace QgsWfs
           }
           catch ( QgsException &cse )
           {
-            Q_UNUSED( cse );
+            Q_UNUSED( cse )
           }
         }
         // EPSG:4326 max extent is -180, -90, 180, 90
@@ -1231,7 +1232,7 @@ namespace QgsWfs
       QString id = QStringLiteral( "%1.%2" ).arg( params.typeName, FID_TO_STRING( feat->id() ) );
       //QgsJsonExporter force transform geometry to ESPG:4326
       //and the RFC 7946 GeoJSON specification recommends limiting coordinate precision to 6
-      //Q_UNUSED( prec );
+      //Q_UNUSED( prec )
 
       //copy feature so we can modify its geometry as required
       QgsFeature f( *feat );
@@ -1284,7 +1285,7 @@ namespace QgsWfs
         }
         catch ( QgsCsException &cse )
         {
-          Q_UNUSED( cse );
+          Q_UNUSED( cse )
         }
 
         QDomElement geomElem = doc.createElement( QStringLiteral( "qgs:geometry" ) );
@@ -1385,7 +1386,7 @@ namespace QgsWfs
         }
         catch ( QgsCsException &cse )
         {
-          Q_UNUSED( cse );
+          Q_UNUSED( cse )
         }
 
         QDomElement geomElem = doc.createElement( QStringLiteral( "qgs:geometry" ) );

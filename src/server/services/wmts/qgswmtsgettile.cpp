@@ -27,18 +27,16 @@ namespace QgsWmts
                      const QString &version, const QgsServerRequest &request,
                      QgsServerResponse &response )
   {
-    Q_UNUSED( version );
+    Q_UNUSED( version )
     const QgsWmtsParameters params( QUrlQuery( request.url() ) );
 
     // WMS query
     QUrlQuery query = translateWmtsParamToWmsQueryItem( QStringLiteral( "GetMap" ), params, project, serverIface );
 
     // Get cached image
-    QgsAccessControl *accessControl = nullptr;
-    QgsServerCacheManager *cacheManager = nullptr;
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
-    accessControl = serverIface->accessControls();
-    cacheManager = serverIface->cacheManager();
+    QgsAccessControl *accessControl = serverIface->accessControls();
+    QgsServerCacheManager *cacheManager = serverIface->cacheManager();
     if ( cacheManager )
     {
       QgsWmtsParameters::Format f = params.format();
