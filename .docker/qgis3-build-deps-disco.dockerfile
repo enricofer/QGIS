@@ -1,4 +1,4 @@
-FROM      ubuntu:18.10
+FROM      ubuntu:19.04
 MAINTAINER Denis Rouzaud <denis@opengis.ch>
 
 LABEL Description="Docker container with QGIS dependencies" Vendor="QGIS.org" Version="1.0"
@@ -11,7 +11,7 @@ LABEL Description="Docker container with QGIS dependencies" Vendor="QGIS.org" Ve
 RUN  apt-get update \
   && apt-get install -y software-properties-common \
   && apt-get update \
-  && apt-get install -y \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-transport-https \
     bison \
     ca-certificates \

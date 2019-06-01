@@ -209,6 +209,13 @@ void TestQgsCoordinateReferenceSystem::fromEpsgId()
   QCOMPARE( myCrs.srsid(), GEOCRS_ID );
   myCrs = QgsCoordinateReferenceSystem::fromEpsgId( -999 );
   QVERIFY( !myCrs.isValid() );
+
+  // using an ESRI: code. This worked in pre-proj 6 builds, so we need to keep compatibility
+  myCrs = QgsCoordinateReferenceSystem::fromEpsgId( 54030 );
+  QVERIFY( myCrs.isValid() );
+#if PROJ_VERSION_MAJOR>=6
+  QCOMPARE( myCrs.authid(), QStringLiteral( "ESRI:54030" ) );
+#endif
 }
 void TestQgsCoordinateReferenceSystem::createFromOgcWmsCrs()
 {
@@ -502,6 +509,9 @@ void TestQgsCoordinateReferenceSystem::srsIdCache()
 void TestQgsCoordinateReferenceSystem::createFromProj4()
 {
   QgsCoordinateReferenceSystem myCrs;
+  QVERIFY( !myCrs.createFromProj4( QString() ) );
+  QVERIFY( !myCrs.isValid() );
+
   QVERIFY( myCrs.createFromProj4( GEOPROJ4 ) );
   debugPrint( myCrs );
   QVERIFY( myCrs.isValid() );
@@ -516,6 +526,10 @@ void TestQgsCoordinateReferenceSystem::fromProj4()
   QCOMPARE( myCrs.srsid(), GEOCRS_ID );
   myCrs = QgsCoordinateReferenceSystem::fromProj4( QString() );
   QVERIFY( !myCrs.isValid() );
+
+
+  myCrs = QgsCoordinateReferenceSystem::fromProj4( "+proj=utm +zone=36 +south +a=6378249.145 +b=6356514.966398753 +towgs84=-143,-90,-294,0,0,0,0 +units=m +no_defs" );
+  QCOMPARE( myCrs.authid(), QStringLiteral( "EPSG:20936" ) );
 }
 
 void TestQgsCoordinateReferenceSystem::proj4Cache()
@@ -620,6 +634,19 @@ void TestQgsCoordinateReferenceSystem::readWriteXml()
   QDomDocument document( "test" );
   QDomElement node = document.createElement( QStringLiteral( "crs" ) );
   document.appendChild( node );
+
+  // start with invalid node
+  QgsCoordinateReferenceSystem badCrs;
+  QVERIFY( !badCrs.readXml( node ) );
+  QVERIFY( !badCrs.isValid() );
+  QDomElement badSrsElement  = document.createElement( QStringLiteral( "spatialrefsys" ) );
+  QDomElement badNode = document.createElement( QStringLiteral( "crs" ) );
+  document.appendChild( badNode );
+  badNode.appendChild( badSrsElement );
+  // should return true, because it's ok to write/read invalid crs to xml
+  QVERIFY( badCrs.readXml( badNode ) );
+  QVERIFY( !badCrs.isValid() );
+
   QVERIFY( myCrs.writeXml( node, document ) );
   QgsCoordinateReferenceSystem myCrs2;
   QVERIFY( myCrs2.readXml( node ) );

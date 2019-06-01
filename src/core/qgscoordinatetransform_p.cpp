@@ -52,11 +52,14 @@ QgsProjContextStore::~QgsProjContextStore()
 
 #endif
 
+Q_NOWARN_DEPRECATED_PUSH // because of deprecated members
 QgsCoordinateTransformPrivate::QgsCoordinateTransformPrivate()
 {
   setFinder();
 }
+Q_NOWARN_DEPRECATED_POP
 
+Q_NOWARN_DEPRECATED_PUSH // because of deprecated members
 QgsCoordinateTransformPrivate::QgsCoordinateTransformPrivate( const QgsCoordinateReferenceSystem &source,
     const QgsCoordinateReferenceSystem &destination,
     const QgsCoordinateTransformContext &context )
@@ -66,7 +69,9 @@ QgsCoordinateTransformPrivate::QgsCoordinateTransformPrivate( const QgsCoordinat
   setFinder();
   calculateTransforms( context );
 }
+Q_NOWARN_DEPRECATED_POP
 
+Q_NOWARN_DEPRECATED_PUSH // because of deprecated members
 QgsCoordinateTransformPrivate::QgsCoordinateTransformPrivate( const QgsCoordinateReferenceSystem &source, const QgsCoordinateReferenceSystem &destination, int sourceDatumTransform, int destDatumTransform )
   : mSourceCRS( source )
   , mDestCRS( destination )
@@ -90,12 +95,15 @@ QgsCoordinateTransformPrivate::QgsCoordinateTransformPrivate( const QgsCoordinat
   //must reinitialize to setup mSourceProjection and mDestinationProjection
   initialize();
 }
+Q_NOWARN_DEPRECATED_POP
 
+Q_NOWARN_DEPRECATED_PUSH
 QgsCoordinateTransformPrivate::~QgsCoordinateTransformPrivate()
 {
   // free the proj objects
   freeProj();
 }
+Q_NOWARN_DEPRECATED_POP
 
 bool QgsCoordinateTransformPrivate::checkValidity()
 {
@@ -135,12 +143,14 @@ bool QgsCoordinateTransformPrivate::initialize()
 
   mIsValid = true;
 
+  // init the projections (destination and source)
+  freeProj();
+
+#if PROJ_VERSION_MAJOR < 6
+  Q_NOWARN_DEPRECATED_PUSH
   int sourceDatumTransform = mSourceDatumTransform;
   int destDatumTransform = mDestinationDatumTransform;
   bool useDefaultDatumTransform = ( sourceDatumTransform == - 1 && destDatumTransform == -1 );
-
-  // init the projections (destination and source)
-  freeProj();
 
   mSourceProjString = mSourceCRS.toProj4();
   if ( !useDefaultDatumTransform )
@@ -166,6 +176,8 @@ bool QgsCoordinateTransformPrivate::initialize()
   {
     addNullGridShifts( mSourceProjString, mDestProjString, sourceDatumTransform, destDatumTransform );
   }
+  Q_NOWARN_DEPRECATED_POP
+#endif
 
   // create proj projections for current thread
   ProjData res = threadLocalProjData();
@@ -242,9 +254,15 @@ bool QgsCoordinateTransformPrivate::initialize()
 void QgsCoordinateTransformPrivate::calculateTransforms( const QgsCoordinateTransformContext &context )
 {
   // recalculate datum transforms from context
+#if PROJ_VERSION_MAJOR >= 6
+  mProjCoordinateOperation = context.calculateCoordinateOperation( mSourceCRS, mDestCRS );
+#else
+  Q_NOWARN_DEPRECATED_PUSH
   QgsDatumTransform::TransformPair transforms = context.calculateDatumTransforms( mSourceCRS, mDestCRS );
   mSourceDatumTransform = transforms.sourceTransformId;
   mDestinationDatumTransform = transforms.destinationTransformId;
+  Q_NOWARN_DEPRECATED_POP
+#endif
 }
 
 ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
@@ -283,10 +301,40 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
 
 #if PROJ_VERSION_MAJOR>=6
 #if PROJ_VERSION_MINOR>=1
-  QgsProjUtils::proj_pj_unique_ptr transform( proj_create_crs_to_crs( context, mSourceProjString.toUtf8().constData(), mDestProjString.toUtf8().constData(), nullptr ) );
+  QgsProjUtils::proj_pj_unique_ptr transform;
+  if ( !mProjCoordinateOperation.isEmpty() )
+    transform.reset( proj_create( context, mProjCoordinateOperation.toUtf8().constData() ) );
+
+  if ( !transform ) // fallback on default proj pathway
+  {
+    if ( !mSourceCRS.projObject() || ! mDestCRS.projObject() )
+      return nullptr;
+
+    PJ_OPERATION_FACTORY_CONTEXT *operationContext = proj_create_operation_factory_context( context, nullptr );
+
+    // See https://lists.osgeo.org/pipermail/proj/2019-May/008604.html
+    proj_operation_factory_context_set_spatial_criterion( context, operationContext, PROJ_SPATIAL_CRITERION_PARTIAL_INTERSECTION );
+
+    if ( PJ_OBJ_LIST *ops = proj_create_operations( context, mSourceCRS.projObject(), mDestCRS.projObject(), operationContext ) )
+    {
+      int count = proj_list_get_count( ops );
+      if ( count > 0 )
+        transform.reset( proj_list_get( context, ops, 0 ) );
+      proj_list_destroy( ops );
+    }
+    proj_operation_factory_context_destroy( operationContext );
+  }
+
+  if ( !transform )
+  {
+    // ouch!
+    return nullptr;
+  }
+
   // transform may have either the source or destination CRS using swapped axis order. For QGIS, we ALWAYS need regular x/y axis order
   ProjData res = proj_normalize_for_visualization( context, transform.get() );
   mProjProjections.insert( reinterpret_cast< uintptr_t>( context ), res );
+
 #else
   // proj 6.0 does not have proj_normalize_for_visualization - we have to handle this manually and inefficiently!
   ProjData res = proj_create_crs_to_crs( context, mSourceProjString.toUtf8().constData(), mDestProjString.toUtf8().constData(), nullptr );
@@ -294,8 +342,10 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
 #endif
 #else
 #ifdef USE_THREAD_LOCAL
+  Q_NOWARN_DEPRECATED_PUSH
   QPair<projPJ, projPJ> res = qMakePair( pj_init_plus_ctx( mProjContext.get(), mSourceProjString.toUtf8() ),
                                          pj_init_plus_ctx( mProjContext.get(), mDestProjString.toUtf8() ) );
+  Q_NOWARN_DEPRECATED_POP
   mProjProjections.insert( reinterpret_cast< uintptr_t>( mProjContext.get() ), res );
 #else
   QPair<projPJ, projPJ> res = qMakePair( pj_init_plus_ctx( pContext, mSourceProjString.toUtf8() ),
@@ -306,6 +356,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
   return res;
 }
 
+#if PROJ_VERSION_MAJOR<6
 QString QgsCoordinateTransformPrivate::stripDatumTransform( const QString &proj4 ) const
 {
   QStringList parameterSplit = proj4.split( '+', QString::SkipEmptyParts );
@@ -352,6 +403,7 @@ void QgsCoordinateTransformPrivate::addNullGridShifts( QString &srcProjString, Q
     destProjString += QLatin1String( " +nadgrids=@null" );
   }
 }
+#endif
 
 void QgsCoordinateTransformPrivate::setFinder()
 {
